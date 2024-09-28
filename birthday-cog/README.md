@@ -14,15 +14,12 @@ This cog for [Red-DiscordBot](https://github.com/Cog-Creators/Red-DiscordBot) al
 To install this cog, follow these steps:
 
 1. Ensure you have Red-DiscordBot V3 installed.
-2. Install the required dependencies:
    ```
-   [p]pip install pytz
-   ```
-3. Add the repository to your bot:
+2. Add the repository to your bot:
    ```
    [p]repo add birthday-cog https://github.com/yourusername/birthday-cog
    ```
-4. Install the cog:
+3. Install the cog:
    ```
    [p]cog install birthday-cog birthday
    ```

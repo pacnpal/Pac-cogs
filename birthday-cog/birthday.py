@@ -3,7 +3,6 @@ from redbot.core import commands, checks
 from redbot.core.bot import Red
 from redbot.core.config import Config
 from datetime import datetime, time, timedelta
-import pytz
 
 class Birthday(commands.Cog):
     """A cog to assign a birthday role until midnight Pacific Time."""
@@ -71,14 +70,16 @@ class Birthday(commands.Cog):
         await ctx.send(f"🎉 Happy Birthday, {member.mention}! You've been given the {birthday_role.name} role until midnight Pacific Time.")
 
         # Schedule role removal
-        pacific_tz = pytz.timezone('US/Pacific')
-        now = datetime.now(pacific_tz)
-        midnight = pacific_tz.localize(datetime.combine(now.date() + timedelta(days=1), time.min))
-        
+        utc_now = datetime.utcnow()
+        pacific_offset = timedelta(hours=-8)  # Pacific Standard Time offset
+        pacific_now = utc_now + pacific_offset
+        pacific_midnight = datetime.combine(pacific_now.date() + timedelta(days=1), time.min)
+        utc_midnight = pacific_midnight - pacific_offset
+
         if ctx.guild.id in self.birthday_tasks:
             self.birthday_tasks[ctx.guild.id].cancel()
         
-        self.birthday_tasks[ctx.guild.id] = self.bot.loop.create_task(self.remove_birthday_role(ctx.guild, member, birthday_role, midnight))
+        self.birthday_tasks[ctx.guild.id] = self.bot.loop.create_task(self.remove_birthday_role(ctx.guild, member, birthday_role, utc_midnight))
 
     async def remove_birthday_role(self, guild, member, role, when):
         """Remove the birthday role at the specified time."""
