@@ -4,4 +4,4 @@ __red_end_user_data_statement__ = "This allows users with the set roles to give 
 
 
 def setup(bot):
-    bot.add_cog(Birthday(bot))
+    await bot.add_cog(Birthday(bot))
