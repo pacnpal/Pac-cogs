@@ -5,14 +5,5 @@
     "install_msg": "Thank you for installing the Pac-cogs repo!",
     "name": "Pac-cogs",
     "short": "Very cool cogs!",
-    "description": "Right now, just a birthday cog.",
-    "tags": [
-        "birthday",
-        "role",
-        "temporary"
-    ],
-    "requirements": [],
-    "min_bot_version": "3.5.0",
-    "max_bot_version": "3.9.9",
-    "type": "COG"
+    "description": "Right now, just a birthday cog."
 }
