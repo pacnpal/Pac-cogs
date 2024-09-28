@@ -20,7 +20,7 @@ To install this cog, follow these steps:
    ```
 3. Install the cog:
    ```
-   [p]cog install birthday-cog birthday
+   [p]cog install Pac-cogs birthday
    ```
 
 ## Usage
