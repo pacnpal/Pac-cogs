@@ -90,6 +90,3 @@ class Birthday(commands.Cog):
             pass  # If we can't remove the role, we'll just let it be
         finally:
             del self.birthday_tasks[guild.id]
-
-async def setup(bot):
-    await bot.add_cog(Birthday(bot))
