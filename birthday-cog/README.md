@@ -16,7 +16,7 @@ To install this cog, follow these steps:
 1. Ensure you have Red-DiscordBot V3 installed.
 2. Add the repository to your bot:
    ```
-   [p]repo add birthday-cog https://github.com/pacnpal/birthday-cog
+   [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
    ```
 3. Install the cog:
    ```
