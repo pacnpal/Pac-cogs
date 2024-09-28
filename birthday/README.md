@@ -15,10 +15,13 @@ To install this cog, follow these steps:
 
 1. Ensure you have Red-DiscordBot V3 installed.
 2. Add the repository to your bot:
+
    ```
    [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
    ```
+
 3. Install the cog:
+
    ```
    [p]cog install Pac-cogs birthday
    ```
@@ -26,6 +29,7 @@ To install this cog, follow these steps:
 ## Usage
 
 After installation, load the cog with:
+
 ```
 [p]load birthday
 ```
@@ -35,10 +39,13 @@ After installation, load the cog with:
 Before the cog can be used, an admin needs to set it up:
 
 1. Set the birthday role:
+
    ```
    [p]birthdayset role @BirthdayRole
    ```
+
 2. Add roles that can use the birthday command:
+
    ```
    [p]birthdayset addrole @AllowedRole
    ```
@@ -46,6 +53,7 @@ Before the cog can be used, an admin needs to set it up:
 ### Using the Birthday Command
 
 Users with allowed roles can assign the birthday role to a member:
+
 ```
 [p]birthday @User
 ```
