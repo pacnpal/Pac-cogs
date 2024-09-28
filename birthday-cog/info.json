@@ -1,6 +1,6 @@
 {
     "author": [
-        "Your Name"
+        "PacNPal"
     ],
     "install_msg": "Thank you for installing the Birthday cog! Make sure to set up the birthday role and allowed roles using `[p]birthdayset`.",
     "name": "Birthday",
