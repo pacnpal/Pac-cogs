@@ -95,6 +95,8 @@ class Birthday(commands.Cog):
         birthday_channel_id = await self.config.guild(ctx.guild).birthday_channel()
         if birthday_channel_id:
             channel = self.bot.get_channel(birthday_channel_id)
+            if not channel:  # If the set channel doesn't exist anymore
+                channel = ctx.channel
         else:
             channel = ctx.channel
 

@@ -44,6 +44,7 @@ Before using the cog, you need to set it up:
    ```
    [p]birthdayset channel #birthdays
    ```
+   If not set, the birthday message will be sent in the channel where the command is used.
 
 ## Usage
 
@@ -60,7 +61,7 @@ This will assign the birthday role to the user and send a celebratory message wi
 - Sends a celebratory message with random cake (or pie) emojis
 - Automatically removes the birthday role at midnight
 - Configurable timezone for role expiration
-- Option to set a specific channel for birthday announcements
+- Option to set a specific channel for birthday announcements (defaults to the channel where the command is used)
 - Restricts usage of the birthday command to specified roles
 - Users can assign the birthday role without needing a role higher than it in the hierarchy
 
@@ -76,5 +77,3 @@ This will assign the birthday role to the user and send a celebratory message wi
 ## Support
 
 If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/pacnpal/Pac-cogs).
-
-Enjoy celebrating birthdays with your Discord community!
