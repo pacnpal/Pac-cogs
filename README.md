@@ -19,16 +19,16 @@ To install the cogs in this repository, follow these steps:
     [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
     ```
 
-3. Install the **birthday** cog:
+3. Install a cog:
 
     ```bash
-    [p]cog install Pac-cogs birthday
+    [p]cog install Pac-cogs <cog-name>
     ```
 
 4. Load the installed cog:
 
     ```bash
-    [p]load birthday
+    [p]load <cog-name>
     ```
 
 For more details on setting up and managing RedBot, visit the [RedBot documentation](https://docs.discord.red).
