@@ -8,14 +8,19 @@ To install this cog, follow these steps:
 
 1. Ensure you have Red-DiscordBot V3 installed.
 2. Add the repository to your bot:
+
    ```
    [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
    ```
+
 3. Install the Birthday cog:
+
    ```
    [p]cog install Pac-cogs birthday
    ```
+
 4. Load the cog:
+
    ```
    [p]load birthday
    ```
@@ -27,28 +32,37 @@ Replace `[p]` with your bot's prefix.
 Before using the cog, you need to set it up:
 
 1. Set the birthday role:
+
    ```
    [p]birthdayset role @Birthday
    ```
+
    **Note:** The bot's role must be above the birthday role in the server's role hierarchy, but users assigning the birthday role do not need to have a role above it.
 
 2. Add roles that can use the birthday command:
+
    ```
    [p]birthdayset addrole @Moderator
    ```
+
 3. (Optional) Set the timezone for role expiration:
+
    ```
    [p]birthdayset timezone America/New_York
    ```
+
 4. (Optional) Set a specific channel for birthday announcements:
+
    ```
    [p]birthdayset channel #birthdays
    ```
+
    If not set, the birthday message will be sent in the channel where the command is used.
 
 ## Usage
 
 To assign the birthday role to a user:
+
 ```
 [p]birthday @User
 ```
@@ -59,7 +73,7 @@ This will assign the birthday role to the user and send a celebratory message wi
 
 - Assigns a special birthday role to users
 - Sends a celebratory message with random cake (or pie) emojis
-- Automatically removes the birthday role at midnight
+- Automatically removes the birthday role at midnight, temporarily stores so tasks will complete even if cog is reloaded
 - Configurable timezone for role expiration
 - Option to set a specific channel for birthday announcements (defaults to the channel where the command is used)
 - Restricts usage of the birthday command to specified roles
