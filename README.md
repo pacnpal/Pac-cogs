@@ -1,6 +1,6 @@
 # Pac-cogs - Red Discord Bot Cogs Collection
 
-Welcome to **Pac-cogs**, a collection of custom cogs for [RedBot](https://github.com/Cog-Creators/Red-DiscordBot). These cogs are designed to add extra functionality to your RedBot instance on Discord.
+Welcome to **Pac-cogs**, a collection of custom cogs for [Red](https://github.com/Cog-Creators/Red-DiscordBot). These cogs are designed to add extra functionality to your RedBot instance on Discord.
 
 ## Cogs Overview
 
