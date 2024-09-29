@@ -1,4 +1,4 @@
-# Pac-cogs - RedBot Cogs Collection
+# Pac-cogs - Red Discord Bot Cogs Collection
 
 Welcome to **Pac-cogs**, a collection of custom cogs for [RedBot](https://github.com/Cog-Creators/Red-DiscordBot). These cogs are designed to add extra functionality to your RedBot instance on Discord.
 
@@ -12,8 +12,8 @@ Welcome to **Pac-cogs**, a collection of custom cogs for [RedBot](https://github
 
 To install the cogs in this repository, follow these steps:
 
-1. Ensure you have [RedBot](https://github.com/Cog-Creators/Red-DiscordBot) set up.
-2. Add this repository to your RedBot instance:
+1. Ensure you have [Red](https://github.com/Cog-Creators/Red-DiscordBot) set up.
+2. Add this repository to your Red instance:
 
     ```bash
     [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
@@ -31,4 +31,4 @@ To install the cogs in this repository, follow these steps:
     [p]load <cog-name>
     ```
 
-For more details on setting up and managing RedBot, visit the [RedBot documentation](https://docs.discord.red).
+For more details on setting up and managing Red, visit the [RedBot documentation](https://docs.discord.red).
