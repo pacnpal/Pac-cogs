@@ -31,4 +31,4 @@ To install the cogs in this repository, follow these steps:
     [p]load <cog-name>
     ```
 
-For more details on setting up and managing Red, visit the [RedBot documentation](https://docs.discord.red).
+For more details on setting up and managing Red, visit the [Red documentation](https://docs.discord.red).
