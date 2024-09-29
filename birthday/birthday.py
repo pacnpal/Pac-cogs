@@ -11,7 +11,7 @@ class Birthday(commands.Cog):
 
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
+        self.config = Config.get_conf(self, identifier=428eb4b6-de7f-45ba-8eda-a15c163f1c7d)
         default_guild = {
             "birthday_role": None,
             "allowed_roles": [],
