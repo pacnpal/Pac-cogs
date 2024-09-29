@@ -122,6 +122,31 @@ class Birthday(commands.Cog):
 
         await self.schedule_birthday_role_removal(ctx.guild, member, birthday_role, midnight)
 
+    @commands.command()
+    async def bdaycheck(self, ctx):
+        """Check the upcoming birthday role removal tasks."""
+        # Check if the user has permission to use this command
+        allowed_roles = await self.config.guild(ctx.guild).allowed_roles()
+        if not any(role.id in allowed_roles for role in ctx.author.roles):
+            return await ctx.send("You don't have permission to use this command.")
+
+        scheduled_tasks = await self.config.guild(ctx.guild).scheduled_tasks()
+        if not scheduled_tasks:
+            return await ctx.send("There are no scheduled tasks.")
+
+        message = "Upcoming birthday role removal tasks:\n"
+        for member_id, task_info in scheduled_tasks.items():
+            member = ctx.guild.get_member(int(member_id))
+            if not member:
+                continue
+            role = ctx.guild.get_role(task_info["role_id"])
+            if not role:
+                continue
+            remove_at = datetime.fromisoformat(task_info["remove_at"]).replace(tzinfo=ZoneInfo(await self.config.guild(ctx.guild).timezone()))
+            message += f"- {member.display_name} ({member.id}): {role.name} will be removed at {remove_at}\n"
+
+        await ctx.send(message)
+
     async def schedule_birthday_role_removal(self, guild, member, role, when):
         """Schedule the removal of the birthday role."""
         await self.config.guild(guild).scheduled_tasks.set_raw(str(member.id), value={
