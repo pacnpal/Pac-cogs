@@ -1,8 +1,6 @@
+import aiohttp
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-import aiohttp
-import asyncio
-import json
 
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):
@@ -15,46 +13,33 @@ class Overseerr(commands.Cog):
         }
         self.config.register_global(**default_global)
 
+    ### GROUP: SETTINGS COMMANDS ###
+
     @commands.group()
     @commands.admin()
     async def overseerr(self, ctx: commands.Context):
-        """Manage Overseerr settings."""
-        if ctx.invoked_subcommand is None:
-            return
+        """Base command group for Overseerr configuration."""
+        pass
 
-    @overseerr.command(name="seturl")
-    async def overseerr_seturl(self, ctx: commands.Context, url: str):
+    @overseerr.command()
+    async def url(self, ctx: commands.Context, url: str):
         """Set the Overseerr URL."""
         await self.config.overseerr_url.set(url)
-        await ctx.send("Overseerr URL has been set.")
+        await ctx.send(f"Overseerr URL set to: {url}")
 
-    @overseerr.command(name="setapikey")
-    async def overseerr_setapikey(self, ctx: commands.Context, api_key: str):
+    @overseerr.command()
+    async def apikey(self, ctx: commands.Context, api_key: str):
         """Set the Overseerr API key."""
         await self.config.overseerr_api_key.set(api_key)
         await ctx.send("Overseerr API key has been set.")
 
-    @overseerr.command(name="setadminrole")
-    async def overseerr_setadminrole(self, ctx: commands.Context, role_name: str):
+    @overseerr.command()
+    async def adminrole(self, ctx: commands.Context, role_name: str):
         """Set the admin role name for Overseerr approvals."""
         await self.config.admin_role_name.set(role_name)
-        await ctx.send(f"Admin role for Overseerr approvals set to {role_name}.")
+        await ctx.send(f"Admin role for Overseerr approvals set to: {role_name}")
 
-    async def get_media_status(self, media_id, media_type):
-        overseerr_url = await self.config.overseerr_url()
-        overseerr_api_key = await self.config.overseerr_api_key()
-        url = f"{overseerr_url}/api/v1/{'movie' if media_type == 'movie' else 'tv'}/{media_id}"
-        headers = {"X-Api-Key": overseerr_api_key}
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    status = "Available" if data.get('mediaInfo', {}).get('status') == 3 else "Not Available"
-                    if data.get('request'):
-                        status += " (Requested)"
-                    return status
-                return "Status Unknown"
+    ### REQUEST & APPROVAL COMMANDS ###
 
     @commands.command()
     async def request(self, ctx: commands.Context, *, query: str):
@@ -67,17 +52,26 @@ class Overseerr(commands.Cog):
             return
 
         search_url = f"{overseerr_url}/api/v1/search"
-        request_url = f"{overseerr_url}/api/v1/request"
-
         headers = {
             "X-Api-Key": overseerr_api_key,
             "Content-Type": "application/json"
         }
 
-        # Search for the movie or TV show
         async with aiohttp.ClientSession() as session:
             async with session.get(search_url, headers=headers, params={"query": query}) as resp:
-                search_results = await resp.json()
+                if resp.status != 200:
+                    await ctx.send(f"Error from Overseerr API: {resp.status}")
+                    return
+                
+                try:
+                    search_results = await resp.json()
+                except Exception as e:
+                    await ctx.send(f"Failed to parse JSON: {e}")
+                    return
+
+        if 'results' not in search_results:
+            await ctx.send(f"No results found for '{query}'. API Response: {search_results}")
+            return
 
         if not search_results['results']:
             await ctx.send(f"No results found for '{query}'.")
@@ -87,8 +81,10 @@ class Overseerr(commands.Cog):
         result_message = "Please choose a result by reacting with the corresponding number:\n\n"
         for i, result in enumerate(search_results['results'][:5], start=1):
             media_type = result['mediaType']
+            title = result['title']
+            release_date = result.get('releaseDate', 'N/A')
             status = await self.get_media_status(result['id'], media_type)
-            result_message += f"{i}. [{media_type.upper()}] {result['title']} ({result.get('releaseDate', 'N/A')}) - {status}\n"
+            result_message += f"{i}. [{media_type.upper()}] {title} ({release_date}) - {status}\n"
 
         result_msg = await ctx.send(result_message)
 
@@ -120,6 +116,7 @@ class Overseerr(commands.Cog):
             return
 
         # Make the request
+        request_url = f"{overseerr_url}/api/v1/request"
         request_data = {
             "mediaId": selected_result['id'],
             "mediaType": media_type
@@ -144,13 +141,12 @@ class Overseerr(commands.Cog):
 
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
-
+        
         if not overseerr_url or not overseerr_api_key:
             await ctx.send("Overseerr is not configured. Please ask an admin to set it up.")
             return
 
         approve_url = f"{overseerr_url}/api/v1/request/{request_id}/approve"
-
         headers = {
             "X-Api-Key": overseerr_api_key,
             "Content-Type": "application/json"
@@ -162,6 +158,24 @@ class Overseerr(commands.Cog):
                     await ctx.send(f"Request {request_id} has been approved!")
                 else:
                     await ctx.send(f"Failed to approve request {request_id}. Please check the request ID and try again.")
+
+    ### HELPER FUNCTION TO CHECK MEDIA STATUS ###
+    
+    async def get_media_status(self, media_id, media_type):
+        overseerr_url = await self.config.overseerr_url()
+        overseerr_api_key = await self.config.overseerr_api_key()
+        url = f"{overseerr_url}/api/v1/{'movie' if media_type == 'movie' else 'tv'}/{media_id}"
+        headers = {"X-Api-Key": overseerr_api_key}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    status = "Available" if data.get('mediaInfo', {}).get('status') == 3 else "Not Available"
+                    if data.get('request'):
+                        status += " (Requested)"
+                    return status
+                return "Status Unknown"
 
 def setup(bot: Red):
     bot.add_cog(Overseerr(bot))
