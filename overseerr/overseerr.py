@@ -6,7 +6,7 @@ import json
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=1234567890)
+        self.config = Config.get_conf(self, identifier=336473788746)
         default_global = {
             "overseerr_url": None,
             "overseerr_api_key": None,
