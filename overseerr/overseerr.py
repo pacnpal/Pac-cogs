@@ -20,7 +20,7 @@ class Overseerr(commands.Cog):
     async def overseerr(self, ctx: commands.Context):
         """Manage Overseerr settings."""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
+            return
 
     @overseerr.command(name="seturl")
     async def overseerr_seturl(self, ctx: commands.Context, url: str):
