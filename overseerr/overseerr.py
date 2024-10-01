@@ -1,12 +1,13 @@
 from redbot.core import commands, Config
 from redbot.core.bot import Red
+import aiohttp
 import asyncio
 import json
 
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):
         self.bot = bot
-        self.config = Config.get_conf(self, identifier=336473788746)
+        self.config = Config.get_conf(self, identifier=1234567890)
         default_global = {
             "overseerr_url": None,
             "overseerr_api_key": None,
@@ -43,23 +44,24 @@ class Overseerr(commands.Cog):
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
         url = f"{overseerr_url}/api/v1/{'movie' if media_type == 'movie' else 'tv'}/{media_id}"
-        headers = {"X-Api-key": overseerr_api_key}
-        
-        async with self.bot.session.get(url, headers=headers) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                status = "Available" if data.get('mediaInfo', {}).get('status') == 3 else "Not Available"
-                if data.get('request'):
-                    status += " (Requested)"
-                return status
-            return "Status Unknown"
+        headers = {"X-Api-Key": overseerr_api_key}
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    status = "Available" if data.get('mediaInfo', {}).get('status') == 3 else "Not Available"
+                    if data.get('request'):
+                        status += " (Requested)"
+                    return status
+                return "Status Unknown"
 
     @commands.command()
     async def request(self, ctx: commands.Context, *, query: str):
         """Search and request a movie or TV show on Overseerr."""
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
-        
+
         if not overseerr_url or not overseerr_api_key:
             await ctx.send("Overseerr is not configured. Please ask an admin to set it up.")
             return
@@ -73,8 +75,9 @@ class Overseerr(commands.Cog):
         }
 
         # Search for the movie or TV show
-        async with self.bot.session.get(search_url, headers=headers, params={"query": query}) as resp:
-            search_results = await resp.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(search_url, headers=headers, params={"query": query}) as resp:
+                search_results = await resp.json()
 
         if not search_results['results']:
             await ctx.send(f"No results found for '{query}'.")
@@ -122,13 +125,14 @@ class Overseerr(commands.Cog):
             "mediaType": media_type
         }
 
-        async with self.bot.session.post(request_url, headers=headers, json=request_data) as resp:
-            if resp.status == 200:
-                response_data = await resp.json()
-                request_id = response_data.get('id')
-                await ctx.send(f"Successfully requested {media_type} '{selected_result['title']}'! Request ID: {request_id}")
-            else:
-                await ctx.send(f"Failed to request {media_type} '{selected_result['title']}'. Please try again later.")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(request_url, headers=headers, json=request_data) as resp:
+                if resp.status == 200:
+                    response_data = await resp.json()
+                    request_id = response_data.get('id')
+                    await ctx.send(f"Successfully requested {media_type} '{selected_result['title']}'! Request ID: {request_id}")
+                else:
+                    await ctx.send(f"Failed to request {media_type} '{selected_result['title']}'. Please try again later.")
 
     @commands.command()
     async def approve(self, ctx: commands.Context, request_id: int):
@@ -140,7 +144,7 @@ class Overseerr(commands.Cog):
 
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
-        
+
         if not overseerr_url or not overseerr_api_key:
             await ctx.send("Overseerr is not configured. Please ask an admin to set it up.")
             return
@@ -152,11 +156,12 @@ class Overseerr(commands.Cog):
             "Content-Type": "application/json"
         }
 
-        async with self.bot.session.post(approve_url, headers=headers) as resp:
-            if resp.status == 200:
-                await ctx.send(f"Request {request_id} has been approved!")
-            else:
-                await ctx.send(f"Failed to approve request {request_id}. Please check the request ID and try again.")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(approve_url, headers=headers) as resp:
+                if resp.status == 200:
+                    await ctx.send(f"Request {request_id} has been approved!")
+                else:
+                    await ctx.send(f"Failed to approve request {request_id}. Please check the request ID and try again.")
 
 def setup(bot: Red):
     bot.add_cog(Overseerr(bot))
