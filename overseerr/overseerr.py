@@ -1,6 +1,9 @@
 import aiohttp
 from redbot.core import commands, Config
 from redbot.core.bot import Red
+import asyncio  # Import asyncio
+import json
+import urllib.parse  # Import for encoding URLs
 
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):
