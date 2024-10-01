@@ -24,6 +24,7 @@ class Overseerr(commands.Cog):
     @overseerr.command()
     async def url(self, ctx: commands.Context, url: str):
         """Set the Overseerr URL."""
+        url = url.rstrip('/')
         await self.config.overseerr_url.set(url)
         await ctx.send(f"Overseerr URL set to: {url}")
 
