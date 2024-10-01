@@ -14,17 +14,27 @@ class Overseerr(commands.Cog):
         }
         self.config.register_global(**default_global)
 
-    @commands.command()
+    @commands.group()
     @commands.admin()
-    async def setoverseerr(self, ctx: commands.Context, url: str, api_key: str):
-        """Set the Overseerr URL and API key."""
-        await self.config.overseerr_url.set(url)
-        await self.config.overseerr_api_key.set(api_key)
-        await ctx.send("Overseerr URL and API key have been set.")
+    async def overseerr(self, ctx: commands.Context):
+        """Manage Overseerr settings."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
-    @commands.command()
-    @commands.admin()
-    async def setadminrole(self, ctx: commands.Context, role_name: str):
+    @overseerr.command(name="seturl")
+    async def overseerr_seturl(self, ctx: commands.Context, url: str):
+        """Set the Overseerr URL."""
+        await self.config.overseerr_url.set(url)
+        await ctx.send("Overseerr URL has been set.")
+
+    @overseerr.command(name="setapikey")
+    async def overseerr_setapikey(self, ctx: commands.Context, api_key: str):
+        """Set the Overseerr API key."""
+        await self.config.overseerr_api_key.set(api_key)
+        await ctx.send("Overseerr API key has been set.")
+
+    @overseerr.command(name="setadminrole")
+    async def overseerr_setadminrole(self, ctx: commands.Context, role_name: str):
         """Set the admin role name for Overseerr approvals."""
         await self.config.admin_role_name.set(role_name)
         await ctx.send(f"Admin role for Overseerr approvals set to {role_name}.")
