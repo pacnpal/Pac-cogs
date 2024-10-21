@@ -38,7 +38,7 @@ Before using the cog, you'll need to configure it:
     ```
 2. Set the Overseerr API key:
     ```
-    [p]setoverseerr api_key your_api_key
+    [p]setoverseerr apikey your_api_key
     ```
 4. Set the admin role allowed to approve requests:
     ```
