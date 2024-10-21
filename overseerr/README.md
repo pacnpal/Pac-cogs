@@ -2,6 +2,59 @@
 
 This cog allows interaction with [Overseerr](https://overseerr.dev/) directly from Discord. Users can search for movies or TV shows, request them, and have admins approve requests. It's designed for servers with Overseerr set up for managing media requests.
 
+## Installation
+
+To install this cog, follow these steps:
+
+1. Ensure you have Red-DiscordBot V3 installed.
+2. Add the repository to your bot:
+
+   ```
+   [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
+   ```
+
+3. Install the Overseerr cog:
+
+   ```
+   [p]cog install Pac-cogs overseerr
+   ```
+
+4. Load the cog:
+
+   ```
+   [p]load overseerr
+   ```
+
+Replace `[p]` with your bot's prefix.
+
+
+## Setup
+
+Before using the cog, you'll need to configure it:
+
+1. Set the Overseerr URL and API key:
+    ```
+    [p]setoverseerr https://your.overseerr.instance/api/v3 your_api_key
+    ```
+2. Set the admin role allowed to approve requests:
+    ```
+    [p]setadminrole @OverseerrAdmins
+    ```
+
+## Usage
+
+Users can request movies or TV shows using the following command:
+
+```
+[p]request Movie/TV Show Name
+```
+
+Admins can approve requests using:
+
+```
+[p]approve request_id
+```
+
 ## Features
 - **Set Overseerr URL and API key**: Admins can configure the Overseerr URL and API key for API interactions.
 - **Search and request media**: Users can search for movies or TV shows and request them directly in Discord.
@@ -28,8 +81,7 @@ This cog allows interaction with [Overseerr](https://overseerr.dev/) directly fr
   - Approve a media request by its request ID (requires the admin role).
   - Example: `[p]approve 123`
 
-## Installation
 
-1. Add the cog to your Red instance:
-   ```bash
-   [p]load overseerr
+## Support
+
+If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/pacnpal/Pac-cogs).

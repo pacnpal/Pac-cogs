@@ -7,6 +7,7 @@ Welcome to **Pac-cogs**, a collection of custom cogs for [Red](https://github.co
 | Cog Name   | Description                                      |
 |------------|--------------------------------------------------|
 | **Birthday** | Assigns a special birthday role to users and sends a celebratory message with random cake or pie emojis. Automatically removes the birthday role at midnight, with a configurable timezone. Offers the option to set a specific announcement channel and restricts usage to specified roles. Users can assign the role without needing a higher role in the hierarchy. |
+| **Overseerr** | Allows interaction with [Overseerr](https://overseerr.dev/) directly from Discord. Users can search for movies or TV shows, request them, and have admins approve requests. It's designed for servers with Overseerr set up for managing media requests. |
 
 ## Installation
 
