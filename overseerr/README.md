@@ -34,9 +34,13 @@ Before using the cog, you'll need to configure it:
 
 1. Set the Overseerr URL and API key:
     ```
-    [p]setoverseerr https://your.overseerr.instance/api/v3 your_api_key
+    [p]setoverseerr url https://your.overseerr.instance 
     ```
-2. Set the admin role allowed to approve requests:
+2. Set the Overseerr API key:
+    ```
+    [p]setoverseerr api_key your_api_key
+    ```
+4. Set the admin role allowed to approve requests:
     ```
     [p]setadminrole @OverseerrAdmins
     ```
