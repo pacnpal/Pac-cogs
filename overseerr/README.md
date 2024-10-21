@@ -34,15 +34,15 @@ Before using the cog, you'll need to configure it:
 
 1. Set the Overseerr URL and API key:
     ```
-    [p]setoverseerr url https://your.overseerr.instance 
+    [p]overseerr url https://your.overseerr.instance 
     ```
 2. Set the Overseerr API key:
     ```
-    [p]setoverseerr apikey your_api_key
+    [p]overseerr apikey your_api_key
     ```
 4. Set the admin role allowed to approve requests:
     ```
-    [p]setadminrole @OverseerrAdmins
+    [p]adminrole @OverseerrAdmins
     ```
 
 ## Usage
@@ -68,13 +68,15 @@ Admins can approve requests using:
 ## Commands
 
 ### Admin Commands
-- **`[p]setoverseerr <url> <api_key>`**
-  - Set the Overseerr URL and API key for the bot to communicate with Overseerr.
-  - Example: `[p]setoverseerr https://my.overseerr.url abcdefghijklmnop`
-
-- **`[p]setadminrole <role_name>`**
+- **`[p]overseerr url <url>`**
+  - Set the Overseerr URL for the bot to communicate with Overseerr.
+  - Example: `[p]overseerr https://my.overseerr.url`
+- **`[p]overseerr apikey <apikey>`**
+  - Set the Overseerr API Key. retrieved from `https://your-overseerr-url/settings`.
+  - Example: `[p]overseerr apikey 4OK6WLU8Fv2TrZfcOskLZb2PK5WA3547Jz2fEfJqfkLiT34xUP0D48Z7jwC9lC8xU9`
+- **`[p]overseerr adminrole <role_name>`**
   - Set the name of the admin role that is allowed to approve Overseerr requests.
-  - Example: `[p]setadminrole Overseerr Admin`
+  - Example: `[p]overseerr adminrole @Overseerr Admin`
 
 ### User Commands
 - **`[p]request <media name>`**
