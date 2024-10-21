@@ -70,7 +70,7 @@ Admins can approve requests using:
 ### Admin Commands
 - **`[p]overseerr url <url>`**
   - Set the Overseerr URL for the bot to communicate with Overseerr.
-  - Example: `[p]overseerr https://my.overseerr.url`
+  - Example: `[p]overseerr https://your-overseerr-url`
 - **`[p]overseerr apikey <apikey>`**
   - Set the Overseerr API Key. retrieved from `https://your-overseerr-url/settings`.
   - Example: `[p]overseerr apikey 4OK6WLU8Fv2TrZfcOskLZb2PK5WA3547Jz2fEfJqfkLiT34xUP0D48Z7jwC9lC8xU9`
