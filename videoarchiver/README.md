@@ -19,15 +19,29 @@ A Red-DiscordBot cog for automatically archiving videos from monitored Discord c
 
 The cog is organized into several modules for better maintainability:
 
+### Core Files
 - `video_archiver.py`: Main cog class and entry point
 - `commands.py`: Discord command handlers
 - `config_manager.py`: Guild configuration management
 - `processor.py`: Video processing logic
 - `enhanced_queue.py`: Advanced queue management system
 - `update_checker.py`: yt-dlp update management
-- `utils.py`: Utility functions and classes
-- `ffmpeg_manager.py`: FFmpeg configuration and hardware acceleration
 - `exceptions.py`: Custom exception classes
+
+### Utils Package
+- `utils/video_downloader.py`: Video download and processing
+- `utils/message_manager.py`: Message handling and cleanup
+- `utils/file_ops.py`: File operations and secure deletion
+- `utils/path_manager.py`: Path management utilities
+- `utils/exceptions.py`: Utility-specific exceptions
+
+### FFmpeg Package
+- `ffmpeg/ffmpeg_manager.py`: FFmpeg configuration and management
+- `ffmpeg/gpu_detector.py`: GPU capability detection
+- `ffmpeg/video_analyzer.py`: Video analysis utilities
+- `ffmpeg/encoder_params.py`: Encoding parameter optimization
+- `ffmpeg/ffmpeg_downloader.py`: FFmpeg binary management
+- `ffmpeg/exceptions.py`: FFmpeg-specific exceptions
 
 ## Installation
 

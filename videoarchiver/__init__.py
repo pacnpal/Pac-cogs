@@ -3,9 +3,9 @@
 from redbot.core.bot import Red
 from redbot.core.utils import get_end_user_data_statement
 
-from .video_archiver import VideoArchiver
-from .ffmpeg.ffmpeg_manager import FFmpegManager
-from .ffmpeg.exceptions import FFmpegError, GPUError, DownloadError
+from videoarchiver.video_archiver import VideoArchiver
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.ffmpeg.exceptions import FFmpegError, GPUError, DownloadError
 
 __red_end_user_data_statement__ = get_end_user_data_statement(__file__)
 

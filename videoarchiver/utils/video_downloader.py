@@ -9,10 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
-from .exceptions import VideoVerificationError
-from .file_ops import secure_delete_file
-from .path_manager import temp_path_context
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.utils.exceptions import VideoVerificationError
+from videoarchiver.utils.file_ops import secure_delete_file
+from videoarchiver.utils.path_manager import temp_path_context
 
 logger = logging.getLogger("VideoArchiver")
 

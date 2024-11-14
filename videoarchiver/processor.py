@@ -9,10 +9,10 @@ import asyncio
 import traceback
 from datetime import datetime
 
-from .utils.video_downloader import VideoDownloader
-from .utils.file_ops import secure_delete_file, cleanup_downloads
-from .exceptions import ProcessingError, DiscordAPIError
-from .enhanced_queue import EnhancedVideoQueueManager
+from videoarchiver.utils.video_downloader import VideoDownloader
+from videoarchiver.utils.file_ops import secure_delete_file, cleanup_downloads
+from videoarchiver.exceptions import ProcessingError, DiscordAPIError
+from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 
 logger = logging.getLogger('VideoArchiver')
 

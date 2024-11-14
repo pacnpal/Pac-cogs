@@ -11,15 +11,15 @@ from datetime import datetime
 import sys
 import traceback
 
-from .config_manager import ConfigManager
-from .update_checker import UpdateChecker
-from .processor import VideoProcessor
-from .commands import VideoArchiverCommands
-from .utils.video_downloader import VideoDownloader
-from .utils.message_manager import MessageManager
-from .utils.file_ops import cleanup_downloads
-from .enhanced_queue import EnhancedVideoQueueManager
-from .exceptions import (
+from videoarchiver.config_manager import ConfigManager
+from videoarchiver.update_checker import UpdateChecker
+from videoarchiver.processor import VideoProcessor
+from videoarchiver.commands import VideoArchiverCommands
+from videoarchiver.utils.video_downloader import VideoDownloader
+from videoarchiver.utils.message_manager import MessageManager
+from videoarchiver.utils.file_ops import cleanup_downloads
+from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
+from videoarchiver.exceptions import (
     ProcessingError,
     ConfigError,
     UpdateError,
