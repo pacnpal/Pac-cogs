@@ -34,18 +34,13 @@ class DownloadError(FFmpegError):
 @contextlib.contextmanager
 def temp_path_context():
     """Context manager for temporary path creation and cleanup"""
-    # Create a unique temporary directory within videoarchiver/tmp
-    tmp_base = Path("videoarchiver/tmp")
-    tmp_base.mkdir(parents=True, exist_ok=True)
-    temp_dir = tmp_base / f"ffmpeg_{int(time.time())}_{os.getpid()}"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    
+    # Create a temporary directory using system temp directory
+    temp_dir = tempfile.mkdtemp(prefix="ffmpeg_")
     try:
-        os.chmod(str(temp_dir), stat.S_IRWXU)
-        yield str(temp_dir)
+        yield temp_dir
     finally:
         try:
-            shutil.rmtree(str(temp_dir), ignore_errors=True)
+            shutil.rmtree(temp_dir, ignore_errors=True)
         except Exception as e:
             logger.error(f"Error cleaning up temp directory {temp_dir}: {e}")
 
@@ -87,11 +82,13 @@ class FFmpegManager:
     RETRY_DELAY = 1  # seconds
 
     def __init__(self):
-        # Set up tmp directory path
-        self.tmp_path = Path("videoarchiver/tmp")
-        self.tmp_path.mkdir(parents=True, exist_ok=True)
-        if platform.system() != "Windows":
-            self.tmp_path.chmod(0o755)
+        # Use system temp directory for temporary files
+        self.tmp_path = Path(tempfile.gettempdir()) / "ffmpeg_tmp"
+        try:
+            self.tmp_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Could not create tmp directory, using system temp: {e}")
+            self.tmp_path = Path(tempfile.gettempdir())
 
         # Use XDG_DATA_HOME or fallback to ~/.local/share for Linux/macOS
         if platform.system() in ["Linux", "Darwin"]:
@@ -105,11 +102,14 @@ class FFmpegManager:
         try:
             self.base_path.mkdir(parents=True, exist_ok=True)
             if platform.system() != "Windows":
-                # Set directory permissions to rwxr-xr-x (755)
-                self.base_path.chmod(0o755)
-                logger.info(f"Created bin directory with permissions: {oct(self.base_path.stat().st_mode)[-3:]}")
+                # Try to set directory permissions, but don't fail if we can't
+                try:
+                    self.base_path.chmod(0o755)
+                    logger.info(f"Created bin directory with permissions: {oct(self.base_path.stat().st_mode)[-3:]}")
+                except Exception as e:
+                    logger.warning(f"Could not set bin directory permissions: {e}")
         except Exception as e:
-            logger.error(f"Failed to create/set permissions on bin directory: {e}")
+            logger.error(f"Failed to create bin directory: {e}")
             raise FFmpegError(f"Failed to initialize FFmpeg directory: {e}")
 
         # Get system architecture
