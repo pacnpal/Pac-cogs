@@ -78,10 +78,28 @@ class VideoArchiver(commands.Cog):
 
     def cog_unload(self):
         """Cleanup when cog is unloaded"""
-        if self.download_path.exists():
-            shutil.rmtree(self.download_path, ignore_errors=True)
-        if self.update_check_task:
-            self.update_check_task.cancel()
+        try:
+            # Cancel update check task
+            if self.update_check_task:
+                self.update_check_task.cancel()
+
+            # Clean up components for each guild
+            for guild_components in self.components.values():
+                if 'message_manager' in guild_components:
+                    guild_components['message_manager'].cancel_all_deletions()
+                if 'downloader' in guild_components:
+                    # VideoDownloader's __del__ will handle thread pool shutdown
+                    guild_components['downloader'] = None
+
+            # Clear components
+            self.components.clear()
+
+            # Clean up download directory
+            if self.download_path.exists():
+                shutil.rmtree(self.download_path, ignore_errors=True)
+
+        except Exception as e:
+            logger.error(f"Error during cog unload: {str(e)}")
 
     async def check_for_updates(self):
         """Check for yt-dlp updates periodically"""
@@ -150,13 +168,22 @@ class VideoArchiver(commands.Cog):
         # Ensure download directory exists
         self.download_path.mkdir(parents=True, exist_ok=True)
 
+        # Clean up old components if they exist
+        if guild_id in self.components:
+            old_components = self.components[guild_id]
+            if 'message_manager' in old_components:
+                old_components['message_manager'].cancel_all_deletions()
+            if 'downloader' in old_components:
+                old_components['downloader'] = None
+
         self.components[guild_id] = {
             'downloader': VideoDownloader(
                 str(self.download_path),
                 settings['video_format'],
                 settings['video_quality'],
                 settings['max_file_size'],
-                settings['enabled_sites'] if settings['enabled_sites'] else None
+                settings['enabled_sites'] if settings['enabled_sites'] else None,
+                settings['concurrent_downloads']
             ),
             'message_manager': MessageManager(
                 settings['message_duration'],
