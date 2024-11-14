@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 import traceback
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
+import pkg_resources
+from packaging import version
 
 try:
     import pkg_resources
@@ -41,6 +43,14 @@ class ProcessingError(Exception):
     """Custom exception for video processing errors"""
     pass
 
+class DiscordAPIError(ProcessingError):
+    """Raised when Discord API operations fail"""
+    pass
+
+class UpdateError(ProcessingError):
+    """Raised when update operations fail"""
+    pass
+
 class VideoArchiver(commands.Cog):
     """Archive videos from Discord channels"""
 
@@ -61,7 +71,9 @@ class VideoArchiver(commands.Cog):
         "disable_update_check": False,
         "last_update_check": None,
         "max_retries": 3,
-        "retry_delay": 5
+        "retry_delay": 5,
+        "discord_retry_attempts": 3,  # New setting for Discord API retries
+        "discord_retry_delay": 5,     # New setting for Discord API retry delay
     }
 
     def __init__(self, bot: Red):
@@ -96,9 +108,24 @@ class VideoArchiver(commands.Cog):
             if guild_id not in self.active_tasks:
                 self.active_tasks[guild_id] = set()
             self.active_tasks[guild_id].add(task)
-            task.add_done_callback(
-                lambda t: asyncio.create_task(self.remove_task(guild_id, t))
-            )
+            
+            # Add error handling callback
+            def handle_task_error(t):
+                try:
+                    exc = t.exception()
+                    if exc:
+                        asyncio.create_task(self.log_error(
+                            self.bot.get_guild(guild_id),
+                            exc,
+                            "Task error"
+                        ))
+                except asyncio.CancelledError:
+                    pass
+                
+                # Remove task
+                asyncio.create_task(self.remove_task(guild_id, t))
+            
+            task.add_done_callback(handle_task_error)
 
     async def remove_task(self, guild_id: int, task: asyncio.Task):
         """Remove a completed task"""
@@ -194,8 +221,17 @@ class VideoArchiver(commands.Cog):
                     else:
                         error_parts.append(tb)
                     
+                    # Send error messages with retries
                     for part in error_parts:
-                        await log_channel.send(f"```py\n{part}```")
+                        for attempt in range(settings["discord_retry_attempts"]):
+                            try:
+                                await log_channel.send(f"```py\n{part}```")
+                                break
+                            except discord.HTTPException as e:
+                                if attempt == settings["discord_retry_attempts"] - 1:
+                                    logger.error(f"Failed to send error log to channel after {attempt + 1} attempts: {str(e)}")
+                                else:
+                                    await asyncio.sleep(settings["discord_retry_delay"])
             except Exception as e:
                 logger.error(f"Failed to send error log to channel: {str(e)}")
 
@@ -248,17 +284,31 @@ class VideoArchiver(commands.Cog):
                                         current_time.isoformat()
                                     )
 
-                                    if current_version != latest_version:
+                                    # Compare versions properly
+                                    if version.parse(current_version) < version.parse(latest_version):
                                         owner = self.bot.get_user(self.bot.owner_id)
                                         if owner:
-                                            await owner.send(
-                                                f"⚠️ A new version of yt-dlp is available!\n"
-                                                f"Current: {current_version}\n"
-                                                f"Latest: {latest_version}\n"
-                                                f"Use `[p]videoarchiver updateytdlp` to update."
-                                            )
+                                            # Send notification with retries
+                                            for attempt in range(settings["discord_retry_attempts"]):
+                                                try:
+                                                    await owner.send(
+                                                        f"⚠️ A new version of yt-dlp is available!\n"
+                                                        f"Current: {current_version}\n"
+                                                        f"Latest: {latest_version}\n"
+                                                        f"Use `[p]videoarchiver updateytdlp` to update."
+                                                    )
+                                                    break
+                                                except discord.HTTPException:
+                                                    if attempt == settings["discord_retry_attempts"] - 1:
+                                                        await self.log_error(
+                                                            guild,
+                                                            Exception("Failed to send update notification to owner"),
+                                                            "checking for updates"
+                                                        )
+                                                    else:
+                                                        await asyncio.sleep(settings["discord_retry_delay"])
                                 else:
-                                    raise Exception(f"GitHub API returned status {response.status}")
+                                    raise UpdateError(f"GitHub API returned status {response.status}")
 
                     except asyncio.TimeoutError:
                         await self.log_error(
