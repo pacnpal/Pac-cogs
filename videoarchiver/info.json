@@ -1,24 +1,55 @@
 {
     "name": "VideoArchiver",
-    "author": ["PacNPal"],
-    "description": "A powerful Discord video archiver cog that automatically downloads and reposts videos from monitored channels. Features include:\n- GPU-accelerated video compression (NVIDIA, AMD, Intel)\n- Multi-core CPU utilization\n- Concurrent multi-video processing\n- Intelligent quality preservation\n- Support for multiple video sites\n- Customizable archive messages\n- Automatic cleanup\n- Automatic yt-dlp updates",
-    "short": "Archive videos from Discord channels with GPU-accelerated compression",
-    "tags": [
-        "video",
-        "archive",
-        "download",
-        "compression",
-        "media"
+    "short": "Archive videos from Discord channels",
+    "description": "A cog to automatically archive videos posted in monitored Discord channels. Supports multiple video platforms, queue management, and hardware acceleration. Features include:\n- Automatic video detection and downloading\n- Support for multiple video platforms\n- Queue management with priority handling\n- Hardware-accelerated video processing\n- Configurable quality and format settings\n- Automatic cleanup of temporary files\n- Detailed error reporting and logging",
+    "end_user_data_statement": "This cog stores the following data:\n1. Guild-specific settings (channels, roles, preferences)\n2. Temporary video files during processing (automatically deleted)\n3. Message and channel IDs for tracking processed videos\n4. Queue state for video processing\n\nNo personal user data is permanently stored.",
+    "install_msg": "Thanks for installing VideoArchiver! Before using:\n1. Ensure FFmpeg is installed on your system\n2. Configure archive and monitored channels using `[p]videoarchiver`\n3. Use `[p]help VideoArchiver` to see all commands\n\nFor support or issues, please visit the repository.",
+    "author": [
+        "Cline"
     ],
+    "required_cogs": {},
     "requirements": [
         "yt-dlp>=2024.11.4",
         "ffmpeg-python>=0.2.0",
-        "requests>=2.32.3",
-        "setuptools>=65.5.1",
-        "aiohttp>=3.9.1"
+        "packaging>=23.0",
+        "aiohttp>=3.8.0",
+        "psutil>=5.9.0"
+    ],
+    "tags": [
+        "video",
+        "archive",
+        "media",
+        "youtube",
+        "download",
+        "automation",
+        "queue",
+        "ffmpeg"
     ],
     "min_bot_version": "3.5.0",
+    "min_python_version": [3, 8, 0],
     "hidden": false,
     "disabled": false,
-    "type": "COG"
+    "type": "COG",
+    "permissions": [
+        "attach_files",
+        "embed_links",
+        "manage_messages",
+        "read_message_history"
+    ],
+    "end_user_data_statement_required": true,
+    "required_system_packages": [
+        {
+            "linux": "ffmpeg",
+            "osx": "ffmpeg",
+            "windows": "ffmpeg"
+        }
+    ],
+    "max_bot_version": "3.6.99",
+    "suggested_bot_permissions": [
+        "attach_files",
+        "embed_links",
+        "manage_messages",
+        "read_message_history",
+        "add_reactions"
+    ]
 }
