@@ -1,9 +1,9 @@
 import aiohttp
 from redbot.core import commands, Config
 from redbot.core.bot import Red
-import asyncio  # Import asyncio
+import asyncio
 import json
-import urllib.parse  # Import for encoding URLs
+import urllib.parse
 
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):
@@ -18,11 +18,12 @@ class Overseerr(commands.Cog):
 
     ### GROUP: SETTINGS COMMANDS ###
 
-    @commands.group()
+    @commands.hybrid_group()
     @commands.admin()
     async def overseerr(self, ctx: commands.Context):
         """Base command group for Overseerr configuration."""
-        pass
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
 
     @overseerr.command()
     async def url(self, ctx: commands.Context, url: str):
@@ -45,14 +46,14 @@ class Overseerr(commands.Cog):
 
     ### REQUEST & APPROVAL COMMANDS ###
 
-    @commands.command()
+    @commands.hybrid_command()
     async def request(self, ctx: commands.Context, *, query: str):
         """Search and request a movie or TV show on Overseerr."""
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
 
         if not overseerr_url or not overseerr_api_key:
-            await ctx.send("Overseerr is not configured. Please ask an admin to set it up.")
+            await ctx.send("Overseerr is not configured. Please ask an admin to set it up using `/overseerr url` and `/overseerr apikey`.")
             return
 
         search_url = f"{overseerr_url}/api/v1/search"
@@ -135,7 +136,7 @@ class Overseerr(commands.Cog):
                 else:
                     await ctx.send(f"Failed to request {media_type} '{selected_result['title']}'. Please try again later.")
 
-    @commands.command()
+    @commands.hybrid_command()
     async def approve(self, ctx: commands.Context, request_id: int):
         """Approve a request on Overseerr."""
         admin_role_name = await self.config.admin_role_name()
@@ -147,7 +148,7 @@ class Overseerr(commands.Cog):
         overseerr_api_key = await self.config.overseerr_api_key()
         
         if not overseerr_url or not overseerr_api_key:
-            await ctx.send("Overseerr is not configured. Please ask an admin to set it up.")
+            await ctx.send("Overseerr is not configured. Please ask an admin to set it up using `/overseerr url` and `/overseerr apikey`.")
             return
 
         approve_url = f"{overseerr_url}/api/v1/request/{request_id}/approve"
@@ -181,5 +182,5 @@ class Overseerr(commands.Cog):
                     return status
                 return "Status Unknown"
 
-def setup(bot: Red):
-    bot.add_cog(Overseerr(bot))
+async def setup(bot: Red):
+    await bot.add_cog(Overseerr(bot))

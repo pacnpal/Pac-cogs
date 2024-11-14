@@ -22,11 +22,12 @@ class Birthday(commands.Cog):
         self.config.register_guild(**default_guild)
         self.birthday_tasks = {}
 
-    @commands.group()
+    @commands.hybrid_group()
     @checks.admin_or_permissions(manage_roles=True)
     async def birthdayset(self, ctx):
         """Birthday cog settings."""
-        pass
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help()
 
     @birthdayset.command()
     @checks.is_owner()
@@ -69,7 +70,7 @@ class Birthday(commands.Cog):
                 allowed_roles.remove(role.id)
         await ctx.send(f"Removed {role.name} from the list of roles that can use the birthday command.")
 
-    @commands.command()
+    @commands.hybrid_command()
     async def birthday(self, ctx, member: discord.Member):
         """Assign the birthday role to a user until midnight in the set timezone."""
         # Check if the user has permission to use this command
@@ -79,7 +80,7 @@ class Birthday(commands.Cog):
 
         birthday_role_id = await self.config.guild(ctx.guild).birthday_role()
         if not birthday_role_id:
-            return await ctx.send("The birthday role hasn't been set. An admin needs to set it using `[p]birthdayset role`.")
+            return await ctx.send("The birthday role hasn't been set. An admin needs to set it using `/birthdayset role`.")
         
         birthday_role = ctx.guild.get_role(birthday_role_id)
         if not birthday_role:
@@ -122,7 +123,7 @@ class Birthday(commands.Cog):
 
         await self.schedule_birthday_role_removal(ctx.guild, member, birthday_role, midnight)
 
-    @commands.command()
+    @commands.hybrid_command()
     async def bdaycheck(self, ctx):
         """Check the upcoming birthday role removal tasks."""
         # Check if the user has permission to use this command

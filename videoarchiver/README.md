@@ -1,6 +1,6 @@
 # VideoArchiver Cog
 
-A Red-DiscordBot cog for automatically archiving videos from monitored Discord channels.
+A Red-DiscordBot cog for automatically archiving videos from monitored Discord channels. Supports both traditional prefix commands and Discord slash commands.
 
 ## Features
 
@@ -13,6 +13,7 @@ A Red-DiscordBot cog for automatically archiving videos from monitored Discord c
 - Hardware-accelerated video processing (when available)
 - Customizable notification messages
 - Queue persistence across bot restarts
+- Full slash command support for all commands
 
 ## File Structure
 
@@ -43,43 +44,128 @@ The cog is organized into several modules for better maintainability:
 
 ## Configuration
 
-Use the following commands to configure the cog:
+Use the following commands to configure the cog. All commands support both prefix and slash command syntax:
 
 ### Channel Settings
-- `[p]va setchannel <channel>`: Set the archive channel
-- `[p]va setnotification <channel>`: Set the notification channel
-- `[p]va setlogchannel <channel>`: Set the log channel
-- `[p]va addmonitor <channel>`: Add a channel to monitor
-- `[p]va removemonitor <channel>`: Remove a monitored channel
+- Set the archive channel:
+  ```
+  [p]va setchannel <channel>
+  ```
+  or
+  ```
+  /va setchannel <channel>
+  ```
+
+- Set the notification channel:
+  ```
+  [p]va setnotification <channel>
+  ```
+  or
+  ```
+  /va setnotification <channel>
+  ```
+
+- Set the log channel:
+  ```
+  [p]va setlogchannel <channel>
+  ```
+  or
+  ```
+  /va setlogchannel <channel>
+  ```
+
+- Add/remove a monitored channel:
+  ```
+  [p]va addmonitor <channel>
+  [p]va removemonitor <channel>
+  ```
+  or
+  ```
+  /va addmonitor <channel>
+  /va removemonitor <channel>
+  ```
 
 ### Role Management
-- `[p]va addrole <role>`: Add a role allowed to trigger archiving
-- `[p]va removerole <role>`: Remove an allowed role
-- `[p]va listroles`: List allowed roles
+- Add/remove allowed roles:
+  ```
+  [p]va addrole <role>
+  [p]va removerole <role>
+  [p]va listroles
+  ```
+  or
+  ```
+  /va addrole <role>
+  /va removerole <role>
+  /va listroles
+  ```
 
 ### Video Settings
-- `[p]va setformat <format>`: Set video format (e.g., mp4, webm)
-- `[p]va setquality <pixels>`: Set maximum video quality (e.g., 1080)
-- `[p]va setmaxsize <MB>`: Set maximum file size in MB
-- `[p]va setconcurrent <count>`: Set number of concurrent downloads (1-5)
+- Set video format and quality:
+  ```
+  [p]va setformat <format>
+  [p]va setquality <pixels>
+  [p]va setmaxsize <MB>
+  [p]va setconcurrent <count>
+  ```
+  or
+  ```
+  /va setformat <format>
+  /va setquality <pixels>
+  /va setmaxsize <MB>
+  /va setconcurrent <count>
+  ```
 
 ### Message Settings
-- `[p]va setduration <hours>`: Set how long to keep archive messages
-- `[p]va settemplate <template>`: Set archive message template
-- `[p]va toggledelete`: Toggle deletion of local files after reposting
+- Configure message handling:
+  ```
+  [p]va setduration <hours>
+  [p]va settemplate <template>
+  [p]va toggledelete
+  ```
+  or
+  ```
+  /va setduration <hours>
+  /va settemplate <template>
+  /va toggledelete
+  ```
 
 ### Site Management
-- `[p]va enablesites [sites...]`: Enable specific sites (empty for all)
-- `[p]va listsites`: List available and enabled sites
+- Manage supported sites:
+  ```
+  [p]va enablesites [sites...]
+  [p]va listsites
+  ```
+  or
+  ```
+  /va enablesites [sites...]
+  /va listsites
+  ```
 
 ### Queue Management
-- `[p]va queue`: Show detailed queue status and metrics
-- `[p]va clearqueue`: Clear the processing queue
-- `[p]va queuemetrics`: Display queue performance metrics
+- Manage the processing queue:
+  ```
+  [p]va queue
+  [p]va clearqueue
+  [p]va queuemetrics
+  ```
+  or
+  ```
+  /va queue
+  /va clearqueue
+  /va queuemetrics
+  ```
 
 ### Update Management
-- `[p]va updateytdlp`: Update yt-dlp to latest version
-- `[p]va toggleupdates`: Toggle update notifications
+- Manage yt-dlp updates:
+  ```
+  [p]va updateytdlp
+  [p]va toggleupdates
+  ```
+  or
+  ```
+  /va updateytdlp
+  /va toggleupdates
+  ```
 
 ## Technical Details
 
