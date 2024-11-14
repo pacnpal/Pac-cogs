@@ -65,7 +65,7 @@ class VideoArchiver(commands.Cog):
         "max_file_size": 8,
         "delete_after_repost": True,
         "message_duration": 24,
-        "message_template": "Archived video from {author}\nOriginal: {original_message}",
+        "message_template": "Video from {username} in #{channel}\nOriginal: {original_message}",
         "enabled_sites": [],
         "concurrent_downloads": 3,
         "disable_update_check": False,
@@ -711,6 +711,8 @@ class VideoArchiver(commands.Cog):
             await self.initialize_guild_components(guild_id)
 
         try:
+            # Add initial reactions
+            await message.add_reaction("📹")
             await message.add_reaction("⏳")
             await self.log_message(message.guild, f"Processing video URL: {url}")
 
@@ -718,6 +720,7 @@ class VideoArchiver(commands.Cog):
 
             # Check user roles
             if not self._check_user_roles(message.author, settings["allowed_roles"]):
+                await message.remove_reaction("⏳", self.bot.user)
                 await message.add_reaction("🚫")
                 return False
 
@@ -727,6 +730,7 @@ class VideoArchiver(commands.Cog):
             ].download_video(url)
 
             if not success:
+                await message.remove_reaction("⏳", self.bot.user)
                 await message.add_reaction("❌")
                 await self.log_message(
                     message.guild, f"Failed to download video: {error}", "error"
@@ -755,12 +759,8 @@ class VideoArchiver(commands.Cog):
                 # Send notification with information
                 notification_message = await notification_channel.send(
                     self.components[guild_id]["message_manager"].format_archive_message(
-                        author=message.author.mention,
-                        url=(
-                            archive_message.attachments[0].url
-                            if archive_message.attachments
-                            else "No URL available"
-                        ),
+                        username=message.author.name,
+                        channel=message.channel.name,
                         original_message=message.jump_url,
                     )
                 )
@@ -772,6 +772,8 @@ class VideoArchiver(commands.Cog):
                     notification_message.id, notification_message.delete
                 )
 
+                # Update reaction to show completion
+                await message.remove_reaction("⏳", self.bot.user)
                 await message.add_reaction("✅")
                 await self.log_message(
                     message.guild, f"Successfully archived video from {message.author}"
@@ -781,6 +783,7 @@ class VideoArchiver(commands.Cog):
                 await self.log_message(
                     message.guild, f"Failed to upload video: {str(e)}", "error"
                 )
+                await message.remove_reaction("⏳", self.bot.user)
                 await message.add_reaction("❌")
                 return False
 
@@ -806,6 +809,7 @@ class VideoArchiver(commands.Cog):
             await self.log_message(
                 message.guild, f"Error processing video: {str(e)}", "error"
             )
+            await message.remove_reaction("⏳", self.bot.user)
             await message.add_reaction("❌")
             return False
 
