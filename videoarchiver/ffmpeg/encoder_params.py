@@ -95,7 +95,7 @@ class EncoderParams:
         params = {}
         try:
             duration = video_info.get("duration", 0)
-            input_size = video_info.get("bitrate", 0) * duration / 8  # Estimate from bitrate if size not available
+            input_size = video_info.get("bitrate", 0) * duration / 8  # Estimate from bitrate
 
             if duration > 0 and input_size > target_size_bytes:
                 video_size_target = int(target_size_bytes * 0.95)
