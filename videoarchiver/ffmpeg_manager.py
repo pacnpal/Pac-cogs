@@ -700,6 +700,13 @@ class FFmpegManager:
                             raise DownloadError(f"Failed to download FFmpeg: {str(e)}")
                         time.sleep(self.RETRY_DELAY)
 
+                # Remove existing ffmpeg if it exists (handle both file and directory)
+                if self.ffmpeg_path.exists():
+                    if self.ffmpeg_path.is_dir():
+                        shutil.rmtree(self.ffmpeg_path)
+                    else:
+                        self.ffmpeg_path.unlink()
+
                 # Extract archive
                 if self.system == "Windows":
                     with zipfile.ZipFile(archive_path, "r") as zip_ref:
@@ -709,8 +716,6 @@ class FFmpegManager:
                         if not ffmpeg_files:
                             raise DownloadError("FFmpeg binary not found in archive")
                         zip_ref.extract(ffmpeg_files[0], self.base_path)
-                        if self.ffmpeg_path.exists():
-                            self.ffmpeg_path.unlink()
                         os.rename(self.base_path / ffmpeg_files[0], self.ffmpeg_path)
                 else:
                     with tarfile.open(archive_path, "r:xz") as tar_ref:
@@ -720,8 +725,6 @@ class FFmpegManager:
                         if not ffmpeg_files:
                             raise DownloadError("FFmpeg binary not found in archive")
                         tar_ref.extract(ffmpeg_files[0], self.base_path)
-                        if self.ffmpeg_path.exists():
-                            self.ffmpeg_path.unlink()
                         os.rename(self.base_path / ffmpeg_files[0], self.ffmpeg_path)
 
                 # Set executable permissions on Unix systems
