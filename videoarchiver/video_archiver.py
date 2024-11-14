@@ -752,9 +752,12 @@ class VideoArchiver(commands.Cog):
                 return False
 
             try:
-                # Upload to archive channel
+                # Upload to archive channel with original message link
                 file = discord.File(file_path)
-                archive_message = await archive_channel.send(file=file)
+                archive_message = await archive_channel.send(
+                    f"Original: {message.jump_url}",
+                    file=file
+                )
 
                 # Send notification with information
                 notification_message = await notification_channel.send(
