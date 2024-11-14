@@ -12,6 +12,9 @@ import tempfile
 import hashlib
 from functools import partial
 import contextlib
+import stat
+import time
+
 from .ffmpeg_manager import FFmpegManager
 
 logging.basicConfig(
@@ -26,14 +29,32 @@ class FileCleanupError(Exception):
     """Raised when file cleanup fails"""
     pass
 
+class VideoVerificationError(Exception):
+    """Raised when video verification fails"""
+    pass
+
 @contextlib.contextmanager
 def temp_path_context():
     """Context manager for temporary path creation and cleanup"""
     temp_dir = tempfile.mkdtemp(prefix="videoarchiver_")
     try:
+        # Ensure proper permissions
+        os.chmod(temp_dir, stat.S_IRWXU)
         yield temp_dir
     finally:
         try:
+            # Ensure all files are deletable
+            for root, dirs, files in os.walk(temp_dir):
+                for d in dirs:
+                    try:
+                        os.chmod(os.path.join(root, d), stat.S_IRWXU)
+                    except OSError:
+                        pass
+                for f in files:
+                    try:
+                        os.chmod(os.path.join(root, f), stat.S_IRWXU)
+                    except OSError:
+                        pass
             shutil.rmtree(temp_dir, ignore_errors=True)
         except Exception as e:
             logger.error(f"Error cleaning up temp directory {temp_dir}: {e}")
@@ -41,6 +62,8 @@ def temp_path_context():
 class VideoDownloader:
     MAX_RETRIES = 3
     RETRY_DELAY = 5  # seconds
+    FILE_OP_RETRIES = 3
+    FILE_OP_RETRY_DELAY = 1  # seconds
 
     def __init__(
         self,
@@ -77,10 +100,10 @@ class VideoDownloader:
             "no_warnings": True,
             "extract_flat": False,
             "concurrent_fragment_downloads": concurrent_downloads,
-            "retries": 3,
-            "fragment_retries": 3,
-            "file_access_retries": 3,
-            "extractor_retries": 3,
+            "retries": self.MAX_RETRIES,
+            "fragment_retries": self.MAX_RETRIES,
+            "file_access_retries": self.FILE_OP_RETRIES,
+            "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
             "ffmpeg_location": ffmpeg_mgr.get_ffmpeg_path(),
@@ -91,7 +114,10 @@ class VideoDownloader:
         try:
             # Cancel all active downloads
             for file_path in self.active_downloads.values():
-                secure_delete_file(file_path)
+                try:
+                    secure_delete_file(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting file during cleanup: {str(e)}")
             self.active_downloads.clear()
 
             # Shutdown thread pool
@@ -103,24 +129,30 @@ class VideoDownloader:
     def _get_url_patterns(self) -> List[str]:
         """Get URL patterns for supported sites"""
         patterns = []
-        with yt_dlp.YoutubeDL() as ydl:
-            for extractor in ydl._ies:
-                if hasattr(extractor, "_VALID_URL") and extractor._VALID_URL:
-                    if not self.enabled_sites or any(
-                        site.lower() in extractor.IE_NAME.lower()
-                        for site in self.enabled_sites
-                    ):
-                        patterns.append(extractor._VALID_URL)
+        try:
+            with yt_dlp.YoutubeDL() as ydl:
+                for extractor in ydl._ies:
+                    if hasattr(extractor, "_VALID_URL") and extractor._VALID_URL:
+                        if not self.enabled_sites or any(
+                            site.lower() in extractor.IE_NAME.lower()
+                            for site in self.enabled_sites
+                        ):
+                            patterns.append(extractor._VALID_URL)
+        except Exception as e:
+            logger.error(f"Error getting URL patterns: {str(e)}")
         return patterns
 
     def _check_file_size(self, info):
         """Check if file size is within limits"""
         if info.get("filepath") and os.path.exists(info["filepath"]):
-            size = os.path.getsize(info["filepath"])
-            if size > (self.max_file_size * 1024 * 1024):
-                logger.info(
-                    f"File exceeds size limit, will compress: {info['filepath']}"
-                )
+            try:
+                size = os.path.getsize(info["filepath"])
+                if size > (self.max_file_size * 1024 * 1024):
+                    logger.info(
+                        f"File exceeds size limit, will compress: {info['filepath']}"
+                    )
+            except OSError as e:
+                logger.error(f"Error checking file size: {str(e)}")
 
     def _progress_hook(self, d):
         """Handle download progress"""
@@ -134,10 +166,17 @@ class VideoDownloader:
             # Check if file has video stream
             video_streams = [s for s in probe['streams'] if s['codec_type'] == 'video']
             if not video_streams:
-                return False
+                raise VideoVerificationError("No video streams found")
             # Check if duration is valid
             duration = float(probe['format'].get('duration', 0))
-            return duration > 0
+            if duration <= 0:
+                raise VideoVerificationError("Invalid video duration")
+            # Check if file is readable
+            with open(file_path, 'rb') as f:
+                f.seek(0, 2)  # Seek to end
+                if f.tell() == 0:
+                    raise VideoVerificationError("Empty file")
+            return True
         except Exception as e:
             logger.error(f"Error verifying video file {file_path}: {e}")
             return False
@@ -163,14 +202,14 @@ class VideoDownloader:
                     raise FileNotFoundError("Download completed but file not found")
 
                 if not self._verify_video_file(file_path):
-                    raise Exception("Downloaded file is not a valid video")
+                    raise VideoVerificationError("Downloaded file is not a valid video")
 
                 return True, file_path, ""
 
             except Exception as e:
                 logger.error(f"Download attempt {attempt + 1} failed: {str(e)}")
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(self.RETRY_DELAY)
+                    await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))  # Exponential backoff
                 else:
                     return False, "", f"All download attempts failed: {str(e)}"
 
@@ -223,23 +262,32 @@ class VideoDownloader:
                             ),
                         )
 
-                        if os.path.exists(compressed_file):
-                            compressed_size = os.path.getsize(compressed_file)
-                            if compressed_size <= (self.max_file_size * 1024 * 1024):
-                                secure_delete_file(original_file)
-                                return True, compressed_file, ""
-                            else:
-                                secure_delete_file(compressed_file)
-                                return False, "", "Failed to compress to target size"
+                        if not os.path.exists(compressed_file):
+                            raise FileNotFoundError("Compression completed but file not found")
+
+                        # Verify compressed file
+                        if not self._verify_video_file(compressed_file):
+                            raise VideoVerificationError("Compressed file is not a valid video")
+
+                        compressed_size = os.path.getsize(compressed_file)
+                        if compressed_size <= (self.max_file_size * 1024 * 1024):
+                            await self._safe_delete_file(original_file)
+                            return True, compressed_file, ""
+                        else:
+                            await self._safe_delete_file(compressed_file)
+                            return False, "", "Failed to compress to target size"
                     except Exception as e:
                         if compressed_file and os.path.exists(compressed_file):
-                            secure_delete_file(compressed_file)
+                            await self._safe_delete_file(compressed_file)
                         logger.error(f"Compression error: {str(e)}")
                         return False, "", f"Compression error: {str(e)}"
                 else:
                     # Move file to final location
                     final_path = os.path.join(self.download_path, os.path.basename(original_file))
-                    shutil.move(original_file, final_path)
+                    # Use safe move with retries
+                    success = await self._safe_move_file(original_file, final_path)
+                    if not success:
+                        return False, "", "Failed to move file to final location"
                     return True, final_path, ""
 
         except Exception as e:
@@ -253,11 +301,41 @@ class VideoDownloader:
 
             try:
                 if original_file and os.path.exists(original_file):
-                    secure_delete_file(original_file)
+                    await self._safe_delete_file(original_file)
                 if compressed_file and os.path.exists(compressed_file) and not compressed_file.startswith(self.download_path):
-                    secure_delete_file(compressed_file)
+                    await self._safe_delete_file(compressed_file)
             except Exception as e:
                 logger.error(f"Error during file cleanup: {str(e)}")
+
+    async def _safe_delete_file(self, file_path: str) -> bool:
+        """Safely delete a file with retries"""
+        for attempt in range(self.FILE_OP_RETRIES):
+            try:
+                if secure_delete_file(file_path):
+                    return True
+                await asyncio.sleep(self.FILE_OP_RETRY_DELAY * (attempt + 1))
+            except Exception as e:
+                logger.error(f"Delete attempt {attempt + 1} failed: {str(e)}")
+                if attempt == self.FILE_OP_RETRIES - 1:
+                    return False
+                await asyncio.sleep(self.FILE_OP_RETRY_DELAY * (attempt + 1))
+        return False
+
+    async def _safe_move_file(self, src: str, dst: str) -> bool:
+        """Safely move a file with retries"""
+        for attempt in range(self.FILE_OP_RETRIES):
+            try:
+                # Ensure destination directory exists
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                # Try to move the file
+                shutil.move(src, dst)
+                return True
+            except Exception as e:
+                logger.error(f"Move attempt {attempt + 1} failed: {str(e)}")
+                if attempt == self.FILE_OP_RETRIES - 1:
+                    return False
+                await asyncio.sleep(self.FILE_OP_RETRY_DELAY * (attempt + 1))
+        return False
 
     def is_supported_url(self, url: str) -> bool:
         """Check if URL is supported"""
@@ -266,7 +344,8 @@ class VideoDownloader:
                 # Try to extract info without downloading
                 ie = ydl.extract_info(url, download=False, process=False)
                 return ie is not None
-        except:
+        except Exception as e:
+            logger.error(f"Error checking URL support: {str(e)}")
             return False
 
 
@@ -323,6 +402,12 @@ def secure_delete_file(file_path: str, passes: int = 3, timeout: int = 30) -> bo
     start_time = datetime.now()
     while True:
         try:
+            # Ensure file is writable
+            try:
+                os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+            except OSError:
+                pass
+
             file_size = os.path.getsize(file_path)
             for _ in range(passes):
                 with open(file_path, "wb") as f:
@@ -346,7 +431,7 @@ def secure_delete_file(file_path: str, passes: int = 3, timeout: int = 30) -> bo
                     logger.error(f"Timeout while trying to delete {file_path}")
                     return False
                 # Wait briefly before retry
-                asyncio.sleep(0.1)
+                time.sleep(0.1)
                 continue
 
             return True
@@ -356,9 +441,10 @@ def secure_delete_file(file_path: str, passes: int = 3, timeout: int = 30) -> bo
             # Last resort: try force delete
             try:
                 if os.path.exists(file_path):
+                    os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
                     Path(file_path).unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.error(f"Force delete failed: {str(e2)}")
             return not os.path.exists(file_path)
 
 
@@ -369,10 +455,14 @@ def cleanup_downloads(download_path: str) -> None:
             # Delete all files in the directory
             for file_path in Path(download_path).glob("**/*"):
                 if file_path.is_file():
-                    secure_delete_file(str(file_path))
+                    try:
+                        if not secure_delete_file(str(file_path)):
+                            logger.error(f"Failed to delete file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Error deleting file {file_path}: {str(e)}")
             
             # Clean up empty subdirectories
-            for dir_path in Path(download_path).glob("**/*"):
+            for dir_path in sorted(Path(download_path).glob("**/*"), reverse=True):
                 if dir_path.is_dir():
                     try:
                         dir_path.rmdir()  # Will only remove if empty
