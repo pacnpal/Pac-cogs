@@ -13,8 +13,14 @@ import asyncio
 import subprocess
 from typing import Optional, List, Set, Dict
 import sys
-import pkg_resources
 import requests
+from datetime import datetime, timedelta
+
+try:
+    import pkg_resources
+    PKG_RESOURCES_AVAILABLE = True
+except ImportError:
+    PKG_RESOURCES_AVAILABLE = False
 
 # Import local utils
 from .utils import VideoDownloader, secure_delete_file, cleanup_downloads, MessageManager
@@ -44,7 +50,8 @@ class VideoArchiver(commands.Cog):
         "message_template": "Archived video from {author}\nOriginal: {original_message}",
         "enabled_sites": [],
         "concurrent_downloads": 3,
-        "disable_update_check": False
+        "disable_update_check": False,
+        "last_update_check": None
     }
 
     def __init__(self, bot: Red):
@@ -81,15 +88,41 @@ class VideoArchiver(commands.Cog):
         await self.bot.wait_until_ready()
         while True:
             try:
-                current_version = pkg_resources.get_distribution('yt-dlp').version
-                response = requests.get('https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest')
-                latest_version = response.json()['tag_name'].lstrip('v')
+                # Only check once per day per guild
+                all_guilds = await self.config.all_guilds()
+                current_time = datetime.utcnow()
 
-                if current_version != latest_version:
-                    # Notify bot owner if any guild has update checks enabled
-                    all_guilds = await self.config.all_guilds()
-                    for guild_id, settings in all_guilds.items():
-                        if not settings.get('disable_update_check', False):
+                for guild_id, settings in all_guilds.items():
+                    if settings.get('disable_update_check', False):
+                        continue
+
+                    last_check = settings.get('last_update_check')
+                    if last_check:
+                        last_check = datetime.fromisoformat(last_check)
+                        if current_time - last_check < timedelta(days=1):
+                            continue
+
+                    try:
+                        if not PKG_RESOURCES_AVAILABLE:
+                            logger.warning("pkg_resources not available, skipping update check")
+                            continue
+
+                        current_version = pkg_resources.get_distribution('yt-dlp').version
+                        
+                        # Use a timeout for the request
+                        response = requests.get(
+                            'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest',
+                            timeout=10
+                        )
+                        response.raise_for_status()
+                        latest_version = response.json()['tag_name'].lstrip('v')
+
+                        # Update last check time
+                        await self.config.guild_from_id(guild_id).last_update_check.set(
+                            current_time.isoformat()
+                        )
+
+                        if current_version != latest_version:
                             owner = self.bot.get_user(self.bot.owner_id)
                             if owner:
                                 await owner.send(
@@ -98,13 +131,17 @@ class VideoArchiver(commands.Cog):
                                     f"Latest: {latest_version}\n"
                                     f"Use `[p]videoarchiver updateytdlp` to update."
                                 )
-                            break
+
+                    except requests.RequestException as e:
+                        logger.error(f"Failed to check for updates (network error): {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Failed to check for updates: {str(e)}")
 
             except Exception as e:
-                logger.error(f"Failed to check for updates: {str(e)}")
+                logger.error(f"Error in update check task: {str(e)}")
 
-            # Check once per day
-            await asyncio.sleep(86400)
+            # Wait for 6 hours before checking again
+            await asyncio.sleep(21600)  # 6 hours in seconds
 
     async def initialize_guild_components(self, guild_id: int):
         """Initialize or update components for a guild"""
@@ -200,6 +237,15 @@ class VideoArchiver(commands.Cog):
             embed.add_field(name="Message Duration", value=f"{settings['message_duration']} hours", inline=True)
             embed.add_field(name="Concurrent Downloads", value=str(settings["concurrent_downloads"]), inline=True)
             embed.add_field(name="Update Check Disabled", value=str(settings["disable_update_check"]), inline=True)
+
+            if settings.get("last_update_check"):
+                last_check = datetime.fromisoformat(settings["last_update_check"])
+                embed.add_field(
+                    name="Last Update Check",
+                    value=last_check.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    inline=True
+                )
+
             embed.add_field(
                 name="Enabled Sites",
                 value=", ".join(settings["enabled_sites"]) if settings["enabled_sites"] else "All sites",
@@ -237,10 +283,17 @@ class VideoArchiver(commands.Cog):
             stdout, stderr = await process.communicate()
             
             if process.returncode == 0:
-                new_version = pkg_resources.get_distribution('yt-dlp').version
-                await ctx.send(f"✅ Successfully updated yt-dlp to version {new_version}")
+                if PKG_RESOURCES_AVAILABLE:
+                    try:
+                        new_version = pkg_resources.get_distribution('yt-dlp').version
+                        await ctx.send(f"✅ Successfully updated yt-dlp to version {new_version}")
+                    except Exception:
+                        await ctx.send("✅ Successfully updated yt-dlp")
+                else:
+                    await ctx.send("✅ Successfully updated yt-dlp")
             else:
-                await ctx.send(f"❌ Failed to update yt-dlp: {stderr.decode()}")
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                await ctx.send(f"❌ Failed to update yt-dlp: {error_msg}")
         except Exception as e:
             await ctx.send(f"❌ Error updating yt-dlp: {str(e)}")
 

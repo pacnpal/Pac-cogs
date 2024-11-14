@@ -1,0 +1,23 @@
+{
+    "name": "VideoArchiver",
+    "author": ["PacNPal"],
+    "description": "A powerful Discord video archiver cog that automatically downloads and reposts videos from monitored channels. Features include:\n- GPU-accelerated video compression (NVIDIA, AMD, Intel)\n- Multi-core CPU utilization\n- Concurrent multi-video processing\n- Intelligent quality preservation\n- Support for multiple video sites\n- Customizable archive messages\n- Automatic cleanup\n- Automatic yt-dlp updates",
+    "short": "Archive videos from Discord channels with GPU-accelerated compression",
+    "tags": [
+        "video",
+        "archive",
+        "download",
+        "compression",
+        "media"
+    ],
+    "requirements": [
+        "yt-dlp>=2024.11.4",
+        "ffmpeg-python>=0.2.0",
+        "requests>=2.32.3",
+        "setuptools>=65.5.1"
+    ],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
