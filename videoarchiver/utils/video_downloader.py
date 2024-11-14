@@ -1,63 +1,20 @@
+"""Video download and processing utilities"""
+
 import os
-import shutil
 import logging
 import asyncio
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
-import yt_dlp
 import ffmpeg
-from datetime import datetime, timedelta
+import yt_dlp
 from concurrent.futures import ThreadPoolExecutor
-import tempfile
-import hashlib
-from functools import partial
-import contextlib
-import stat
-import time
+from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
-from .ffmpeg_manager import FFmpegManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from .exceptions import VideoVerificationError
+from .file_ops import secure_delete_file
+from .path_manager import temp_path_context
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger("VideoArchiver")
-
-# Initialize FFmpeg manager
-ffmpeg_mgr = FFmpegManager()
-
-class FileCleanupError(Exception):
-    """Raised when file cleanup fails"""
-    pass
-
-class VideoVerificationError(Exception):
-    """Raised when video verification fails"""
-    pass
-
-@contextlib.contextmanager
-def temp_path_context():
-    """Context manager for temporary path creation and cleanup"""
-    temp_dir = tempfile.mkdtemp(prefix="videoarchiver_")
-    try:
-        # Ensure proper permissions
-        os.chmod(temp_dir, stat.S_IRWXU)
-        yield temp_dir
-    finally:
-        try:
-            # Ensure all files are deletable
-            for root, dirs, files in os.walk(temp_dir):
-                for d in dirs:
-                    try:
-                        os.chmod(os.path.join(root, d), stat.S_IRWXU)
-                    except OSError:
-                        pass
-                for f in files:
-                    try:
-                        os.chmod(os.path.join(root, f), stat.S_IRWXU)
-                    except OSError:
-                        pass
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception as e:
-            logger.error(f"Error cleaning up temp directory {temp_dir}: {e}")
 
 class VideoDownloader:
     MAX_RETRIES = 3
@@ -80,6 +37,9 @@ class VideoDownloader:
         self.max_file_size = max_file_size
         self.enabled_sites = enabled_sites
         self.url_patterns = self._get_url_patterns()
+        
+        # Initialize FFmpeg manager
+        self.ffmpeg_mgr = FFmpegManager()
         
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
@@ -106,7 +66,7 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": ffmpeg_mgr.get_ffmpeg_path(),
+            "ffmpeg_location": self.ffmpeg_mgr.get_ffmpeg_path(),
         }
 
     def __del__(self):
@@ -239,7 +199,7 @@ class VideoDownloader:
                     logger.info(f"Compressing video: {original_file}")
                     try:
                         # Get optimal compression parameters
-                        params = ffmpeg_mgr.get_compression_params(
+                        params = self.ffmpeg_mgr.get_compression_params(
                             original_file, self.max_file_size
                         )
                         compressed_file = os.path.join(
@@ -347,126 +307,3 @@ class VideoDownloader:
         except Exception as e:
             logger.error(f"Error checking URL support: {str(e)}")
             return False
-
-
-class MessageManager:
-    def __init__(self, message_duration: int, message_template: str):
-        self.message_duration = message_duration
-        self.message_template = message_template
-        self.scheduled_deletions: Dict[int, asyncio.Task] = {}
-        self._lock = asyncio.Lock()
-
-    def format_archive_message(
-        self, author: str, url: str, original_message: str
-    ) -> str:
-        return self.message_template.format(
-            author=author, url=url, original_message=original_message
-        )
-
-    async def schedule_message_deletion(self, message_id: int, delete_func) -> None:
-        if self.message_duration <= 0:
-            return
-
-        async with self._lock:
-            if message_id in self.scheduled_deletions:
-                self.scheduled_deletions[message_id].cancel()
-
-            async def delete_later():
-                try:
-                    await asyncio.sleep(self.message_duration * 3600)
-                    await delete_func()
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    logger.error(f"Failed to delete message {message_id}: {str(e)}")
-                finally:
-                    async with self._lock:
-                        self.scheduled_deletions.pop(message_id, None)
-
-            self.scheduled_deletions[message_id] = asyncio.create_task(delete_later())
-
-    async def cancel_all_deletions(self):
-        """Cancel all scheduled message deletions"""
-        async with self._lock:
-            for task in self.scheduled_deletions.values():
-                task.cancel()
-            await asyncio.gather(*self.scheduled_deletions.values(), return_exceptions=True)
-            self.scheduled_deletions.clear()
-
-
-def secure_delete_file(file_path: str, passes: int = 3, timeout: int = 30) -> bool:
-    """Securely delete a file by overwriting it multiple times before removal"""
-    if not os.path.exists(file_path):
-        return True
-
-    start_time = datetime.now()
-    while True:
-        try:
-            # Ensure file is writable
-            try:
-                os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-            except OSError:
-                pass
-
-            file_size = os.path.getsize(file_path)
-            for _ in range(passes):
-                with open(file_path, "wb") as f:
-                    f.write(os.urandom(file_size))
-                    f.flush()
-                    os.fsync(f.fileno())
-
-            # Try multiple deletion methods
-            try:
-                os.remove(file_path)
-            except OSError:
-                try:
-                    os.unlink(file_path)
-                except OSError:
-                    Path(file_path).unlink(missing_ok=True)
-
-            # Verify file is gone
-            if os.path.exists(file_path):
-                # If file still exists, check timeout
-                if (datetime.now() - start_time).seconds > timeout:
-                    logger.error(f"Timeout while trying to delete {file_path}")
-                    return False
-                # Wait briefly before retry
-                time.sleep(0.1)
-                continue
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error during secure delete of {file_path}: {str(e)}")
-            # Last resort: try force delete
-            try:
-                if os.path.exists(file_path):
-                    os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-                    Path(file_path).unlink(missing_ok=True)
-            except Exception as e2:
-                logger.error(f"Force delete failed: {str(e2)}")
-            return not os.path.exists(file_path)
-
-
-def cleanup_downloads(download_path: str) -> None:
-    """Clean up the downloads directory without removing the directory itself"""
-    try:
-        if os.path.exists(download_path):
-            # Delete all files in the directory
-            for file_path in Path(download_path).glob("**/*"):
-                if file_path.is_file():
-                    try:
-                        if not secure_delete_file(str(file_path)):
-                            logger.error(f"Failed to delete file: {file_path}")
-                    except Exception as e:
-                        logger.error(f"Error deleting file {file_path}: {str(e)}")
-            
-            # Clean up empty subdirectories
-            for dir_path in sorted(Path(download_path).glob("**/*"), reverse=True):
-                if dir_path.is_dir():
-                    try:
-                        dir_path.rmdir()  # Will only remove if empty
-                    except OSError:
-                        pass  # Directory not empty or other error
-    except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")

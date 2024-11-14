@@ -15,7 +15,9 @@ from .config_manager import ConfigManager
 from .update_checker import UpdateChecker
 from .processor import VideoProcessor
 from .commands import VideoArchiverCommands
-from .utils import VideoDownloader, MessageManager, cleanup_downloads
+from .utils.video_downloader import VideoDownloader
+from .utils.message_manager import MessageManager
+from .utils.file_ops import cleanup_downloads
 from .enhanced_queue import EnhancedVideoQueueManager
 from .exceptions import (
     ProcessingError,

@@ -9,7 +9,8 @@ import asyncio
 import traceback
 from datetime import datetime
 
-from .utils import VideoDownloader, secure_delete_file, cleanup_downloads
+from .utils.video_downloader import VideoDownloader
+from .utils.file_ops import secure_delete_file, cleanup_downloads
 from .exceptions import ProcessingError, DiscordAPIError
 from .enhanced_queue import EnhancedVideoQueueManager
 
