@@ -7,11 +7,11 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from videoarchiver.ffmpeg.exceptions import FFmpegError
-from videoarchiver.ffmpeg.gpu_detector import GPUDetector
-from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
-from videoarchiver.ffmpeg.encoder_params import EncoderParams
-from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
+from .exceptions import FFmpegError
+from .gpu_detector import GPUDetector
+from .video_analyzer import VideoAnalyzer
+from .encoder_params import EncoderParams
+from .ffmpeg_downloader import FFmpegDownloader
 
 logger = logging.getLogger("VideoArchiver")
 
