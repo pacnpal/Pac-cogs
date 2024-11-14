@@ -3,7 +3,7 @@ import re
 import discord
 from redbot.core import commands, Config, data_manager, checks
 from redbot.core.bot import Red
-from redbot.core.utils.chat_formatting import box
+from redbot.core.utils.chat_formatting import box, humanize_list
 from discord import app_commands
 import logging
 from pathlib import Path
@@ -11,10 +11,14 @@ import yt_dlp
 import shutil
 import asyncio
 import subprocess
-from typing import Optional, List, Set, Dict
+from typing import Optional, List, Set, Dict, Tuple
 import sys
 import requests
+import aiohttp
 from datetime import datetime, timedelta
+import traceback
+import contextlib
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import pkg_resources
@@ -32,6 +36,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('VideoArchiver')
+
+class ProcessingError(Exception):
+    """Custom exception for video processing errors"""
+    pass
 
 class VideoArchiver(commands.Cog):
     """Archive videos from Discord channels"""
@@ -51,7 +59,9 @@ class VideoArchiver(commands.Cog):
         "enabled_sites": [],
         "concurrent_downloads": 3,
         "disable_update_check": False,
-        "last_update_check": None
+        "last_update_check": None,
+        "max_retries": 3,
+        "retry_delay": 5
     }
 
     def __init__(self, bot: Red):
@@ -61,6 +71,10 @@ class VideoArchiver(commands.Cog):
 
         # Initialize components dict for each guild
         self.components = {}
+        
+        # Track active tasks
+        self.active_tasks: Dict[int, Set[asyncio.Task]] = {}
+        self._task_lock = asyncio.Lock()
 
         # Set up download path in Red's data directory
         self.data_path = Path(data_manager.cog_data_path(self))
@@ -76,6 +90,35 @@ class VideoArchiver(commands.Cog):
         # Start update check task
         self.update_check_task = self.bot.loop.create_task(self.check_for_updates())
 
+    async def track_task(self, guild_id: int, task: asyncio.Task):
+        """Track an active task for a guild"""
+        async with self._task_lock:
+            if guild_id not in self.active_tasks:
+                self.active_tasks[guild_id] = set()
+            self.active_tasks[guild_id].add(task)
+            task.add_done_callback(
+                lambda t: asyncio.create_task(self.remove_task(guild_id, t))
+            )
+
+    async def remove_task(self, guild_id: int, task: asyncio.Task):
+        """Remove a completed task"""
+        async with self._task_lock:
+            if guild_id in self.active_tasks:
+                self.active_tasks[guild_id].discard(task)
+                # Clean up if no more tasks
+                if not self.active_tasks[guild_id]:
+                    del self.active_tasks[guild_id]
+
+    async def cancel_guild_tasks(self, guild_id: int):
+        """Cancel all tasks for a guild"""
+        async with self._task_lock:
+            if guild_id in self.active_tasks:
+                tasks = self.active_tasks[guild_id]
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                del self.active_tasks[guild_id]
+
     def cog_unload(self):
         """Cleanup when cog is unloaded"""
         try:
@@ -83,23 +126,78 @@ class VideoArchiver(commands.Cog):
             if self.update_check_task:
                 self.update_check_task.cancel()
 
+            # Create task to handle cleanup
+            cleanup_task = asyncio.create_task(self._cleanup())
+            
+            # Wait for cleanup to complete
+            try:
+                asyncio.get_event_loop().run_until_complete(cleanup_task)
+            except Exception as e:
+                logger.error(f"Error during cleanup: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"Error during cog unload: {str(e)}")
+
+    async def _cleanup(self):
+        """Handle cleanup of all resources"""
+        try:
+            # Cancel all tasks
+            async with self._task_lock:
+                all_tasks = []
+                for guild_tasks in self.active_tasks.values():
+                    all_tasks.extend(guild_tasks)
+                for task in all_tasks:
+                    task.cancel()
+                await asyncio.gather(*all_tasks, return_exceptions=True)
+                self.active_tasks.clear()
+
             # Clean up components for each guild
-            for guild_components in self.components.values():
-                if 'message_manager' in guild_components:
-                    guild_components['message_manager'].cancel_all_deletions()
-                if 'downloader' in guild_components:
-                    # VideoDownloader's __del__ will handle thread pool shutdown
-                    guild_components['downloader'] = None
+            for guild_id, components in self.components.items():
+                try:
+                    if 'message_manager' in components:
+                        await components['message_manager'].cancel_all_deletions()
+                    if 'downloader' in components:
+                        components['downloader'] = None
+                except Exception as e:
+                    logger.error(f"Error cleaning up guild {guild_id}: {str(e)}")
 
             # Clear components
             self.components.clear()
 
             # Clean up download directory
             if self.download_path.exists():
+                cleanup_downloads(str(self.download_path))
                 shutil.rmtree(self.download_path, ignore_errors=True)
 
         except Exception as e:
-            logger.error(f"Error during cog unload: {str(e)}")
+            logger.error(f"Error during cleanup: {str(e)}")
+
+    async def log_error(self, guild: discord.Guild, error: Exception, context: str = ""):
+        """Log an error with full traceback to the guild's log channel"""
+        error_msg = f"Error {context}:\n{str(error)}"
+        tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+        
+        # Log to console
+        logger.error(f"{error_msg}\n{tb}")
+        
+        # Log to Discord channel
+        settings = await self.config.guild(guild).all()
+        if settings["log_channel"]:
+            try:
+                log_channel = guild.get_channel(settings["log_channel"])
+                if log_channel:
+                    # Split long messages if needed
+                    error_parts = [error_msg]
+                    if len(tb) > 1900:  # Discord message limit is 2000
+                        tb_parts = [tb[i:i+1900] for i in range(0, len(tb), 1900)]
+                        error_parts.extend(tb_parts)
+                    else:
+                        error_parts.append(tb)
+                    
+                    for part in error_parts:
+                        await log_channel.send(f"```py\n{part}```")
+            except Exception as e:
+                logger.error(f"Failed to send error log to channel: {str(e)}")
 
     async def check_for_updates(self):
         """Check for yt-dlp updates periodically"""
@@ -114,6 +212,10 @@ class VideoArchiver(commands.Cog):
                     if settings.get('disable_update_check', False):
                         continue
 
+                    guild = self.bot.get_guild(guild_id)
+                    if not guild:
+                        continue
+
                     last_check = settings.get('last_update_check')
                     if last_check:
                         last_check = datetime.fromisoformat(last_check)
@@ -122,38 +224,50 @@ class VideoArchiver(commands.Cog):
 
                     try:
                         if not PKG_RESOURCES_AVAILABLE:
-                            logger.warning("pkg_resources not available, skipping update check")
+                            await self.log_error(
+                                guild,
+                                Exception("pkg_resources not available"),
+                                "checking for updates"
+                            )
                             continue
 
                         current_version = pkg_resources.get_distribution('yt-dlp').version
                         
                         # Use a timeout for the request
-                        response = requests.get(
-                            'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest',
-                            timeout=10
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(
+                                'https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest',
+                                timeout=aiohttp.ClientTimeout(total=10)
+                            ) as response:
+                                if response.status == 200:
+                                    data = await response.json()
+                                    latest_version = data['tag_name'].lstrip('v')
+
+                                    # Update last check time
+                                    await self.config.guild_from_id(guild_id).last_update_check.set(
+                                        current_time.isoformat()
+                                    )
+
+                                    if current_version != latest_version:
+                                        owner = self.bot.get_user(self.bot.owner_id)
+                                        if owner:
+                                            await owner.send(
+                                                f"⚠️ A new version of yt-dlp is available!\n"
+                                                f"Current: {current_version}\n"
+                                                f"Latest: {latest_version}\n"
+                                                f"Use `[p]videoarchiver updateytdlp` to update."
+                                            )
+                                else:
+                                    raise Exception(f"GitHub API returned status {response.status}")
+
+                    except asyncio.TimeoutError:
+                        await self.log_error(
+                            guild,
+                            Exception("Request timed out"),
+                            "checking for updates"
                         )
-                        response.raise_for_status()
-                        latest_version = response.json()['tag_name'].lstrip('v')
-
-                        # Update last check time
-                        await self.config.guild_from_id(guild_id).last_update_check.set(
-                            current_time.isoformat()
-                        )
-
-                        if current_version != latest_version:
-                            owner = self.bot.get_user(self.bot.owner_id)
-                            if owner:
-                                await owner.send(
-                                    f"⚠️ A new version of yt-dlp is available!\n"
-                                    f"Current: {current_version}\n"
-                                    f"Latest: {latest_version}\n"
-                                    f"Use `[p]videoarchiver updateytdlp` to update."
-                                )
-
-                    except requests.RequestException as e:
-                        logger.error(f"Failed to check for updates (network error): {str(e)}")
                     except Exception as e:
-                        logger.error(f"Failed to check for updates: {str(e)}")
+                        await self.log_error(guild, e, "checking for updates")
 
             except Exception as e:
                 logger.error(f"Error in update check task: {str(e)}")
