@@ -34,13 +34,18 @@ class DownloadError(FFmpegError):
 @contextlib.contextmanager
 def temp_path_context():
     """Context manager for temporary path creation and cleanup"""
-    temp_dir = tempfile.mkdtemp(prefix="ffmpeg_")
+    # Create a unique temporary directory within videoarchiver/tmp
+    tmp_base = Path("videoarchiver/tmp")
+    tmp_base.mkdir(parents=True, exist_ok=True)
+    temp_dir = tmp_base / f"ffmpeg_{int(time.time())}_{os.getpid()}"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    
     try:
-        os.chmod(temp_dir, stat.S_IRWXU)
-        yield temp_dir
+        os.chmod(str(temp_dir), stat.S_IRWXU)
+        yield str(temp_dir)
     finally:
         try:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            shutil.rmtree(str(temp_dir), ignore_errors=True)
         except Exception as e:
             logger.error(f"Error cleaning up temp directory {temp_dir}: {e}")
 
@@ -82,7 +87,19 @@ class FFmpegManager:
     RETRY_DELAY = 1  # seconds
 
     def __init__(self):
-        self.base_path = Path(__file__).parent / "bin"
+        # Set up tmp directory path
+        self.tmp_path = Path("videoarchiver/tmp")
+        self.tmp_path.mkdir(parents=True, exist_ok=True)
+        if platform.system() != "Windows":
+            self.tmp_path.chmod(0o755)
+
+        # Use XDG_DATA_HOME or fallback to ~/.local/share for Linux/macOS
+        if platform.system() in ["Linux", "Darwin"]:
+            xdg_data = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+            self.base_path = Path(xdg_data) / "red-discordbot" / "cogs" / "VideoArchiver" / "bin"
+        else:  # Windows
+            appdata = os.environ.get("APPDATA", os.path.expanduser("~/AppData/Roaming"))
+            self.base_path = Path(appdata) / "Red-DiscordBot" / "cogs" / "VideoArchiver" / "bin"
         
         # Create bin directory with proper permissions if it doesn't exist
         try:
@@ -135,8 +152,8 @@ class FFmpegManager:
                 if self.system != "Windows":
                     try:
                         current_mode = self.ffmpeg_path.stat().st_mode
-                        # Add execute permission for user (100), maintaining existing permissions
-                        new_mode = current_mode | stat.S_IXUSR | stat.S_IRUSR | stat.S_IWUSR
+                        # Add execute permission for user (700)
+                        new_mode = current_mode | stat.S_IRWXU
                         self.ffmpeg_path.chmod(new_mode)
                         logger.info(f"Set FFmpeg permissions to: {oct(new_mode)[-3:]}")
                     except Exception as e:
@@ -332,12 +349,6 @@ class FFmpegManager:
                                 # Verify AMF
                                 test_cmd = [
                                     str(self.ffmpeg_path),
-                                    "-f",
-                                    "lavfi",
-                                    "-i",
-                                    "testsrc=duration=1:size=1280x720:rate=30",
-                                    "-c:v",
-                                    "h264_amf",
                                     "-f",
                                     "null",
                                     "-",
