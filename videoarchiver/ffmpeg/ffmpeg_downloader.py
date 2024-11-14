@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 from contextlib import contextmanager
+from typing import Optional
+
 from .exceptions import DownloadError
 
 logger = logging.getLogger("VideoArchiver")
@@ -62,6 +64,7 @@ class FFmpegDownloader:
     }
 
     def __init__(self, system: str, machine: str, base_dir: Path):
+        """Initialize FFmpeg downloader"""
         self.system = system
         self.machine = machine.lower()
         if self.machine == "arm64":
@@ -112,14 +115,17 @@ class FFmpegDownloader:
         archive_path = Path(temp_dir) / f"ffmpeg_archive{'.zip' if self.system == 'Windows' else '.tar.xz'}"
         
         logger.info(f"Downloading FFmpeg from {url}")
-        response = requests.get(url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        with open(archive_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        return archive_path
+        try:
+            response = requests.get(url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            with open(archive_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            return archive_path
+        except Exception as e:
+            raise DownloadError(f"Failed to download FFmpeg: {str(e)}")
 
     def _extract_binary(self, archive_path: Path, temp_dir: str):
         """Extract FFmpeg binary from archive"""
