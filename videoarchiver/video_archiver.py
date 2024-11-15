@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import discord
-from redbot.core import commands, Config, data_manager, app_commands
+from redbot.core import commands, Config, data_manager
 from pathlib import Path
 import logging
 import asyncio
@@ -123,10 +123,6 @@ class VideoArchiver(commands.Cog):
             # Wait for initialization to complete
             await asyncio.wait_for(self.ready.wait(), timeout=30)
             
-            # Add commands to the bot
-            for command in self.commands_handler.videoarchiver.commands:
-                self.bot.tree.add_command(command)
-            
         except asyncio.TimeoutError:
             await self._cleanup()
             raise ProcessingError("Cog initialization timed out")
@@ -136,10 +132,6 @@ class VideoArchiver(commands.Cog):
 
     async def cog_unload(self) -> None:
         """Clean up when cog is unloaded"""
-        # Remove commands from the bot
-        for command in self.commands_handler.videoarchiver.commands:
-            self.bot.tree.remove_command(command.name)
-            
         await self._cleanup()
 
     async def _cleanup(self) -> None:
