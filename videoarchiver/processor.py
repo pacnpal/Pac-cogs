@@ -293,11 +293,11 @@ class VideoProcessor:
                 for word in words:
                     # Try each extractor
                     for ie in ydl._ies:
-                        # Use suitable as a classmethod and check the result
-                        result = ie.suitable(word)
-                        if result and not isinstance(result, str):
-                            urls.append(word)
-                            break  # Stop once we find a matching extractor
+                        if hasattr(ie, '_VALID_URL') and ie._VALID_URL:
+                            # Use regex pattern matching instead of suitable()
+                            if re.match(ie._VALID_URL, word):
+                                urls.append(word)
+                                break  # Stop once we find a matching pattern
         except Exception as e:
             logger.error(f"URL extraction error: {str(e)}")
         return list(set(urls))  # Remove duplicates
