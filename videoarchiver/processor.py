@@ -45,10 +45,13 @@ class VideoProcessor:
         self._failed_downloads_lock = asyncio.Lock()
 
         # Start queue processing
+        logger.info("Starting video processing queue...")
         self._queue_task = asyncio.create_task(self.queue_manager.process_queue(self._process_video))
+        logger.info("Video processing queue started successfully")
 
     async def _process_video(self, item: Any) -> Tuple[bool, Optional[str]]:
         """Process a video from the queue"""
+        logger.info(f"Processing video from queue: {item.url}")
         try:
             # Get the message
             channel = self.bot.get_channel(item.channel_id)

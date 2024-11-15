@@ -239,6 +239,7 @@ class EnhancedVideoQueueManager:
         Args:
             processor: A callable that takes a QueueItem and returns a tuple of (success: bool, error: Optional[str])
         """
+        logger.info("Queue processor started and waiting for items...")
         while True:
             try:
                 # Get next item from queue
@@ -249,6 +250,7 @@ class EnhancedVideoQueueManager:
                         self._processing[item.url] = item
                         item.status = "processing"
                         item.processing_time = time.time()
+                        logger.info(f"Processing queue item: {item.url}")
 
                 if not item:
                     await asyncio.sleep(1)
