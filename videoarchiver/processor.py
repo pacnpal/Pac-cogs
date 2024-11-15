@@ -74,7 +74,7 @@ class VideoProcessor:
             data_dir = Path(os.path.dirname(__file__)) / "data"
             data_dir.mkdir(parents=True, exist_ok=True)
             queue_path = data_dir / "queue_state.json"
-            
+
             self.queue_manager = EnhancedVideoQueueManager(
                 max_retries=3,
                 retry_delay=5,
@@ -211,11 +211,17 @@ class VideoProcessor:
                 for word in message.content.split():
                     # Log each word being checked
                     logger.debug(f"Checking word: {word}")
-                    # If no sites are enabled, accept all URLs
-                    # Otherwise, check if URL contains any enabled site
-                    if not enabled_sites or any(site in word.lower() for site in enabled_sites):
-                        logger.debug(f"Found matching URL: {word}")
-                        urls.append(word)
+                    # Basic URL validation - must start with http/https or contain a dot
+                    if word.startswith(('http://', 'https://')) or '.' in word:
+                        # If no sites are enabled, accept all URLs
+                        # Otherwise, check if URL contains any enabled site
+                        if not enabled_sites or any(site in word.lower() for site in enabled_sites):
+                            logger.debug(f"Found matching URL: {word}")
+                            urls.append(word)
+                        else:
+                            logger.debug(f"URL {word} doesn't match any enabled sites")
+                    else:
+                        logger.debug(f"Word {word} is not a valid URL")
 
             # Add attachment URLs
             for attachment in message.attachments:
@@ -250,7 +256,7 @@ class VideoProcessor:
         except Exception as e:
             logger.error(f"Error processing message: {traceback.format_exc()}")
             try:
-                await message.add_reaction(REACTIONS['error'])
+                await message.add_reaction(REACTIONS["error"])
             except:
                 pass
 
@@ -280,9 +286,11 @@ class VideoProcessor:
                 if not channel:
                     return False, f"Channel {item.channel_id} not found"
                 original_message = await channel.fetch_message(item.message_id)
-                
-                await original_message.remove_reaction(REACTIONS['queued'], self.bot.user)
-                await original_message.add_reaction(REACTIONS['processing'])
+
+                await original_message.remove_reaction(
+                    REACTIONS["queued"], self.bot.user
+                )
+                await original_message.add_reaction(REACTIONS["processing"])
                 logger.info(f"Started processing message {item.message_id}")
             except discord.NotFound:
                 original_message = None
@@ -298,28 +306,29 @@ class VideoProcessor:
                         try:
                             loop = asyncio.get_running_loop()
                         except RuntimeError:
-                            # If no event loop is running in this thread, 
+                            # If no event loop is running in this thread,
                             # we'll use the bot's loop which we know exists
                             loop = self.bot.loop
-                            
+
                         if not loop.is_running():
-                            logger.warning("Event loop is not running, skipping progress update")
+                            logger.warning(
+                                "Event loop is not running, skipping progress update"
+                            )
                             return
-                            
+
                         # Create a task to update the reaction
                         asyncio.run_coroutine_threadsafe(
-                            self.update_download_progress_reaction(original_message, progress),
-                            loop
+                            self.update_download_progress_reaction(
+                                original_message, progress
+                            ),
+                            loop,
                         )
                     except Exception as e:
                         logger.error(f"Error in progress callback: {e}")
 
             # Create and track download task
             download_task = asyncio.create_task(
-                downloader.download_video(
-                    item.url,
-                    progress_callback=progress_callback
-                )
+                downloader.download_video(item.url, progress_callback=progress_callback)
             )
 
             async with self._active_downloads_lock:
@@ -329,16 +338,20 @@ class VideoProcessor:
                 success, file_path, error = await download_task
                 if not success:
                     if original_message:
-                        await original_message.add_reaction(REACTIONS['error'])
-                        logger.error(f"Download failed for message {item.message_id}: {error}")
+                        await original_message.add_reaction(REACTIONS["error"])
+                        logger.error(
+                            f"Download failed for message {item.message_id}: {error}"
+                        )
                     return False, f"Failed to download video: {error}"
             except asyncio.CancelledError:
                 logger.info(f"Download cancelled for {item.url}")
                 return False, "Download cancelled"
             except Exception as e:
                 if original_message:
-                    await original_message.add_reaction(REACTIONS['error'])
-                    logger.error(f"Download error for message {item.message_id}: {str(e)}")
+                    await original_message.add_reaction(REACTIONS["error"])
+                    logger.error(
+                        f"Download error for message {item.message_id}: {str(e)}"
+                    )
                 return False, f"Download error: {str(e)}"
             finally:
                 async with self._active_downloads_lock:
@@ -357,9 +370,7 @@ class VideoProcessor:
             try:
                 author = original_message.author if original_message else None
                 message = await message_manager.format_message(
-                    author=author,
-                    channel=channel,
-                    url=item.url
+                    author=author, channel=channel, url=item.url
                 )
             except Exception as e:
                 return False, f"Failed to format message: {str(e)}"
@@ -368,28 +379,33 @@ class VideoProcessor:
             try:
                 if not os.path.exists(file_path):
                     return False, "Processed file not found"
-                
+
                 await archive_channel.send(
-                    content=message,
-                    file=discord.File(file_path)
+                    content=message, file=discord.File(file_path)
                 )
-                
+
                 if original_message:
-                    await original_message.remove_reaction(REACTIONS['processing'], self.bot.user)
-                    await original_message.add_reaction(REACTIONS['success'])
+                    await original_message.remove_reaction(
+                        REACTIONS["processing"], self.bot.user
+                    )
+                    await original_message.add_reaction(REACTIONS["success"])
                     logger.info(f"Successfully processed message {item.message_id}")
-                
+
                 return True, None
 
             except discord.HTTPException as e:
                 if original_message:
-                    await original_message.add_reaction(REACTIONS['error'])
-                    logger.error(f"Failed to upload to Discord for message {item.message_id}: {str(e)}")
+                    await original_message.add_reaction(REACTIONS["error"])
+                    logger.error(
+                        f"Failed to upload to Discord for message {item.message_id}: {str(e)}"
+                    )
                 return False, f"Failed to upload to Discord: {str(e)}"
             except Exception as e:
                 if original_message:
-                    await original_message.add_reaction(REACTIONS['error'])
-                    logger.error(f"Failed to archive video for message {item.message_id}: {str(e)}")
+                    await original_message.add_reaction(REACTIONS["error"])
+                    logger.error(
+                        f"Failed to archive video for message {item.message_id}: {str(e)}"
+                    )
                 return False, f"Failed to archive video: {str(e)}"
 
         except Exception as e:
@@ -406,15 +422,17 @@ class VideoProcessor:
     async def update_queue_position_reaction(self, message, position):
         """Update queue position reaction"""
         try:
-            for reaction in REACTIONS['numbers']:
+            for reaction in REACTIONS["numbers"]:
                 try:
                     await message.remove_reaction(reaction, self.bot.user)
                 except:
                     pass
-            
-            if 0 <= position < len(REACTIONS['numbers']):
-                await message.add_reaction(REACTIONS['numbers'][position])
-                logger.info(f"Updated queue position reaction to {position + 1} for message {message.id}")
+
+            if 0 <= position < len(REACTIONS["numbers"]):
+                await message.add_reaction(REACTIONS["numbers"][position])
+                logger.info(
+                    f"Updated queue position reaction to {position + 1} for message {message.id}"
+                )
         except Exception as e:
             logger.error(f"Failed to update queue position reaction: {e}")
 
@@ -422,27 +440,27 @@ class VideoProcessor:
         """Update progress reaction based on FFmpeg progress"""
         if not message:
             return
-            
+
         try:
             # Get event loop for the current context
             loop = asyncio.get_running_loop()
-            
+
             # Remove old reactions in the event loop
-            for reaction in REACTIONS['progress']:
+            for reaction in REACTIONS["progress"]:
                 try:
                     await message.remove_reaction(reaction, self.bot.user)
                 except Exception as e:
                     logger.error(f"Failed to remove progress reaction: {e}")
                     continue
-            
+
             # Add new reaction based on progress
             try:
                 if progress < 33:
-                    await message.add_reaction(REACTIONS['progress'][0])
+                    await message.add_reaction(REACTIONS["progress"][0])
                 elif progress < 66:
-                    await message.add_reaction(REACTIONS['progress'][1])
+                    await message.add_reaction(REACTIONS["progress"][1])
                 else:
-                    await message.add_reaction(REACTIONS['progress'][2])
+                    await message.add_reaction(REACTIONS["progress"][2])
             except Exception as e:
                 logger.error(f"Failed to add progress reaction: {e}")
 
@@ -453,30 +471,30 @@ class VideoProcessor:
         """Update download progress reaction"""
         if not message:
             return
-            
+
         try:
             # Remove old reactions in the event loop
-            for reaction in REACTIONS['download']:
+            for reaction in REACTIONS["download"]:
                 try:
                     await message.remove_reaction(reaction, self.bot.user)
                 except Exception as e:
                     logger.error(f"Failed to remove download reaction: {e}")
                     continue
-            
+
             # Add new reaction based on progress
             try:
                 if progress <= 20:
-                    await message.add_reaction(REACTIONS['download'][0])
+                    await message.add_reaction(REACTIONS["download"][0])
                 elif progress <= 40:
-                    await message.add_reaction(REACTIONS['download'][1])
+                    await message.add_reaction(REACTIONS["download"][1])
                 elif progress <= 60:
-                    await message.add_reaction(REACTIONS['download'][2])
+                    await message.add_reaction(REACTIONS["download"][2])
                 elif progress <= 80:
-                    await message.add_reaction(REACTIONS['download'][3])
+                    await message.add_reaction(REACTIONS["download"][3])
                 elif progress < 100:
-                    await message.add_reaction(REACTIONS['download'][4])
+                    await message.add_reaction(REACTIONS["download"][4])
                 else:
-                    await message.add_reaction(REACTIONS['download'][5])
+                    await message.add_reaction(REACTIONS["download"][5])
             except Exception as e:
                 logger.error(f"Failed to add download reaction: {e}")
 
@@ -488,32 +506,32 @@ class VideoProcessor:
         try:
             # Get queue status
             queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
-            
+
             # Create embed for queue overview
             embed = discord.Embed(
                 title="Queue Status Details",
                 color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
+                timestamp=datetime.utcnow(),
             )
-            
+
             # Queue statistics
             embed.add_field(
                 name="Queue Statistics",
                 value=f"```\n"
-                      f"Pending: {queue_status['pending']}\n"
-                      f"Processing: {queue_status['processing']}\n"
-                      f"Completed: {queue_status['completed']}\n"
-                      f"Failed: {queue_status['failed']}\n"
-                      f"Success Rate: {queue_status['metrics']['success_rate']:.1%}\n"
-                      f"Avg Processing Time: {queue_status['metrics']['avg_processing_time']:.1f}s\n"
-                      f"```",
-                inline=False
+                f"Pending: {queue_status['pending']}\n"
+                f"Processing: {queue_status['processing']}\n"
+                f"Completed: {queue_status['completed']}\n"
+                f"Failed: {queue_status['failed']}\n"
+                f"Success Rate: {queue_status['metrics']['success_rate']:.1%}\n"
+                f"Avg Processing Time: {queue_status['metrics']['avg_processing_time']:.1f}s\n"
+                f"```",
+                inline=False,
             )
 
             # Active downloads
             active_downloads = ""
             for url, progress in _download_progress.items():
-                if progress.get('active', False):
+                if progress.get("active", False):
                     active_downloads += (
                         f"URL: {url[:50]}...\n"
                         f"Progress: {progress.get('percent', 0):.1f}%\n"
@@ -524,24 +542,24 @@ class VideoProcessor:
                         f"Retries: {progress.get('retries', 0)}\n"
                         f"-------------------\n"
                     )
-            
+
             if active_downloads:
                 embed.add_field(
                     name="Active Downloads",
                     value=f"```\n{active_downloads}```",
-                    inline=False
+                    inline=False,
                 )
             else:
                 embed.add_field(
                     name="Active Downloads",
                     value="```\nNo active downloads```",
-                    inline=False
+                    inline=False,
                 )
 
             # Active compressions
             active_compressions = ""
             for url, progress in _compression_progress.items():
-                if progress.get('active', False):
+                if progress.get("active", False):
                     active_compressions += (
                         f"File: {progress.get('filename', 'Unknown')}\n"
                         f"Progress: {progress.get('percent', 0):.1f}%\n"
@@ -553,41 +571,43 @@ class VideoProcessor:
                         f"Hardware Accel: {progress.get('hardware_accel', False)}\n"
                         f"-------------------\n"
                     )
-            
+
             if active_compressions:
                 embed.add_field(
                     name="Active Compressions",
                     value=f"```\n{active_compressions}```",
-                    inline=False
+                    inline=False,
                 )
             else:
                 embed.add_field(
                     name="Active Compressions",
                     value="```\nNo active compressions```",
-                    inline=False
+                    inline=False,
                 )
 
             # Error statistics
-            if queue_status['metrics']['errors_by_type']:
+            if queue_status["metrics"]["errors_by_type"]:
                 error_stats = "\n".join(
                     f"{error_type}: {count}"
-                    for error_type, count in queue_status['metrics']['errors_by_type'].items()
+                    for error_type, count in queue_status["metrics"][
+                        "errors_by_type"
+                    ].items()
                 )
                 embed.add_field(
                     name="Error Statistics",
                     value=f"```\n{error_stats}```",
-                    inline=False
+                    inline=False,
                 )
 
             # Hardware acceleration statistics
             embed.add_field(
                 name="Hardware Statistics",
                 value=f"```\n"
-                      f"Hardware Accel Failures: {queue_status['metrics']['hardware_accel_failures']}\n"
-                      f"Compression Failures: {queue_status['metrics']['compression_failures']}\n"
-                      f"Peak Memory Usage: {queue_status['metrics']['peak_memory_usage']:.1f}MB\n"
-                      f"```",
-                inline=False
+                f"Hardware Accel Failures: {queue_status['metrics']['hardware_accel_failures']}\n"
+                f"Compression Failures: {queue_status['metrics']['compression_failures']}\n"
+                f"Peak Memory Usage: {queue_status['metrics']['peak_memory_usage']:.1f}MB\n"
+                f"```",
+                inline=False,
             )
 
             await ctx.send(embed=embed)
