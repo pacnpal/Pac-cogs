@@ -30,6 +30,9 @@ REACTIONS = {
     'download': ['0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟']  # Download progress (0%, 20%, 40%, 60%, 80%, 100%)
 }
 
+# Global queue manager instance to persist across reloads
+_global_queue_manager = None
+
 class VideoProcessor:
     """Handles video processing operations"""
 
@@ -46,15 +49,22 @@ class VideoProcessor:
         self.components = components
         self.ffmpeg_mgr = ffmpeg_mgr
 
-        # Use provided queue manager or create new one
-        if queue_manager:
+        # Use global queue manager if available
+        global _global_queue_manager
+        if _global_queue_manager is not None:
+            self.queue_manager = _global_queue_manager
+            logger.info("Using existing global queue manager")
+        # Use provided queue manager if available
+        elif queue_manager:
             self.queue_manager = queue_manager
-            logger.info("Using provided queue manager")
+            _global_queue_manager = queue_manager
+            logger.info("Using provided queue manager and setting as global")
         else:
             # Initialize enhanced queue manager with persistence and error recovery
             data_dir = Path(os.path.dirname(__file__)) / "data"
             data_dir.mkdir(parents=True, exist_ok=True)
             queue_path = data_dir / "queue_state.json"
+            
             self.queue_manager = EnhancedVideoQueueManager(
                 max_retries=3,
                 retry_delay=5,
@@ -63,7 +73,8 @@ class VideoProcessor:
                 max_history_age=86400,  # 24 hours
                 persistence_path=str(queue_path)
             )
-            logger.info("Created new queue manager")
+            _global_queue_manager = self.queue_manager
+            logger.info("Created new queue manager and set as global")
 
         # Track failed downloads for cleanup
         self._failed_downloads = set()
@@ -328,6 +339,15 @@ class VideoProcessor:
                         logger.error(f"Failed to clean up file {file_path}: {e}")
                 self._failed_downloads.clear()
 
+            # Don't clear global queue manager during cleanup
+            # This ensures it persists through reloads
+
         except Exception as e:
             logger.error(f"Error during cleanup: {traceback.format_exc()}")
             raise ProcessingError(f"Cleanup failed: {str(e)}")
+
+    @classmethod
+    def get_queue_manager(cls) -> Optional[EnhancedVideoQueueManager]:
+        """Get the global queue manager instance"""
+        global _global_queue_manager
+        return _global_queue_manager
