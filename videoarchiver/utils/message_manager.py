@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Dict
+from typing import Dict, List
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -19,6 +19,25 @@ class MessageManager:
         return self.message_template.format(
             author=author, url=url, original_message=original_message
         )
+
+    async def get_message_reactions(self, message) -> List[Dict]:
+        """Get all reactions from a message"""
+        reactions = []
+        for reaction in message.reactions:
+            reactions.append({
+                'emoji': str(reaction.emoji),
+                'count': reaction.count,
+                'users': [user.id async for user in reaction.users()]
+            })
+        return reactions
+
+    async def restore_reactions(self, message, reactions: List[Dict]) -> None:
+        """Restore reactions to a message"""
+        for reaction_data in reactions:
+            try:
+                await message.add_reaction(reaction_data['emoji'])
+            except Exception as e:
+                logger.error(f"Failed to restore reaction {reaction_data['emoji']}: {str(e)}")
 
     async def schedule_message_deletion(self, message_id: int, delete_func) -> None:
         if self.message_duration <= 0:

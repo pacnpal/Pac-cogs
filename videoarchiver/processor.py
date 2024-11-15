@@ -3,7 +3,7 @@
 import os
 import logging
 import asyncio
-import discord  # Added missing import
+import discord
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import traceback
@@ -80,6 +80,12 @@ class VideoProcessor:
             if not content or not downloader.is_supported_url(content):
                 return
 
+            # Add video camera reaction to indicate processing
+            try:
+                await message.add_reaction("📹")
+            except Exception as e:
+                logger.error(f"Failed to add video camera reaction: {e}")
+
             # Add to processing queue
             await self.queue_manager.add_to_queue(
                 url=content,
@@ -108,6 +114,18 @@ class VideoProcessor:
             if not downloader or not message_manager:
                 return False, f"Missing required components for guild {guild_id}"
 
+            # Get original message
+            try:
+                channel = self.bot.get_channel(item.channel_id)
+                if not channel:
+                    return False, f"Channel {item.channel_id} not found"
+                original_message = await channel.fetch_message(item.message_id)
+            except discord.NotFound:
+                original_message = None
+            except Exception as e:
+                logger.error(f"Error fetching original message: {e}")
+                original_message = None
+
             # Download and process video
             try:
                 success, file_path, error = await downloader.download_video(item.url)
@@ -126,30 +144,12 @@ class VideoProcessor:
                 if not archive_channel:
                     return False, "Archive channel not configured"
 
-                # Get original message
-                try:
-                    channel = self.bot.get_channel(item.channel_id)
-                    if not channel:
-                        return False, f"Channel {item.channel_id} not found"
-                    original_message = await channel.fetch_message(item.message_id)
-                except discord.NotFound:
-                    original_message = None
-                except Exception as e:
-                    logger.error(f"Error fetching original message: {e}")
-                    original_message = None
-
                 # Format message
                 try:
                     author = original_message.author if original_message else None
                     message = await message_manager.format_message(
                         author=author,
                         channel=channel,
-                        original_message=original_message
-                    )
-                except Exception as e:
-                    logger.error(f"Error formatting message: {e}")
-                    message = f"Video from {item.url}"
-
                 # Upload to archive channel
                 try:
                     if not os.path.exists(file_path):
@@ -159,20 +159,11 @@ class VideoProcessor:
                         content=message,
                         file=discord.File(file_path)
                     )
+
                 except discord.HTTPException as e:
                     return False, f"Failed to upload to Discord: {str(e)}"
                 except Exception as e:
                     return False, f"Failed to archive video: {str(e)}"
-
-                # Delete original if configured
-                if original_message:
-                    try:
-                        settings = await self.config.get_guild_settings(guild_id)
-                        if settings.get("delete_after_repost", False):
-                            await original_message.delete()
-                    except Exception as e:
-                        logger.warning(f"Failed to delete original message: {e}")
-                        # Don't fail the process for deletion errors
 
                 return True, None
 
@@ -186,7 +177,6 @@ class VideoProcessor:
                         os.unlink(file_path)
                     except Exception as e:
                         logger.error(f"Failed to clean up file {file_path}: {e}")
-                        # Don't fail the process for cleanup errors
 
         except Exception as e:
             logger.error(f"Error processing video: {traceback.format_exc()}")
