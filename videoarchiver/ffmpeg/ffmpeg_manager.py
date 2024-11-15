@@ -31,9 +31,12 @@ class FFmpegManager:
             base_dir=self.base_dir
         )
         
-        # Get or download FFmpeg
-        self.ffmpeg_path = self._initialize_ffmpeg()
+        # Get or download FFmpeg and FFprobe
+        binaries = self._initialize_binaries()
+        self.ffmpeg_path = binaries["ffmpeg"]
+        self.ffprobe_path = binaries["ffprobe"]
         logger.info(f"Using FFmpeg from: {self.ffmpeg_path}")
+        logger.info(f"Using FFprobe from: {self.ffprobe_path}")
         
         # Initialize components
         self.gpu_detector = GPUDetector(self.ffmpeg_path)
@@ -48,35 +51,40 @@ class FFmpegManager:
         self._verify_ffmpeg()
         logger.info("FFmpeg manager initialized successfully")
 
-    def _initialize_ffmpeg(self) -> Path:
-        """Initialize FFmpeg binary with proper error handling"""
+    def _initialize_binaries(self) -> Dict[str, Path]:
+        """Initialize FFmpeg and FFprobe binaries with proper error handling"""
         try:
-            # Verify existing FFmpeg if it exists
-            if self.downloader.ffmpeg_path.exists():
+            # Verify existing binaries if they exist
+            if self.downloader.ffmpeg_path.exists() and self.downloader.ffprobe_path.exists():
                 logger.info(f"Found existing FFmpeg: {self.downloader.ffmpeg_path}")
+                logger.info(f"Found existing FFprobe: {self.downloader.ffprobe_path}")
                 if self.downloader.verify():
-                    return self.downloader.ffmpeg_path
+                    return {
+                        "ffmpeg": self.downloader.ffmpeg_path,
+                        "ffprobe": self.downloader.ffprobe_path
+                    }
                 else:
-                    logger.warning("Existing FFmpeg is not functional, downloading new copy")
+                    logger.warning("Existing binaries are not functional, downloading new copies")
 
-            # Download and verify FFmpeg
-            logger.info("Downloading FFmpeg...")
-            ffmpeg_path = self.downloader.download()
+            # Download and verify binaries
+            logger.info("Downloading FFmpeg and FFprobe...")
+            binaries = self.downloader.download()
             if not self.downloader.verify():
-                raise FFmpegError("Downloaded FFmpeg binary is not functional")
+                raise FFmpegError("Downloaded binaries are not functional")
                 
             # Set executable permissions
             try:
                 if platform.system() != "Windows":
-                    os.chmod(str(ffmpeg_path), 0o755)
+                    os.chmod(str(binaries["ffmpeg"]), 0o755)
+                    os.chmod(str(binaries["ffprobe"]), 0o755)
             except Exception as e:
-                logger.error(f"Failed to set FFmpeg permissions: {e}")
+                logger.error(f"Failed to set binary permissions: {e}")
                 
-            return ffmpeg_path
+            return binaries
             
         except Exception as e:
-            logger.error(f"Failed to initialize FFmpeg: {e}")
-            raise FFmpegError(f"Failed to initialize FFmpeg: {e}")
+            logger.error(f"Failed to initialize binaries: {e}")
+            raise FFmpegError(f"Failed to initialize binaries: {e}")
 
     def _verify_ffmpeg(self) -> None:
         """Verify FFmpeg functionality with comprehensive checks"""
@@ -93,6 +101,19 @@ class FFmpegManager:
             if result.returncode != 0:
                 raise FFmpegError("FFmpeg version check failed")
             logger.info(f"FFmpeg version: {result.stdout.split()[2]}")
+
+            # Check FFprobe version
+            probe_cmd = [str(self.ffprobe_path), "-version"]
+            result = subprocess.run(
+                probe_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                raise FFmpegError("FFprobe version check failed")
+            logger.info(f"FFprobe version: {result.stdout.split()[2]}")
 
             # Check FFmpeg capabilities
             caps_cmd = [str(self.ffmpeg_path), "-hide_banner", "-encoders"]
@@ -174,11 +195,19 @@ class FFmpegManager:
             raise FFmpegError("FFmpeg is not available")
         return str(self.ffmpeg_path)
 
+    def get_ffprobe_path(self) -> str:
+        """Get path to FFprobe binary"""
+        if not self.ffprobe_path.exists():
+            raise FFmpegError("FFprobe is not available")
+        return str(self.ffprobe_path)
+
     def force_download(self) -> bool:
         """Force re-download of FFmpeg binary"""
         try:
             logger.info("Force downloading FFmpeg...")
-            self.ffmpeg_path = self.downloader.download()
+            binaries = self.downloader.download()
+            self.ffmpeg_path = binaries["ffmpeg"]
+            self.ffprobe_path = binaries["ffprobe"]
             return self.downloader.verify()
         except Exception as e:
             logger.error(f"Failed to force download FFmpeg: {e}")

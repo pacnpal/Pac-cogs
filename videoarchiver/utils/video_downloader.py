@@ -7,6 +7,8 @@ import asyncio
 import ffmpeg
 import yt_dlp
 import shutil
+import subprocess
+import json
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -152,21 +154,50 @@ class VideoDownloader:
     def _verify_video_file(self, file_path: str) -> bool:
         """Verify video file integrity"""
         try:
-            probe = ffmpeg.probe(file_path)
+            # Use ffprobe from FFmpegManager
+            ffprobe_path = str(self.ffmpeg_mgr.get_ffprobe_path())
+            logger.debug(f"Using ffprobe from: {ffprobe_path}")
+            
+            cmd = [
+                ffprobe_path,
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                file_path
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                raise VideoVerificationError(f"FFprobe failed: {result.stderr}")
+                
+            probe = json.loads(result.stdout)
+            
             # Check if file has video stream
             video_streams = [s for s in probe["streams"] if s["codec_type"] == "video"]
             if not video_streams:
                 raise VideoVerificationError("No video streams found")
+                
             # Check if duration is valid
             duration = float(probe["format"].get("duration", 0))
             if duration <= 0:
                 raise VideoVerificationError("Invalid video duration")
+                
             # Check if file is readable
             with open(file_path, "rb") as f:
                 f.seek(0, 2)  # Seek to end
                 if f.tell() == 0:
                     raise VideoVerificationError("Empty file")
+                    
             return True
+            
         except Exception as e:
             logger.error(f"Error verifying video file {file_path}: {e}")
             return False

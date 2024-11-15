@@ -9,7 +9,6 @@ from contextlib import contextmanager
 import tempfile
 import shutil
 import json
-import re
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -47,14 +46,7 @@ class VideoAnalyzer:
         logger.info(f"Initialized VideoAnalyzer with FFmpeg: {self.ffmpeg_path}, FFprobe: {self.ffprobe_path}")
 
     def analyze_video(self, input_path: str) -> Dict[str, Any]:
-        """Analyze video content for optimal encoding settings
-        
-        Args:
-            input_path: Path to input video file
-            
-        Returns:
-            Dict containing video analysis results
-        """
+        """Analyze video content for optimal encoding settings"""
         try:
             if not os.path.exists(input_path):
                 logger.error(f"Input file not found: {input_path}")
