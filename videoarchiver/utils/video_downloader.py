@@ -269,19 +269,28 @@ class VideoDownloader:
                             f"compressed_{os.path.basename(original_file)}",
                         )
 
-                        # Configure ffmpeg with optimal parameters
-                        stream = ffmpeg.input(original_file)
-                        stream = ffmpeg.output(stream, compressed_file, **params)
-
+                        # Run FFmpeg directly with subprocess instead of ffmpeg-python
+                        cmd = [
+                            self.ffmpeg_mgr.get_ffmpeg_path(),
+                            "-i", original_file
+                        ]
+                        
+                        # Add all parameters
+                        for key, value in params.items():
+                            cmd.extend([f"-{key}", str(value)])
+                            
+                        # Add output file
+                        cmd.append(compressed_file)
+                        
                         # Run compression in executor
                         await asyncio.get_event_loop().run_in_executor(
                             self.download_pool,
-                            lambda: ffmpeg.run(
-                                stream,
-                                capture_stdout=True,
-                                capture_stderr=True,
-                                overwrite_output=True,
-                            ),
+                            lambda: subprocess.run(
+                                cmd,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                check=True
+                            )
                         )
 
                         if not os.path.exists(compressed_file):

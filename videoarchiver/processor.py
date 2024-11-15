@@ -317,7 +317,6 @@ class VideoProcessor:
                 return
 
             # Find all video URLs in message using yt-dlp simulation
-            logger.info(f"Checking message {message.id} for video URLs...")
             urls = []
             if message.guild.id in self.components:
                 downloader = self.components[message.guild.id]["downloader"]
@@ -327,10 +326,11 @@ class VideoProcessor:
                         # Use yt-dlp simulation to check if URL is supported
                         try:
                             if downloader.is_supported_url(word):
-                                logger.info(f"Found supported URL: {word}")
                                 urls.append(word)
                         except Exception as e:
-                            logger.error(f"Error checking URL {word}: {str(e)}")
+                            # Only log URL check errors if it's actually a URL
+                            if any(site in word for site in ["http://", "https://", "www."]):
+                                logger.error(f"Error checking URL {word}: {str(e)}")
                             continue
 
             if urls:
@@ -341,8 +341,6 @@ class VideoProcessor:
                     priority = len(urls) - i
                     logger.info(f"Processing URL {url} with priority {priority}")
                     await self.process_video_url(url, message, priority)
-            else:
-                logger.info(f"No video URLs found in message {message.id}")
 
         except Exception as e:
             logger.error(f"Error processing message: {traceback.format_exc()}")
