@@ -11,13 +11,16 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Configurable video quality and format
   - Automatic file size optimization for Discord limits
 
-- **Enhanced Queue System**
-  - Priority-based processing
-  - Queue persistence across bot restarts
-  - Performance metrics tracking
-  - Automatic cleanup and memory management
-  - Real-time queue status monitoring
-  - Detailed performance analytics
+- **Modular Queue System**
+  - Priority-based processing with state persistence
+  - Efficient resource management and monitoring
+  - Real-time performance metrics and health checks
+  - Automatic cleanup and memory optimization
+  - Component-based architecture:
+    - Queue state persistence and recovery
+    - Health monitoring and metrics tracking
+    - Resource cleanup and maintenance
+    - Core queue operations management
 
 - **Channel Management**
   - Flexible channel monitoring (specific channels or all)
@@ -80,21 +83,32 @@ All commands support both prefix and slash command syntax:
 - **`vas_enable [sites...]`**: Enable specific sites (empty for all)
 - **`vas_list`**: List available and enabled sites
 
-## Queue System
+## Queue System Architecture
 
-The enhanced queue system provides:
+The queue system is built with a modular, component-based architecture:
 
-### Basic Metrics
-- Pending/Processing/Completed/Failed counts
-- Success rate percentage
-- Average processing time
+### Core Components
+- **Models**: Data structures for queue items and metrics
+- **Persistence**: Queue state persistence and recovery
+- **Monitoring**: Health checks and performance metrics
+- **Cleanup**: Resource management and maintenance
+- **Manager**: Core queue operations and coordination
 
-### Detailed Metrics
-- Total processed videos
-- Total failures
-- Peak memory usage
-- Last cleanup time
-- Real-time queue state
+### Metrics and Monitoring
+- Real-time queue status and health monitoring
+- Comprehensive performance metrics:
+  - Processing counts and success rates
+  - Hardware acceleration statistics
+  - Memory usage tracking
+  - Error distribution analysis
+- Automatic recovery from failures
+- Resource usage optimization
+
+### State Management
+- Persistent queue state across bot restarts
+- Efficient memory management
+- Automatic cleanup of old entries
+- Priority-based processing
 
 ## Message Templates
 
