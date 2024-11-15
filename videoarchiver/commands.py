@@ -5,12 +5,6 @@ from typing import Optional
 import yt_dlp
 from datetime import datetime
 
-def setup(bot):
-    """Load the VideoArchiverCommands cog."""
-    cog = VideoArchiverCommands(bot)
-    bot.add_cog(cog)
-    return cog
-
 class VideoArchiverCommands(commands.Cog):
     """Command handler for VideoArchiver"""
 
@@ -50,9 +44,16 @@ class VideoArchiverCommands(commands.Cog):
     @videoarchiver.command(name="addrole")
     @commands.guild_only()
     async def add_allowed_role(self, ctx: commands.Context, role: Optional[discord.Role] = None):
-        """Add a role that's allowed to trigger archiving (default: @everyone)"""
+        """Add a role that's allowed to trigger archiving (leave empty for @everyone)"""
         role_id = role.id if role else ctx.guild.default_role.id
         role_name = role.name if role else "@everyone"
+        
+        # If no role is specified, clear the list to allow everyone
+        if not role:
+            await self.config.update_setting(ctx.guild.id, "allowed_roles", [])
+            await ctx.send("Allowed role set to @everyone (all users can trigger archiving)")
+            return
+            
         await self.config.add_to_list(ctx.guild.id, "allowed_roles", role_id)
         await ctx.send(f"Added {role_name} to allowed roles")
 
@@ -70,7 +71,7 @@ class VideoArchiverCommands(commands.Cog):
         roles = await self.config.get_setting(ctx.guild.id, "allowed_roles")
         if not roles:
             await ctx.send(
-                "No roles are currently allowed (all users can trigger archiving)"
+                "No roles are currently set (all users can trigger archiving)"
             )
             return
         role_names = [
@@ -123,13 +124,15 @@ class VideoArchiverCommands(commands.Cog):
     async def add_monitored_channel(
         self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None
     ):
-        """Add a channel to monitor for videos (default: all channels)"""
-        if channel:
-            await self.config.add_to_list(ctx.guild.id, "monitored_channels", channel.id)
-            await ctx.send(f"Now monitoring {channel.mention} for videos")
-        else:
+        """Add a channel to monitor for videos (leave empty to monitor all channels)"""
+        if not channel:
+            # If no channel is specified, clear the list to monitor all channels
             await self.config.update_setting(ctx.guild.id, "monitored_channels", [])
             await ctx.send("Now monitoring all channels for videos")
+            return
+            
+        await self.config.add_to_list(ctx.guild.id, "monitored_channels", channel.id)
+        await ctx.send(f"Now monitoring {channel.mention} for videos")
 
     @videoarchiver.command(name="removemonitor")
     @commands.guild_only()
