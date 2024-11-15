@@ -13,7 +13,7 @@ class MessageHandler:
 
     def __init__(self, bot, config_manager, queue_manager):
         self.bot = bot
-        self.config = config_manager
+        self.config_manager = config_manager
         self.queue_manager = queue_manager
 
     async def process_message(self, message: discord.Message) -> None:
@@ -25,7 +25,7 @@ class MessageHandler:
                 return
 
             # Get guild settings
-            settings = await self.config.get_guild_settings(message.guild.id)
+            settings = await self.config_manager.get_guild_settings(message.guild.id)
             if not settings:
                 logger.warning(f"No settings found for guild {message.guild.id}")
                 return

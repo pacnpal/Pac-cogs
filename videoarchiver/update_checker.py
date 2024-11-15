@@ -31,7 +31,7 @@ class UpdateChecker:
     
     def __init__(self, bot, config_manager):
         self.bot = bot
-        self.config = config_manager
+        self.config_manager = config_manager
         self._check_task = None
         self._session: Optional[aiohttp.ClientSession] = None
         self._rate_limit_reset = 0
@@ -73,20 +73,16 @@ class UpdateChecker:
         
         while True:
             try:
-                all_guilds = await self.config.config.all_guilds()
-                current_time = datetime.utcnow()
-
-                for guild_id, settings in all_guilds.items():
+                for guild in self.bot.guilds:
                     try:
+                        settings = await self.config_manager.get_guild_settings(guild.id)
                         if settings.get('disable_update_check', False):
                             continue
 
-                        guild = self.bot.get_guild(guild_id)
-                        if not guild:
-                            continue
+                        current_time = datetime.utcnow()
 
                         # Check if we've checked recently
-                        last_check = self._last_version_check.get(guild_id)
+                        last_check = self._last_version_check.get(guild.id)
                         if last_check and (current_time - last_check).total_seconds() < self.UPDATE_CHECK_INTERVAL:
                             continue
 
@@ -99,10 +95,10 @@ class UpdateChecker:
                             self._rate_limit_reset = 0
 
                         await self._check_guild(guild, settings)
-                        self._last_version_check[guild_id] = current_time
+                        self._last_version_check[guild.id] = current_time
 
                     except Exception as e:
-                        logger.error(f"Error checking updates for guild {guild_id}: {str(e)}")
+                        logger.error(f"Error checking updates for guild {guild.id}: {str(e)}")
                         continue
 
             except Exception as e:
@@ -127,7 +123,9 @@ class UpdateChecker:
                 return  # Error already logged in _get_latest_version
 
             # Update last check time
-            await self.config.config.guild(guild).last_update_check.set(
+            await self.config_manager.update_setting(
+                guild.id,
+                "last_update_check",
                 datetime.utcnow().isoformat()
             )
 
@@ -228,7 +226,7 @@ class UpdateChecker:
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         error_message = f"[{timestamp}] Error {context}: {str(error)}"
         
-        log_channel = await self.config.get_channel(guild, "log")
+        log_channel = await self.config_manager.get_channel(guild, "log")
         if log_channel:
             try:
                 await log_channel.send(f"```\n{error_message}\n```")

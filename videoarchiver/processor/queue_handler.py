@@ -17,7 +17,7 @@ class QueueHandler:
 
     def __init__(self, bot, config_manager, components, db=None):
         self.bot = bot
-        self.config = config_manager
+        self.config_manager = config_manager
         self.components = components
         self.db = db
         self._unloading = False
@@ -105,7 +105,7 @@ class QueueHandler:
             if not guild:
                 return False, f"Guild {guild_id} not found"
 
-            archive_channel = await self.config.get_channel(guild, "archive")
+            archive_channel = await self.config_manager.get_channel(guild, "archive")
             if not archive_channel:
                 return False, "Archive channel not configured"
 
