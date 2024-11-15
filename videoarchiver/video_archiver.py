@@ -274,29 +274,30 @@ class VideoArchiver(commands.Cog):
             except Exception as log_error:
                 logger.error(f"Failed to log error to guild: {str(log_error)}")
 
-    # Command handlers with proper error handling
-    videoarchiver = commands.hybrid_group()(VideoArchiverCommands.videoarchiver)
-    update_ytdlp = videoarchiver.command()(VideoArchiverCommands.update_ytdlp)
-    toggle_update_check = videoarchiver.command()(VideoArchiverCommands.toggle_update_check)
-    add_allowed_role = videoarchiver.command()(VideoArchiverCommands.add_allowed_role)
-    remove_allowed_role = videoarchiver.command()(VideoArchiverCommands.remove_allowed_role)
-    list_allowed_roles = videoarchiver.command()(VideoArchiverCommands.list_allowed_roles)
-    set_concurrent_downloads = videoarchiver.command()(VideoArchiverCommands.set_concurrent_downloads)
-    set_archive_channel = videoarchiver.command()(VideoArchiverCommands.set_archive_channel)
-    set_notification_channel = videoarchiver.command()(VideoArchiverCommands.set_notification_channel)
-    set_log_channel = videoarchiver.command()(VideoArchiverCommands.set_log_channel)
-    add_monitored_channel = videoarchiver.command()(VideoArchiverCommands.add_monitored_channel)
-    remove_monitored_channel = videoarchiver.command()(VideoArchiverCommands.remove_monitored_channel)
-    set_video_format = videoarchiver.command()(VideoArchiverCommands.set_video_format)
-    set_video_quality = videoarchiver.command()(VideoArchiverCommands.set_video_quality)
-    set_max_file_size = videoarchiver.command()(VideoArchiverCommands.set_max_file_size)
-    toggle_delete_after_repost = videoarchiver.command()(VideoArchiverCommands.toggle_delete_after_repost)
-    set_message_duration = videoarchiver.command()(VideoArchiverCommands.set_message_duration)
-    set_message_template = videoarchiver.command()(VideoArchiverCommands.set_message_template)
-    enable_sites = videoarchiver.command()(VideoArchiverCommands.enable_sites)
-    list_sites = videoarchiver.command()(VideoArchiverCommands.list_sites)
-    show_queue = videoarchiver.command()(VideoArchiverCommands.show_queue)
-    clear_queue = videoarchiver.command()(VideoArchiverCommands.clear_queue)
+    # Reference the existing commands from VideoArchiverCommands
+    videoarchiver = VideoArchiverCommands.videoarchiver
+    update_ytdlp = VideoArchiverCommands.update_ytdlp
+    toggle_update_check = VideoArchiverCommands.toggle_update_check
+    add_allowed_role = VideoArchiverCommands.add_allowed_role
+    remove_allowed_role = VideoArchiverCommands.remove_allowed_role
+    list_allowed_roles = VideoArchiverCommands.list_allowed_roles
+    set_concurrent_downloads = VideoArchiverCommands.set_concurrent_downloads
+    set_archive_channel = VideoArchiverCommands.set_archive_channel
+    set_notification_channel = VideoArchiverCommands.set_notification_channel
+    set_log_channel = VideoArchiverCommands.set_log_channel
+    add_monitored_channel = VideoArchiverCommands.add_monitored_channel
+    remove_monitored_channel = VideoArchiverCommands.remove_monitored_channel
+    set_video_format = VideoArchiverCommands.set_video_format
+    set_video_quality = VideoArchiverCommands.set_video_quality
+    set_max_file_size = VideoArchiverCommands.set_max_file_size
+    toggle_delete_after_repost = VideoArchiverCommands.toggle_delete_after_repost
+    set_message_duration = VideoArchiverCommands.set_message_duration
+    set_message_template = VideoArchiverCommands.set_message_template
+    enable_sites = VideoArchiverCommands.enable_sites
+    list_sites = VideoArchiverCommands.list_sites
+    show_queue = VideoArchiverCommands.show_queue
+    show_queue_metrics = VideoArchiverCommands.show_queue_metrics
+    clear_queue = VideoArchiverCommands.clear_queue
 
     async def cog_command_error(self, ctx: commands.Context, error: Exception) -> None:
         """Handle command errors"""
