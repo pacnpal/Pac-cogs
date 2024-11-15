@@ -1,6 +1,6 @@
 """Discord commands for VideoArchiver"""
 import discord
-from redbot.core import commands, app_commands
+from redbot.core import commands, app_commands, checks
 from typing import Optional, Literal
 import yt_dlp
 from datetime import datetime
