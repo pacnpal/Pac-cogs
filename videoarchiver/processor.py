@@ -181,6 +181,7 @@ class VideoProcessor:
         try:
             # Check if message contains any video URLs
             if not message.content and not message.attachments:
+                logger.debug(f"No content or attachments in message {message.id}")
                 return
 
             # Get guild settings
@@ -189,30 +190,45 @@ class VideoProcessor:
                 logger.warning(f"No settings found for guild {message.guild.id}")
                 return
 
+            # Log settings for debugging
+            logger.debug(f"Guild {message.guild.id} settings: {settings}")
+
             # Check if channel is enabled
             enabled_channels = settings.get("enabled_channels", [])
             if enabled_channels and message.channel.id not in enabled_channels:
+                logger.debug(f"Channel {message.channel.id} not in enabled channels: {enabled_channels}")
                 return
 
             # Extract URLs from message content and attachments
             urls = []
             if message.content:
+                # Log message content for debugging
+                logger.debug(f"Processing message content: {message.content}")
+                logger.debug(f"Enabled sites: {settings.get('enabled_sites', [])}")
+
                 # Add URLs from message content
                 for word in message.content.split():
-                    if any(site in word.lower() for site in settings["enabled_sites"]):
+                    # Log each word being checked
+                    logger.debug(f"Checking word: {word}")
+                    if any(site in word.lower() for site in settings.get("enabled_sites", [])):
+                        logger.debug(f"Found matching URL: {word}")
                         urls.append(word)
 
             # Add attachment URLs
             for attachment in message.attachments:
+                logger.debug(f"Checking attachment: {attachment.filename}")
                 if any(attachment.filename.lower().endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.webm']):
+                    logger.debug(f"Found video attachment: {attachment.url}")
                     urls.append(attachment.url)
 
             if not urls:
+                logger.debug("No valid URLs found in message")
                 return
 
             # Add each URL to the queue
             for url in urls:
                 try:
+                    logger.info(f"Adding URL to queue: {url}")
                     await message.add_reaction(REACTIONS['queued'])
                     await self.queue_manager.add_to_queue(
                         url=url,
@@ -222,7 +238,7 @@ class VideoProcessor:
                         author_id=message.author.id,
                         priority=0
                     )
-                    logger.info(f"Added video to queue: {url}")
+                    logger.info(f"Successfully added video to queue: {url}")
                 except QueueError as e:
                     logger.error(f"Failed to add video to queue: {str(e)}")
                     await message.add_reaction(REACTIONS['error'])
