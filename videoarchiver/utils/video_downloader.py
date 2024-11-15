@@ -20,13 +20,38 @@ from videoarchiver.ffmpeg.exceptions import (
     VerificationError,
     FFprobeError,
     TimeoutError,
-    handle_ffmpeg_error
+    handle_ffmpeg_error,
 )
 from videoarchiver.utils.exceptions import VideoVerificationError
 from videoarchiver.utils.file_ops import secure_delete_file
 from videoarchiver.utils.path_manager import temp_path_context
 
 logger = logging.getLogger("VideoArchiver")
+
+
+def is_video_url_pattern(url: str) -> bool:
+    """Check if URL matches common video platform patterns"""
+    video_patterns = [
+        r"youtube\.com/watch\?v=",
+        r"youtu\.be/",
+        r"vimeo\.com/",
+        r"tiktok\.com/",
+        r"twitter\.com/.*/video/",
+        r"x\.com/.*/video/",
+        r"bsky\.app/",
+        r"facebook\.com/.*/videos/",
+        r"instagram\.com/.*/(tv|reel|p)/",
+        r"twitch\.tv/.*/clip/",
+        r"streamable\.com/",
+        r"v\.redd\.it/",
+        r"clips\.twitch\.tv/",
+        r"dailymotion\.com/video/",
+        r"\.mp4$",
+        r"\.webm$",
+        r"\.mov$",
+    ]
+    return any(re.search(pattern, url, re.IGNORECASE) for pattern in video_patterns)
+
 
 class VideoDownloader:
     MAX_RETRIES = 3
@@ -62,7 +87,7 @@ class VideoDownloader:
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
             max_workers=max(1, min(5, concurrent_downloads)),
-            thread_name_prefix="videoarchiver_download"
+            thread_name_prefix="videoarchiver_download",
         )
 
         # Track active downloads for cleanup
@@ -74,10 +99,9 @@ class VideoDownloader:
             "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",  # More flexible format
             "outtmpl": "%(title)s.%(ext)s",  # Base filename only, path added later
             "merge_output_format": video_format,
-            "quiet": False,  # Enable output for debugging
-            "no_warnings": False,  # Show warnings
-            "verbose": True,  # Enable verbose output
-            "extract_flat": False,
+            "quiet": True,  # Reduce output noise
+            "no_warnings": True,  # Reduce warning noise
+            "extract_flat": True,  # Don't download video info
             "concurrent_fragment_downloads": concurrent_downloads,
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
@@ -85,11 +109,13 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": str(self.ffmpeg_mgr.get_ffmpeg_path()),  # Convert Path to string
-            "ffprobe_location": str(self.ffmpeg_mgr.get_ffprobe_path()),  # Add ffprobe path
-            "paths": {
-                "home": str(self.download_path)  # Set home directory for yt-dlp
-            },
+            "ffmpeg_location": str(
+                self.ffmpeg_mgr.get_ffmpeg_path()
+            ),  # Convert Path to string
+            "ffprobe_location": str(
+                self.ffmpeg_mgr.get_ffprobe_path()
+            ),  # Add ffprobe path
+            "paths": {"home": str(self.download_path)},  # Set home directory for yt-dlp
             "logger": logger,  # Use our logger
             "ignoreerrors": True,  # Don't stop on download errors
             "no_color": True,  # Disable ANSI colors in output
@@ -99,6 +125,10 @@ class VideoDownloader:
 
     def is_supported_url(self, url: str) -> bool:
         """Check if URL is supported by attempting a simulated download"""
+        # First check if URL matches common video platform patterns
+        if not is_video_url_pattern(url):
+            return False
+
         try:
             # Configure yt-dlp for simulation
             simulate_opts = {
@@ -117,24 +147,30 @@ class VideoDownloader:
                     # Try to extract info without downloading
                     info = ydl.extract_info(url, download=False)
                     if info is None:
-                        logger.debug(f"URL not supported: {url}")
                         return False
-                    
+
                     # Check if site is enabled (if enabled_sites is configured)
                     if self.enabled_sites:
-                        extractor = info.get('extractor', '').lower()
-                        if not any(site.lower() in extractor for site in self.enabled_sites):
+                        extractor = info.get("extractor", "").lower()
+                        if not any(
+                            site.lower() in extractor for site in self.enabled_sites
+                        ):
                             logger.info(f"Site {extractor} not in enabled sites list")
                             return False
-                    
-                    logger.info(f"URL supported: {url} (Extractor: {info.get('extractor', 'unknown')})")
+
+                    logger.info(
+                        f"URL supported: {url} (Extractor: {info.get('extractor', 'unknown')})"
+                    )
                     return True
-                    
+
+                except yt_dlp.utils.UnsupportedError:
+                    # Quietly handle unsupported URLs
+                    return False
                 except Exception as e:
                     if "Unsupported URL" not in str(e):
                         logger.error(f"Error checking URL {url}: {str(e)}")
                     return False
-                
+
         except Exception as e:
             logger.error(f"Error during URL check: {str(e)}")
             return False
@@ -170,47 +206,49 @@ class VideoDownloader:
             # Use ffprobe from FFmpegManager
             ffprobe_path = str(self.ffmpeg_mgr.get_ffprobe_path())
             logger.debug(f"Using ffprobe from: {ffprobe_path}")
-            
+
             cmd = [
                 ffprobe_path,
-                "-v", "quiet",
-                "-print_format", "json",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
                 "-show_format",
                 "-show_streams",
-                file_path
+                file_path,
             ]
-            
+
             result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=30
+                timeout=30,
             )
-            
+
             if result.returncode != 0:
                 raise VideoVerificationError(f"FFprobe failed: {result.stderr}")
-                
+
             probe = json.loads(result.stdout)
-            
+
             # Check if file has video stream
             video_streams = [s for s in probe["streams"] if s["codec_type"] == "video"]
             if not video_streams:
                 raise VideoVerificationError("No video streams found")
-                
+
             # Check if duration is valid
             duration = float(probe["format"].get("duration", 0))
             if duration <= 0:
                 raise VideoVerificationError("Invalid video duration")
-                
+
             # Check if file is readable
             with open(file_path, "rb") as f:
                 f.seek(0, 2)  # Seek to end
                 if f.tell() == 0:
                     raise VideoVerificationError("Empty file")
-                    
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error verifying video file {file_path}: {e}")
             return False
@@ -285,13 +323,13 @@ class VideoDownloader:
                         # Build FFmpeg command with full path
                         ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
                         logger.debug(f"Using FFmpeg from: {ffmpeg_path}")
-                        
+
                         # Build command with all parameters
                         cmd = [ffmpeg_path, "-y"]  # Overwrite output file if it exists
-                        
+
                         # Add input file
                         cmd.extend(["-i", original_file])
-                        
+
                         # Add all compression parameters
                         for key, value in params.items():
                             if key == "c:v" and value == "libx264":
@@ -307,10 +345,10 @@ class VideoDownloader:
                                     cmd.extend(["-c:v", "libx264"])
                             else:
                                 cmd.extend([f"-{key}", str(value)])
-                            
+
                         # Add output file
                         cmd.append(compressed_file)
-                        
+
                         # Run compression in executor
                         logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
                         try:
@@ -320,8 +358,8 @@ class VideoDownloader:
                                     cmd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
-                                    check=True
-                                )
+                                    check=True,
+                                ),
                             )
                             logger.debug(f"FFmpeg output: {result.stderr.decode()}")
                         except subprocess.CalledProcessError as e:
@@ -349,9 +387,14 @@ class VideoDownloader:
                             raise CompressionError(
                                 "Failed to compress to target size",
                                 input_size=file_size,
-                                target_size=self.max_file_size * 1024 * 1024
+                                target_size=self.max_file_size * 1024 * 1024,
                             )
-                    except (FFmpegError, VideoVerificationError, FileNotFoundError, CompressionError) as e:
+                    except (
+                        FFmpegError,
+                        VideoVerificationError,
+                        FileNotFoundError,
+                        CompressionError,
+                    ) as e:
                         if compressed_file and os.path.exists(compressed_file):
                             await self._safe_delete_file(compressed_file)
                         return False, "", str(e)
