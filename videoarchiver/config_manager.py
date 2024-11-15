@@ -5,7 +5,7 @@ import discord
 import logging
 from datetime import datetime
 import asyncio
-from .exceptions import ConfigError, DiscordAPIError
+from .utils.exceptions import ConfigurationError as ConfigError, DiscordAPIError
 
 logger = logging.getLogger('VideoArchiver')
 

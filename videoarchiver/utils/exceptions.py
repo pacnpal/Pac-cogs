@@ -51,3 +51,9 @@ class QueueError(VideoArchiverError):
 class ComponentError(VideoArchiverError):
     """Error with component initialization or cleanup"""
     pass
+
+class DiscordAPIError(VideoArchiverError):
+    """Error with Discord API operations"""
+    def __init__(self, message: str, status_code: int = None):
+        self.status_code = status_code
+        super().__init__(f"Discord API Error: {message} (Status: {status_code if status_code else 'Unknown'})")

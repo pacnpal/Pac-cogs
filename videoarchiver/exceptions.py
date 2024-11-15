@@ -6,6 +6,7 @@ from .utils.exceptions import (
     VideoVerificationError,
     QueueError,
     FileCleanupError,
+    DiscordAPIError,
 )
 
 # Re-export base exceptions
@@ -18,6 +19,7 @@ __all__ = [
     'UpdateError',
     'ProcessingError',
     'ConfigError',
+    'DiscordAPIError',
 ]
 
 # Alias exceptions for backward compatibility
