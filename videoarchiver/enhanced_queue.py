@@ -117,6 +117,30 @@ class QueueItem:
     compression_attempted: bool = False
     original_message: Optional[Any] = None  # Store the original message reference
 
+    def to_dict(self) -> dict:
+        """Convert to dictionary with datetime handling"""
+        data = asdict(self)
+        # Convert datetime objects to ISO format strings
+        if self.added_at:
+            data['added_at'] = self.added_at.isoformat()
+        if self.last_retry:
+            data['last_retry'] = self.last_retry.isoformat()
+        if self.last_error_time:
+            data['last_error_time'] = self.last_error_time.isoformat()
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'QueueItem':
+        """Create from dictionary with datetime handling"""
+        # Convert ISO format strings back to datetime objects
+        if 'added_at' in data and isinstance(data['added_at'], str):
+            data['added_at'] = datetime.fromisoformat(data['added_at'])
+        if 'last_retry' in data and isinstance(data['last_retry'], str):
+            data['last_retry'] = datetime.fromisoformat(data['last_retry'])
+        if 'last_error_time' in data and isinstance(data['last_error_time'], str):
+            data['last_error_time'] = datetime.fromisoformat(data['last_error_time'])
+        return cls(**data)
+
 
 class EnhancedVideoQueueManager:
     """Enhanced queue manager with improved memory management and performance"""
@@ -444,10 +468,10 @@ class EnhancedVideoQueueManager:
 
         try:
             state = {
-                "queue": [asdict(item) for item in self._queue],
-                "processing": {k: asdict(v) for k, v in self._processing.items()},
-                "completed": {k: asdict(v) for k, v in self._completed.items()},
-                "failed": {k: asdict(v) for k, v in self._failed.items()},
+                "queue": [item.to_dict() for item in self._queue],
+                "processing": {k: v.to_dict() for k, v in self._processing.items()},
+                "completed": {k: v.to_dict() for k, v in self._completed.items()},
+                "failed": {k: v.to_dict() for k, v in self._failed.items()},
                 "metrics": {
                     "total_processed": self.metrics.total_processed,
                     "total_failed": self.metrics.total_failed,
@@ -491,23 +515,11 @@ class EnhancedVideoQueueManager:
             with open(self.persistence_path, "r") as f:
                 state = json.load(f)
 
-            # Restore queue items with datetime conversion
-            self._queue = []
-            for item in state["queue"]:
-                item["added_at"] = datetime.fromisoformat(item["added_at"])
-                if item.get("last_retry"):
-                    item["last_retry"] = datetime.fromisoformat(item["last_retry"])
-                if item.get("last_error_time"):
-                    item["last_error_time"] = datetime.fromisoformat(
-                        item["last_error_time"]
-                    )
-                self._queue.append(QueueItem(**item))
-
-            self._processing = {
-                k: QueueItem(**v) for k, v in state["processing"].items()
-            }
-            self._completed = {k: QueueItem(**v) for k, v in state["completed"].items()}
-            self._failed = {k: QueueItem(**v) for k, v in state["failed"].items()}
+            # Restore queue items with proper datetime conversion
+            self._queue = [QueueItem.from_dict(item) for item in state["queue"]]
+            self._processing = {k: QueueItem.from_dict(v) for k, v in state["processing"].items()}
+            self._completed = {k: QueueItem.from_dict(v) for k, v in state["completed"].items()}
+            self._failed = {k: QueueItem.from_dict(v) for k, v in state["failed"].items()}
 
             # Restore metrics
             metrics_data = state["metrics"]

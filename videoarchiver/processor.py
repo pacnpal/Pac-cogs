@@ -91,6 +91,65 @@ class VideoProcessor:
         self._queue_task = asyncio.create_task(self.queue_manager.process_queue(self._process_video))
         logger.info("Video processing queue started successfully")
 
+    async def process_message(self, message: discord.Message) -> None:
+        """Process a message for video content"""
+        try:
+            # Check if message contains any video URLs
+            if not message.content and not message.attachments:
+                return
+
+            # Get guild settings
+            settings = await self.config.get_guild_settings(message.guild.id)
+            if not settings:
+                logger.warning(f"No settings found for guild {message.guild.id}")
+                return
+
+            # Check if channel is enabled
+            enabled_channels = settings.get("enabled_channels", [])
+            if enabled_channels and message.channel.id not in enabled_channels:
+                return
+
+            # Extract URLs from message content and attachments
+            urls = []
+            if message.content:
+                # Add URLs from message content
+                for word in message.content.split():
+                    if any(site in word.lower() for site in settings["enabled_sites"]):
+                        urls.append(word)
+
+            # Add attachment URLs
+            for attachment in message.attachments:
+                if any(attachment.filename.lower().endswith(ext) for ext in ['.mp4', '.mov', '.avi', '.webm']):
+                    urls.append(attachment.url)
+
+            if not urls:
+                return
+
+            # Add each URL to the queue
+            for url in urls:
+                try:
+                    await message.add_reaction(REACTIONS['queued'])
+                    await self.queue_manager.add_to_queue(
+                        url=url,
+                        message_id=message.id,
+                        channel_id=message.channel.id,
+                        guild_id=message.guild.id,
+                        author_id=message.author.id,
+                        priority=0
+                    )
+                    logger.info(f"Added video to queue: {url}")
+                except QueueError as e:
+                    logger.error(f"Failed to add video to queue: {str(e)}")
+                    await message.add_reaction(REACTIONS['error'])
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error processing message: {traceback.format_exc()}")
+            try:
+                await message.add_reaction(REACTIONS['error'])
+            except:
+                pass
+
     async def _process_video(self, item) -> Tuple[bool, Optional[str]]:
         """Process a video from the queue"""
         if self._unloading:
