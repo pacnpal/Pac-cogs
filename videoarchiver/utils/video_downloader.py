@@ -305,17 +305,18 @@ class VideoDownloader:
                 # Get extractors
                 extractors = ydl._ies
                 # Try each extractor
-                for extractor in extractors:
-                    if hasattr(extractor, '_VALID_URL') and extractor._VALID_URL:
-                        # Skip if site is not enabled
-                        if self.enabled_sites and not any(
-                            site.lower() in extractor.IE_NAME.lower()
-                            for site in self.enabled_sites
-                        ):
-                            continue
-                        # Try to match URL using the class method
-                        if extractor.suitable(url) and not isinstance(extractor.suitable(url), str):
-                            return True
+                for ie in extractors:
+                    # Skip if site is not enabled
+                    if self.enabled_sites and not any(
+                        site.lower() in ie.IE_NAME.lower()
+                        for site in self.enabled_sites
+                    ):
+                        continue
+                    # Create an instance of the extractor
+                    extractor = ie(ydl)
+                    # Try to match URL
+                    if extractor.suitable(url):
+                        return True
                 return False
         except Exception as e:
             logger.error(f"Error checking URL support: {str(e)}")
