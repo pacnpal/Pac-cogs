@@ -130,7 +130,7 @@ class EnhancedVideoQueueManager:
         max_history_age: int = 86400,  # 24 hours
         persistence_path: Optional[str] = None,
         backup_interval: int = 300,  # 5 minutes
-        deadlock_threshold: int = 900,  # 15 minutes (reduced from 1 hour)
+        deadlock_threshold: int = 900,  # 15 minutes
     ):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -151,6 +151,7 @@ class EnhancedVideoQueueManager:
         # Track active tasks
         self._active_tasks: Set[asyncio.Task] = set()
         self._processing_lock = asyncio.Lock()
+        self._shutdown = False
 
         # Status tracking
         self._guild_queues: Dict[int, Set[str]] = {}
@@ -184,73 +185,80 @@ class EnhancedVideoQueueManager:
             # Load persisted queue
             self._load_persisted_queue()
 
-    async def add_to_queue(
-        self,
-        url: str,
-        message_id: int,
-        channel_id: int,
-        guild_id: int,
-        author_id: int,
-        callback: Optional[
-            Callable[[str, bool, str], Any]
-        ] = None,  # Make callback optional
-        priority: int = 0,
-    ) -> bool:
-        """Add a video to the processing queue with priority support"""
-        try:
-            async with self._queue_lock:
-                if len(self._queue) >= self.max_queue_size:
-                    raise QueueError("Queue is full")
+    def force_stop(self):
+        """Force stop all queue operations immediately"""
+        self._shutdown = True
+        
+        # Cancel all active tasks
+        for task in self._active_tasks:
+            if not task.done():
+                task.cancel()
 
-                # Check system resources
-                if psutil.virtual_memory().percent > 90:
-                    raise ResourceExhaustedError("System memory is critically low")
-
-                # Create queue item
-                item = QueueItem(
-                    url=url,
-                    message_id=message_id,
-                    channel_id=channel_id,
-                    guild_id=guild_id,
-                    author_id=author_id,
-                    added_at=datetime.utcnow(),
-                    priority=priority,
-                )
-
-                # Add to tracking collections
-                if guild_id not in self._guild_queues:
-                    self._guild_queues[guild_id] = set()
-                self._guild_queues[guild_id].add(url)
-
-                if channel_id not in self._channel_queues:
-                    self._channel_queues[channel_id] = set()
-                self._channel_queues[channel_id].add(url)
-
-                # Add to queue with priority
+        # Move processing items back to queue
+        for url, item in self._processing.items():
+            if item.retry_count < self.max_retries:
+                item.status = "pending"
+                item.retry_count += 1
                 self._queue.append(item)
-                self._queue.sort(key=lambda x: (-x.priority, x.added_at))
+            else:
+                self._failed[url] = item
 
-            # Persist queue state
+        self._processing.clear()
+
+        # Clear task tracking
+        self._active_tasks.clear()
+
+        logger.info("Queue manager force stopped")
+
+    async def cleanup(self):
+        """Clean up resources and stop queue processing"""
+        try:
+            # Set shutdown flag
+            self._shutdown = True
+
+            # Cancel all monitoring tasks
+            for task in self._active_tasks:
+                if not task.done():
+                    task.cancel()
+
+            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+
+            # Move processing items back to queue
+            async with self._queue_lock:
+                for url, item in self._processing.items():
+                    if item.retry_count < self.max_retries:
+                        item.status = "pending"
+                        item.retry_count += 1
+                        self._queue.append(item)
+                    else:
+                        self._failed[url] = item
+
+                self._processing.clear()
+
+            # Persist final state
             if self.persistence_path:
                 await self._persist_queue()
 
-            logger.info(f"Added video to queue: {url} with priority {priority}")
-            return True
+            # Clear all collections
+            self._queue.clear()
+            self._completed.clear()
+            self._failed.clear()
+            self._guild_queues.clear()
+            self._channel_queues.clear()
+            self._active_tasks.clear()
+
+            logger.info("Queue manager cleanup completed")
 
         except Exception as e:
-            logger.error(f"Error adding video to queue: {traceback.format_exc()}")
-            raise QueueError(f"Failed to add to queue: {str(e)}")
+            logger.error(f"Error during cleanup: {str(e)}")
+            raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
 
     async def process_queue(
         self, processor: Callable[[QueueItem], Tuple[bool, Optional[str]]]
     ):
-        """Process items in the queue with the provided processor function
-
-        Args:
-            processor: A callable that takes a QueueItem and returns a tuple of (success: bool, error: Optional[str])
-        """
+        """Process items in the queue with the provided processor function"""
         logger.info("Queue processor started and waiting for items...")
-        while True:
+        while not self._shutdown:
             try:
                 # Get next item from queue
                 item = None
@@ -340,7 +348,6 @@ class EnhancedVideoQueueManager:
                         await self._persist_queue()
                     except Exception as e:
                         logger.error(f"Failed to persist queue state: {e}")
-                        # Continue processing even if persistence fails
 
             except Exception as e:
                 logger.error(
@@ -353,9 +360,68 @@ class EnhancedVideoQueueManager:
             # Small delay to prevent CPU overload
             await asyncio.sleep(0.1)
 
+        logger.info("Queue processor stopped due to shutdown")
+
+    async def add_to_queue(
+        self,
+        url: str,
+        message_id: int,
+        channel_id: int,
+        guild_id: int,
+        author_id: int,
+        priority: int = 0,
+    ) -> bool:
+        """Add a video to the processing queue with priority support"""
+        if self._shutdown:
+            raise QueueError("Queue manager is shutting down")
+
+        try:
+            async with self._queue_lock:
+                if len(self._queue) >= self.max_queue_size:
+                    raise QueueError("Queue is full")
+
+                # Check system resources
+                if psutil.virtual_memory().percent > 90:
+                    raise ResourceExhaustedError("System memory is critically low")
+
+                # Create queue item
+                item = QueueItem(
+                    url=url,
+                    message_id=message_id,
+                    channel_id=channel_id,
+                    guild_id=guild_id,
+                    author_id=author_id,
+                    added_at=datetime.utcnow(),
+                    priority=priority,
+                )
+
+                # Add to tracking collections
+                if guild_id not in self._guild_queues:
+                    self._guild_queues[guild_id] = set()
+                self._guild_queues[guild_id].add(url)
+
+                if channel_id not in self._channel_queues:
+                    self._channel_queues[channel_id] = set()
+                self._channel_queues[channel_id].add(url)
+
+                # Add to queue with priority
+                self._queue.append(item)
+                self._queue.sort(key=lambda x: (-x.priority, x.added_at))
+
+            # Persist queue state
+            if self.persistence_path:
+                await self._persist_queue()
+
+            logger.info(f"Added video to queue: {url} with priority {priority}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error adding video to queue: {traceback.format_exc()}")
+            raise QueueError(f"Failed to add to queue: {str(e)}")
+
     async def _periodic_backup(self):
         """Periodically backup queue state"""
-        while True:
+        while not self._shutdown:
             try:
                 if self.persistence_path and (
                     not self._last_backup
@@ -365,6 +431,8 @@ class EnhancedVideoQueueManager:
                     await self._persist_queue()
                     self._last_backup = datetime.utcnow()
                 await asyncio.sleep(self.backup_interval)
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 logger.error(f"Error in periodic backup: {str(e)}")
                 await asyncio.sleep(60)
@@ -482,7 +550,7 @@ class EnhancedVideoQueueManager:
 
     async def _monitor_health(self):
         """Monitor queue health and performance with improved metrics"""
-        while True:
+        while not self._shutdown:
             try:
                 # Check memory usage
                 process = psutil.Process()
@@ -492,10 +560,9 @@ class EnhancedVideoQueueManager:
                     logger.warning(f"High memory usage detected: {memory_usage:.2f}MB")
                     # Force garbage collection
                     import gc
-
                     gc.collect()
 
-                # Check for potential deadlocks with reduced threshold
+                # Check for potential deadlocks
                 processing_times = [
                     time.time() - item.processing_time
                     for item in self._processing.values()
@@ -504,7 +571,7 @@ class EnhancedVideoQueueManager:
 
                 if processing_times:
                     max_time = max(processing_times)
-                    if max_time > self.deadlock_threshold:  # Reduced from 3600s to 900s
+                    if max_time > self.deadlock_threshold:
                         logger.warning(
                             f"Potential deadlock detected: Item processing for {max_time:.2f}s"
                         )
@@ -528,6 +595,8 @@ class EnhancedVideoQueueManager:
 
                 await asyncio.sleep(300)  # Check every 5 minutes
 
+            except asyncio.CancelledError:
+                break
             except Exception as e:
                 logger.error(f"Error in health monitor: {traceback.format_exc()}")
                 await asyncio.sleep(60)
@@ -563,43 +632,54 @@ class EnhancedVideoQueueManager:
         except Exception as e:
             logger.error(f"Error recovering stuck items: {str(e)}")
 
-    async def cleanup(self):
-        """Clean up resources and stop queue processing"""
-        try:
-            # Cancel all monitoring tasks
-            for task in self._active_tasks:
-                if not task.done():
-                    task.cancel()
+    async def _periodic_cleanup(self):
+        """Periodically clean up old completed/failed items"""
+        while not self._shutdown:
+            try:
+                current_time = datetime.utcnow()
+                cleanup_cutoff = current_time - timedelta(seconds=self.max_history_age)
 
-            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+                async with self._queue_lock:
+                    # Clean up completed items
+                    for url in list(self._completed.keys()):
+                        item = self._completed[url]
+                        if item.added_at < cleanup_cutoff:
+                            self._completed.pop(url)
 
-            # Persist final state
-            if self.persistence_path:
-                await self._persist_queue()
+                    # Clean up failed items
+                    for url in list(self._failed.keys()):
+                        item = self._failed[url]
+                        if item.added_at < cleanup_cutoff:
+                            self._failed.pop(url)
 
-            # Clear all collections
-            self._queue.clear()
-            self._processing.clear()
-            self._completed.clear()
-            self._failed.clear()
-            self._guild_queues.clear()
-            self._channel_queues.clear()
+                    # Clean up guild and channel tracking
+                    for guild_id in list(self._guild_queues.keys()):
+                        self._guild_queues[guild_id] = {
+                            url
+                            for url in self._guild_queues[guild_id]
+                            if url in self._queue or url in self._processing
+                        }
 
-            logger.info("Queue manager cleanup completed")
+                    for channel_id in list(self._channel_queues.keys()):
+                        self._channel_queues[channel_id] = {
+                            url
+                            for url in self._channel_queues[channel_id]
+                            if url in self._queue or url in self._processing
+                        }
 
-        except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
-            raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
+                self.metrics.last_cleanup = current_time
+                logger.info("Completed periodic queue cleanup")
+
+                await asyncio.sleep(self.cleanup_interval)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in periodic cleanup: {traceback.format_exc()}")
+                await asyncio.sleep(60)
 
     def get_queue_status(self, guild_id: int) -> dict:
-        """Get current queue status and metrics for a guild
-
-        Args:
-            guild_id: The ID of the guild to get status for
-
-        Returns:
-            dict: Queue status including counts and metrics
-        """
+        """Get current queue status and metrics for a guild"""
         try:
             # Count items for this guild
             pending = len([item for item in self._queue if item.guild_id == guild_id])
@@ -660,14 +740,10 @@ class EnhancedVideoQueueManager:
             }
 
     async def clear_guild_queue(self, guild_id: int) -> int:
-        """Clear all queue items for a specific guild
+        """Clear all queue items for a specific guild"""
+        if self._shutdown:
+            raise QueueError("Queue manager is shutting down")
 
-        Args:
-            guild_id: The ID of the guild to clear items for
-
-        Returns:
-            int: Number of items cleared
-        """
         try:
             cleared_count = 0
             async with self._queue_lock:
@@ -720,47 +796,3 @@ class EnhancedVideoQueueManager:
         except Exception as e:
             logger.error(f"Error clearing guild queue: {traceback.format_exc()}")
             raise QueueError(f"Failed to clear guild queue: {str(e)}")
-
-    async def _periodic_cleanup(self):
-        """Periodically clean up old completed/failed items"""
-        while True:
-            try:
-                current_time = datetime.utcnow()
-                cleanup_cutoff = current_time - timedelta(seconds=self.max_history_age)
-
-                async with self._queue_lock:
-                    # Clean up completed items
-                    for url in list(self._completed.keys()):
-                        item = self._completed[url]
-                        if item.added_at < cleanup_cutoff:
-                            self._completed.pop(url)
-
-                    # Clean up failed items
-                    for url in list(self._failed.keys()):
-                        item = self._failed[url]
-                        if item.added_at < cleanup_cutoff:
-                            self._failed.pop(url)
-
-                    # Clean up guild and channel tracking
-                    for guild_id in list(self._guild_queues.keys()):
-                        self._guild_queues[guild_id] = {
-                            url
-                            for url in self._guild_queues[guild_id]
-                            if url in self._queue or url in self._processing
-                        }
-
-                    for channel_id in list(self._channel_queues.keys()):
-                        self._channel_queues[channel_id] = {
-                            url
-                            for url in self._channel_queues[channel_id]
-                            if url in self._queue or url in self._processing
-                        }
-
-                self.metrics.last_cleanup = current_time
-                logger.info("Completed periodic queue cleanup")
-
-                await asyncio.sleep(self.cleanup_interval)
-
-            except Exception as e:
-                logger.error(f"Error in periodic cleanup: {traceback.format_exc()}")
-                await asyncio.sleep(60)

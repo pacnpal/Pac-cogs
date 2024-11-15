@@ -6,8 +6,10 @@ import multiprocessing
 import logging
 import subprocess
 import traceback
+import signal
+import psutil
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
 
 from videoarchiver.ffmpeg.exceptions import (
     FFmpegError,
@@ -66,10 +68,52 @@ class FFmpegManager:
         
         # Initialize encoder params
         self.encoder_params = EncoderParams(self._cpu_cores, self._gpu_info)
+
+        # Track active FFmpeg processes
+        self._active_processes: Set[subprocess.Popen] = set()
         
         # Verify FFmpeg functionality
         self._verify_ffmpeg()
         logger.info("FFmpeg manager initialized successfully")
+
+    def kill_all_processes(self) -> None:
+        """Kill all active FFmpeg processes"""
+        try:
+            # First try graceful termination
+            for process in self._active_processes:
+                try:
+                    if process.poll() is None:  # Process is still running
+                        process.terminate()
+                except Exception as e:
+                    logger.error(f"Error terminating FFmpeg process: {e}")
+
+            # Give processes a moment to terminate
+            import time
+            time.sleep(0.5)
+
+            # Force kill any remaining processes
+            for process in self._active_processes:
+                try:
+                    if process.poll() is None:  # Process is still running
+                        process.kill()
+                except Exception as e:
+                    logger.error(f"Error killing FFmpeg process: {e}")
+
+            # Find and kill any orphaned FFmpeg processes
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    if 'ffmpeg' in proc.info['name'].lower():
+                        proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+                except Exception as e:
+                    logger.error(f"Error killing orphaned FFmpeg process: {e}")
+
+            self._active_processes.clear()
+            logger.info("All FFmpeg processes terminated")
+
+        except Exception as e:
+            logger.error(f"Error killing FFmpeg processes: {e}")
 
     def _initialize_binaries(self) -> Dict[str, Path]:
         """Initialize FFmpeg and FFprobe binaries with proper error handling"""

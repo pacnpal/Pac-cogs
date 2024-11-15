@@ -9,8 +9,9 @@ import yt_dlp
 import shutil
 import subprocess
 import json
+import signal
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Tuple, Callable
+from typing import Dict, List, Optional, Tuple, Callable, Set
 from pathlib import Path
 from datetime import datetime
 
@@ -29,6 +30,25 @@ from videoarchiver.utils.path_manager import temp_path_context
 
 logger = logging.getLogger("VideoArchiver")
 
+# Add a custom yt-dlp logger to handle cancellation
+class CancellableYTDLLogger:
+    def __init__(self):
+        self.cancelled = False
+
+    def debug(self, msg):
+        if self.cancelled:
+            raise Exception("Download cancelled")
+        logger.debug(msg)
+
+    def warning(self, msg):
+        if self.cancelled:
+            raise Exception("Download cancelled")
+        logger.warning(msg)
+
+    def error(self, msg):
+        if self.cancelled:
+            raise Exception("Download cancelled")
+        logger.error(msg)
 
 def is_video_url_pattern(url: str) -> bool:
     """Check if URL matches common video platform patterns"""
@@ -53,12 +73,12 @@ def is_video_url_pattern(url: str) -> bool:
     ]
     return any(re.search(pattern, url, re.IGNORECASE) for pattern in video_patterns)
 
-
 class VideoDownloader:
-    MAX_RETRIES = 5  # Increased from 3
-    RETRY_DELAY = 10  # Increased from 5
+    MAX_RETRIES = 5
+    RETRY_DELAY = 10
     FILE_OP_RETRIES = 3
-    FILE_OP_RETRY_DELAY = 1  # seconds
+    FILE_OP_RETRY_DELAY = 1
+    SHUTDOWN_TIMEOUT = 15  # seconds
 
     def __init__(
         self,
@@ -67,35 +87,36 @@ class VideoDownloader:
         max_quality: int,
         max_file_size: int,
         enabled_sites: Optional[List[str]] = None,
-        concurrent_downloads: int = 2,  # Reduced from 3
+        concurrent_downloads: int = 2,
         ffmpeg_mgr: Optional[FFmpegManager] = None,
     ):
-        # Ensure download path exists with proper permissions
         self.download_path = Path(download_path)
         self.download_path.mkdir(parents=True, exist_ok=True)
         os.chmod(str(self.download_path), 0o755)
-        logger.info(f"Initialized download directory: {self.download_path}")
 
         self.video_format = video_format
         self.max_quality = max_quality
         self.max_file_size = max_file_size
         self.enabled_sites = enabled_sites
-
-        # Initialize FFmpeg manager
         self.ffmpeg_mgr = ffmpeg_mgr or FFmpegManager()
-        logger.info(f"Using FFmpeg from: {self.ffmpeg_mgr.get_ffmpeg_path()}")
 
-        # Create thread pool for this instance
+        # Create thread pool with proper naming
         self.download_pool = ThreadPoolExecutor(
             max_workers=max(1, min(3, concurrent_downloads)),
             thread_name_prefix="videoarchiver_download",
         )
 
-        # Track active downloads for cleanup
-        self.active_downloads: Dict[str, str] = {}
+        # Track active downloads and processes
+        self.active_downloads: Dict[str, Dict[str, Any]] = {}
         self._downloads_lock = asyncio.Lock()
+        self._active_processes: Set[subprocess.Popen] = set()
+        self._processes_lock = asyncio.Lock()
+        self._shutting_down = False
 
-        # Configure yt-dlp options with improved settings
+        # Create cancellable logger
+        self.ytdl_logger = CancellableYTDLLogger()
+
+        # Configure yt-dlp options
         self.ydl_opts = {
             "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",
             "outtmpl": "%(title)s.%(ext)s",
@@ -103,29 +124,86 @@ class VideoDownloader:
             "quiet": True,
             "no_warnings": True,
             "extract_flat": True,
-            "concurrent_fragment_downloads": 1,  # Reduced from default
+            "concurrent_fragment_downloads": 1,
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
             "file_access_retries": self.FILE_OP_RETRIES,
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
-            "progress_hooks": [self._progress_hook, self._detailed_progress_hook],  # Add detailed hook
+            "progress_hooks": [self._progress_hook, self._detailed_progress_hook],
             "ffmpeg_location": str(self.ffmpeg_mgr.get_ffmpeg_path()),
             "ffprobe_location": str(self.ffmpeg_mgr.get_ffprobe_path()),
             "paths": {"home": str(self.download_path)},
-            "logger": logger,
+            "logger": self.ytdl_logger,
             "ignoreerrors": True,
             "no_color": True,
             "geo_bypass": True,
-            "socket_timeout": 60,  # Increased from 30
-            "http_chunk_size": 1048576,  # Reduced to 1MB chunks for better stability
+            "socket_timeout": 60,
+            "http_chunk_size": 1048576,
             "external_downloader_args": {
-                "ffmpeg": ["-timeout", "60000000"]  # Increased to 60 seconds
+                "ffmpeg": ["-timeout", "60000000"]
             },
-            "max_sleep_interval": 5,  # Maximum time to sleep between retries
-            "sleep_interval": 1,  # Initial sleep interval
-            "max_filesize": max_file_size * 1024 * 1024,  # Set max file size limit
+            "max_sleep_interval": 5,
+            "sleep_interval": 1,
+            "max_filesize": max_file_size * 1024 * 1024,
         }
+
+    async def cleanup(self) -> None:
+        """Clean up resources with proper shutdown"""
+        self._shutting_down = True
+        
+        try:
+            # Cancel active downloads
+            self.ytdl_logger.cancelled = True
+            
+            # Kill any active FFmpeg processes
+            async with self._processes_lock:
+                for process in self._active_processes:
+                    try:
+                        process.terminate()
+                        await asyncio.sleep(0.1)  # Give process time to terminate
+                        if process.poll() is None:
+                            process.kill()  # Force kill if still running
+                    except Exception as e:
+                        logger.error(f"Error killing process: {e}")
+                self._active_processes.clear()
+
+            # Clean up thread pool
+            self.download_pool.shutdown(wait=False, cancel_futures=True)
+
+            # Clean up active downloads
+            async with self._downloads_lock:
+                self.active_downloads.clear()
+
+        except Exception as e:
+            logger.error(f"Error during downloader cleanup: {e}")
+        finally:
+            self._shutting_down = False
+
+    async def force_cleanup(self) -> None:
+        """Force cleanup of all resources"""
+        try:
+            # Force cancel all downloads
+            self.ytdl_logger.cancelled = True
+            
+            # Kill all processes immediately
+            async with self._processes_lock:
+                for process in self._active_processes:
+                    try:
+                        process.kill()
+                    except Exception as e:
+                        logger.error(f"Error force killing process: {e}")
+                self._active_processes.clear()
+
+            # Force shutdown thread pool
+            self.download_pool.shutdown(wait=False, cancel_futures=True)
+
+            # Clear all tracking
+            async with self._downloads_lock:
+                self.active_downloads.clear()
+
+        except Exception as e:
+            logger.error(f"Error during force cleanup: {e}")
 
     def _detailed_progress_hook(self, d):
         """Handle detailed download progress tracking"""
@@ -233,6 +311,9 @@ class VideoDownloader:
         self, url: str, progress_callback: Optional[Callable[[float], None]] = None
     ) -> Tuple[bool, str, str]:
         """Download and process a video with improved error handling"""
+        if self._shutting_down:
+            return False, "", "Downloader is shutting down"
+
         # Initialize progress tracking for this URL
         from videoarchiver.processor import _download_progress
         _download_progress[url] = {
@@ -272,7 +353,10 @@ class VideoDownloader:
                 original_file = file_path
 
                 async with self._downloads_lock:
-                    self.active_downloads[url] = original_file
+                    self.active_downloads[url] = {
+                        'file_path': original_file,
+                        'start_time': datetime.utcnow()
+                    }
 
                 # Check file size and compress if needed
                 file_size = os.path.getsize(original_file)
@@ -386,6 +470,9 @@ class VideoDownloader:
         use_hardware: bool = True,
     ) -> bool:
         """Attempt video compression with given parameters"""
+        if self._shutting_down:
+            return False
+
         try:
             # Build FFmpeg command
             ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
@@ -448,50 +535,64 @@ class VideoDownloader:
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
+            # Track the process
+            async with self._processes_lock:
+                self._active_processes.add(process)
+
             start_time = datetime.utcnow()
 
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
+            try:
+                while True:
+                    if self._shutting_down:
+                        process.terminate()
+                        return False
 
-                try:
-                    line = line.decode().strip()
-                    if line.startswith("out_time_ms="):
-                        current_time = (
-                            int(line.split("=")[1]) / 1000000
-                        )  # Convert microseconds to seconds
-                        if duration > 0:
-                            progress = min(100, (current_time / duration) * 100)
-                            
-                            # Update compression progress
-                            elapsed = datetime.utcnow() - start_time
-                            _compression_progress[input_file].update({
-                                'percent': progress,
-                                'elapsed_time': str(elapsed).split('.')[0],  # Remove microseconds
-                                'current_size': os.path.getsize(output_file) if os.path.exists(output_file) else 0,
-                                'current_time': current_time,
-                                'last_update': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                            })
-                            
-                            if progress_callback:
-                                await progress_callback(progress)
-                except Exception as e:
-                    logger.error(f"Error parsing FFmpeg progress: {e}")
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
 
-            await process.wait()
-            success = os.path.exists(output_file)
-            
-            # Update final status
-            if success and input_file in _compression_progress:
-                _compression_progress[input_file].update({
-                    'active': False,
-                    'percent': 100,
-                    'current_size': os.path.getsize(output_file),
-                    'last_update': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-                })
-            
-            return success
+                    try:
+                        line = line.decode().strip()
+                        if line.startswith("out_time_ms="):
+                            current_time = (
+                                int(line.split("=")[1]) / 1000000
+                            )  # Convert microseconds to seconds
+                            if duration > 0:
+                                progress = min(100, (current_time / duration) * 100)
+                                
+                                # Update compression progress
+                                elapsed = datetime.utcnow() - start_time
+                                _compression_progress[input_file].update({
+                                    'percent': progress,
+                                    'elapsed_time': str(elapsed).split('.')[0],  # Remove microseconds
+                                    'current_size': os.path.getsize(output_file) if os.path.exists(output_file) else 0,
+                                    'current_time': current_time,
+                                    'last_update': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                                })
+                                
+                                if progress_callback:
+                                    await progress_callback(progress)
+                    except Exception as e:
+                        logger.error(f"Error parsing FFmpeg progress: {e}")
+
+                await process.wait()
+                success = os.path.exists(output_file)
+                
+                # Update final status
+                if success and input_file in _compression_progress:
+                    _compression_progress[input_file].update({
+                        'active': False,
+                        'percent': 100,
+                        'current_size': os.path.getsize(output_file),
+                        'last_update': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                
+                return success
+
+            finally:
+                # Remove process from tracking
+                async with self._processes_lock:
+                    self._active_processes.discard(process)
 
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg compression failed: {e.stderr.decode()}")
@@ -593,6 +694,9 @@ class VideoDownloader:
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> Tuple[bool, str, str]:
         """Safely download video with retries"""
+        if self._shutting_down:
+            return False, "", "Downloader is shutting down"
+
         last_error = None
         for attempt in range(self.MAX_RETRIES):
             try:
