@@ -257,7 +257,8 @@ class VideoProcessor:
             settings = await self.config.get_guild_settings(message.guild.id)
 
             # Check if message is in a monitored channel
-            if message.channel.id not in settings["monitored_channels"]:
+            monitored_channels = settings.get("monitored_channels", [])
+            if monitored_channels and message.channel.id not in monitored_channels:
                 return
 
             # Find all video URLs in message with improved pattern matching
@@ -282,13 +283,16 @@ class VideoProcessor:
         """Extract video URLs from message content with improved pattern matching"""
         urls = []
         try:
+            # Create a YoutubeDL instance to get extractors
             with yt_dlp.YoutubeDL() as ydl:
-                for ie in ydl._ies:
-                    if ie._VALID_URL:
-                        # Use more specific pattern matching
-                        pattern = f"(?P<url>{ie._VALID_URL})"
-                        matches = re.finditer(pattern, content, re.IGNORECASE)
-                        urls.extend(match.group("url") for match in matches)
+                # Split content into words and check each for URLs
+                words = content.split()
+                for word in words:
+                    # Try each extractor
+                    for ie in ydl._ies:
+                        if ie.suitable(word):
+                            urls.append(word)
+                            break  # Stop once we find a matching extractor
         except Exception as e:
             logger.error(f"URL extraction error: {str(e)}")
         return list(set(urls))  # Remove duplicates
