@@ -134,61 +134,53 @@ class VideoProcessor:
             except Exception as e:
                 return False, f"Download error: {str(e)}"
 
+            # Get archive channel
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                return False, f"Guild {guild_id} not found"
+
+            archive_channel = await self.config.get_channel(guild, "archive")
+            if not archive_channel:
+                return False, "Archive channel not configured"
+
+            # Format message
             try:
-                # Get archive channel
-                guild = self.bot.get_guild(guild_id)
-                if not guild:
-                    return False, f"Guild {guild_id} not found"
+                author = original_message.author if original_message else None
+                message = await message_manager.format_message(
+                    author=author,
+                    channel=channel,
+                    url=item.url
+                )
+            except Exception as e:
+                return False, f"Failed to format message: {str(e)}"
 
-                archive_channel = await self.config.get_channel(guild, "archive")
-                if not archive_channel:
-                    return False, "Archive channel not configured"
-
-                # Format message
-                try:
-                    author = original_message.author if original_message else None
-                    message = await message_manager.format_message(
-                        author=author,
-                        channel=channel,
-                # Upload to archive channel
-                try:
-                    if not os.path.exists(file_path):
-                        return False, "Processed file not found"
-                    
-                    await archive_channel.send(
-                        content=message,
-                        file=discord.File(file_path)
-                    )
-
-                except discord.HTTPException as e:
-                    return False, f"Failed to upload to Discord: {str(e)}"
-                except Exception as e:
-                    return False, f"Failed to archive video: {str(e)}"
-
+            # Upload to archive channel
+            try:
+                if not os.path.exists(file_path):
+                    return False, "Processed file not found"
+                
+                await archive_channel.send(
+                    content=message,
+                    file=discord.File(file_path)
+                )
                 return True, None
 
+            except discord.HTTPException as e:
+                return False, f"Failed to upload to Discord: {str(e)}"
             except Exception as e:
-                return False, f"Processing error: {str(e)}"
-
-            finally:
-                # Clean up downloaded file
-                if file_path and os.path.exists(file_path):
-                    try:
-                        os.unlink(file_path)
-                    except Exception as e:
-                        logger.error(f"Failed to clean up file {file_path}: {e}")
+                return False, f"Failed to archive video: {str(e)}"
 
         except Exception as e:
             logger.error(f"Error processing video: {traceback.format_exc()}")
             return False, str(e)
 
         finally:
-            # Ensure file cleanup even on unexpected errors
+            # Clean up downloaded file
             if file_path and os.path.exists(file_path):
                 try:
                     os.unlink(file_path)
                 except Exception as e:
-                    logger.error(f"Final cleanup failed for {file_path}: {e}")
+                    logger.error(f"Failed to clean up file {file_path}: {e}")
 
     async def cleanup(self):
         """Clean up resources"""
