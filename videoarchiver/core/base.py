@@ -40,9 +40,9 @@ from .events import setup_events
 
 logger = logging.getLogger("VideoArchiver")
 
-# Constants for timeouts
-UNLOAD_TIMEOUT = 30  # seconds
-CLEANUP_TIMEOUT = 15  # seconds
+# Constants for timeouts - reduced for faster cleanup
+UNLOAD_TIMEOUT = 5  # seconds
+CLEANUP_TIMEOUT = 3  # seconds
 
 class VideoArchiver(GroupCog):
     """Archive videos from Discord channels"""
@@ -420,22 +420,43 @@ class VideoArchiver(GroupCog):
             raise ProcessingError(f"Error during cog load: {str(e)}")
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded with timeout"""
+        """Clean up when cog is unloaded with aggressive timeout handling"""
         self._unloading = True
         try:
-            # Create cleanup task with timeout
-            cleanup_task = asyncio.create_task(self._cleanup())
+            # Cancel any pending tasks immediately
+            if self._init_task and not self._init_task.done():
+                self._init_task.cancel()
+            
+            if self._cleanup_task and not self._cleanup_task.done():
+                self._cleanup_task.cancel()
+
+            # Try normal cleanup first with short timeout
+            cleanup_task = asyncio.create_task(cleanup_resources(self))
             try:
-                await asyncio.wait_for(cleanup_task, timeout=UNLOAD_TIMEOUT)
+                await asyncio.wait_for(cleanup_task, timeout=CLEANUP_TIMEOUT)
             except asyncio.TimeoutError:
-                logger.error("Cog unload timed out, forcing cleanup")
-                # Force cleanup of any remaining resources
+                logger.warning("Normal cleanup timed out, forcing cleanup")
+                # Immediately cancel the normal cleanup task
+                cleanup_task.cancel()
+                # Force cleanup without waiting
+                await force_cleanup_resources(self)
+            except Exception as e:
+                logger.error(f"Error during normal cleanup: {str(e)}")
                 await force_cleanup_resources(self)
         except Exception as e:
             logger.error(f"Error during cog unload: {str(e)}")
-            await force_cleanup_resources(self)
         finally:
             self._unloading = False
+            # Ensure ready flag is cleared
+            self.ready.clear()
+            # Clear all references
+            self.bot = None
+            self.processor = None
+            self.queue_manager = None
+            self.update_checker = None
+            self.ffmpeg_mgr = None
+            self.components.clear()
+            self.db = None
 
     async def _cleanup(self) -> None:
         """Clean up all resources with proper handling"""
