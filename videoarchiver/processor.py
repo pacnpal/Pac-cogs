@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, Tuple, Set
 import traceback
 from datetime import datetime
 
-from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
+from videoarchiver.queue import EnhancedVideoQueueManager  # Updated import
 from videoarchiver.utils.exceptions import (
     ProcessingError,
     ConfigurationError,

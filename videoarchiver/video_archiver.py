@@ -17,7 +17,7 @@ from videoarchiver.processor import VideoProcessor
 from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.message_manager import MessageManager
 from videoarchiver.utils.file_ops import cleanup_downloads
-from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
+from videoarchiver.queue import EnhancedVideoQueueManager  # Updated import
 from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
 from videoarchiver.utils.exceptions import (
     VideoArchiverError as ProcessingError,
