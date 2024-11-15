@@ -93,6 +93,13 @@ class FFmpegDownloader:
             self.base_dir.mkdir(parents=True, exist_ok=True)
             os.chmod(str(self.base_dir), 0o777)
 
+            # Clean up any existing file or directory
+            if self.ffmpeg_path.exists():
+                if self.ffmpeg_path.is_dir():
+                    shutil.rmtree(str(self.ffmpeg_path))
+                else:
+                    self.ffmpeg_path.unlink()
+
             with temp_path_context() as temp_dir:
                 # Download archive
                 archive_path = self._download_archive(temp_dir)
@@ -101,7 +108,7 @@ class FFmpegDownloader:
                 self._extract_binary(archive_path, temp_dir)
                 
                 # Set proper permissions
-                os.chmod(str(self.ffmpeg_path), 0o777)
+                os.chmod(str(self.ffmpeg_path), 0o755)
                 
                 return self.ffmpeg_path
 
@@ -130,10 +137,6 @@ class FFmpegDownloader:
     def _extract_binary(self, archive_path: Path, temp_dir: str):
         """Extract FFmpeg binary from archive"""
         logger.info("Extracting FFmpeg binary")
-        
-        # Remove existing binary if it exists
-        if self.ffmpeg_path.exists():
-            self.ffmpeg_path.unlink()
 
         if self.system == "Windows":
             self._extract_zip(archive_path, temp_dir)
@@ -169,7 +172,7 @@ class FFmpegDownloader:
                 return False
 
             # Ensure proper permissions
-            os.chmod(str(self.ffmpeg_path), 0o777)
+            os.chmod(str(self.ffmpeg_path), 0o755)
 
             # Test FFmpeg functionality
             result = subprocess.run(
