@@ -4,9 +4,12 @@ import os
 import logging
 import asyncio
 import discord
+from discord.ext import commands
+from discord import app_commands
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import traceback
+from datetime import datetime
 
 from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 from videoarchiver.utils.exceptions import (
@@ -32,6 +35,10 @@ REACTIONS = {
 
 # Global queue manager instance to persist across reloads
 _global_queue_manager = None
+
+# Track detailed progress information
+_download_progress: Dict[str, Dict[str, Any]] = {}
+_compression_progress: Dict[str, Dict[str, Any]] = {}
 
 class VideoProcessor:
     """Handles video processing operations"""
@@ -84,6 +91,128 @@ class VideoProcessor:
         logger.info("Starting video processing queue...")
         self._queue_task = asyncio.create_task(self.queue_manager.process_queue(self._process_video))
         logger.info("Video processing queue started successfully")
+
+        # Register commands
+        @commands.hybrid_command(name='queuedetails')
+        @commands.is_owner()
+        async def queue_details(ctx):
+            """Show detailed queue status and progress information"""
+            await self._show_queue_details(ctx)
+
+        self.bot.add_command(queue_details)
+
+    async def _show_queue_details(self, ctx):
+        """Display detailed queue status and progress information"""
+        try:
+            # Get queue status
+            queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
+            
+            # Create embed for queue overview
+            embed = discord.Embed(
+                title="Queue Status Details",
+                color=discord.Color.blue(),
+                timestamp=datetime.utcnow()
+            )
+            
+            # Queue statistics
+            embed.add_field(
+                name="Queue Statistics",
+                value=f"```\n"
+                      f"Pending: {queue_status['pending']}\n"
+                      f"Processing: {queue_status['processing']}\n"
+                      f"Completed: {queue_status['completed']}\n"
+                      f"Failed: {queue_status['failed']}\n"
+                      f"Success Rate: {queue_status['metrics']['success_rate']:.1%}\n"
+                      f"Avg Processing Time: {queue_status['metrics']['avg_processing_time']:.1f}s\n"
+                      f"```",
+                inline=False
+            )
+
+            # Active downloads
+            active_downloads = ""
+            for url, progress in _download_progress.items():
+                if progress.get('active', False):
+                    active_downloads += (
+                        f"URL: {url[:50]}...\n"
+                        f"Progress: {progress.get('percent', 0):.1f}%\n"
+                        f"Speed: {progress.get('speed', 'N/A')}\n"
+                        f"ETA: {progress.get('eta', 'N/A')}\n"
+                        f"Size: {progress.get('downloaded_bytes', 0)}/{progress.get('total_bytes', 0)} bytes\n"
+                        f"Started: {progress.get('start_time', 'N/A')}\n"
+                        f"Retries: {progress.get('retries', 0)}\n"
+                        f"-------------------\n"
+                    )
+            
+            if active_downloads:
+                embed.add_field(
+                    name="Active Downloads",
+                    value=f"```\n{active_downloads}```",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Active Downloads",
+                    value="```\nNo active downloads```",
+                    inline=False
+                )
+
+            # Active compressions
+            active_compressions = ""
+            for url, progress in _compression_progress.items():
+                if progress.get('active', False):
+                    active_compressions += (
+                        f"File: {progress.get('filename', 'Unknown')}\n"
+                        f"Progress: {progress.get('percent', 0):.1f}%\n"
+                        f"Time Elapsed: {progress.get('elapsed_time', 'N/A')}\n"
+                        f"Input Size: {progress.get('input_size', 0)} bytes\n"
+                        f"Current Size: {progress.get('current_size', 0)} bytes\n"
+                        f"Target Size: {progress.get('target_size', 0)} bytes\n"
+                        f"Codec: {progress.get('codec', 'Unknown')}\n"
+                        f"Hardware Accel: {progress.get('hardware_accel', False)}\n"
+                        f"-------------------\n"
+                    )
+            
+            if active_compressions:
+                embed.add_field(
+                    name="Active Compressions",
+                    value=f"```\n{active_compressions}```",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Active Compressions",
+                    value="```\nNo active compressions```",
+                    inline=False
+                )
+
+            # Error statistics
+            if queue_status['metrics']['errors_by_type']:
+                error_stats = "\n".join(
+                    f"{error_type}: {count}"
+                    for error_type, count in queue_status['metrics']['errors_by_type'].items()
+                )
+                embed.add_field(
+                    name="Error Statistics",
+                    value=f"```\n{error_stats}```",
+                    inline=False
+                )
+
+            # Hardware acceleration statistics
+            embed.add_field(
+                name="Hardware Statistics",
+                value=f"```\n"
+                      f"Hardware Accel Failures: {queue_status['metrics']['hardware_accel_failures']}\n"
+                      f"Compression Failures: {queue_status['metrics']['compression_failures']}\n"
+                      f"Peak Memory Usage: {queue_status['metrics']['peak_memory_usage']:.1f}MB\n"
+                      f"```",
+                inline=False
+            )
+
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            logger.error(f"Error showing queue details: {traceback.format_exc()}")
+            await ctx.send(f"Error getting queue details: {str(e)}")
 
     async def update_queue_position_reaction(self, message, position):
         """Update queue position reaction"""
@@ -234,6 +363,18 @@ class VideoProcessor:
                 logger.error(f"Error fetching original message: {e}")
                 original_message = None
 
+            # Initialize progress tracking
+            _download_progress[item.url] = {
+                'active': True,
+                'start_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+                'percent': 0,
+                'speed': 'N/A',
+                'eta': 'N/A',
+                'downloaded_bytes': 0,
+                'total_bytes': 0,
+                'retries': 0
+            }
+
             # Download and process video
             try:
                 success, file_path, error = await downloader.download_video(
@@ -250,6 +391,10 @@ class VideoProcessor:
                     await original_message.add_reaction(REACTIONS['error'])
                     logger.error(f"Download error for message {item.message_id}: {str(e)}")
                 return False, f"Download error: {str(e)}"
+            finally:
+                # Clean up progress tracking
+                if item.url in _download_progress:
+                    _download_progress[item.url]['active'] = False
 
             # Get archive channel
             guild = self.bot.get_guild(guild_id)
