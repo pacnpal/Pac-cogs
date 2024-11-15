@@ -14,6 +14,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Dict, List
 import time
+import lzma
 
 from .exceptions import DownloadError
 
@@ -261,26 +262,43 @@ class FFmpegDownloader:
 
     def _extract_tar(self, archive_path: Path, temp_dir: str):
         """Extract from tar archive (Linux/macOS)"""
-        with tarfile.open(archive_path, "r:xz") as tar_ref:
-            binary_names = self._get_binary_names()
-            for binary_name in binary_names:
-                # BtbN's builds have binaries in bin directory
-                binary_files = [
-                    f for f in tar_ref.getnames() if f.endswith(f"/bin/{binary_name}")
-                ]
-                if not binary_files:
-                    # Fallback to old structure
-                    binary_files = [
-                        f for f in tar_ref.getnames() if f.endswith(f"/{binary_name}")
-                    ]
-                if not binary_files:
-                    raise DownloadError(f"{binary_name} not found in archive")
+        try:
+            # First decompress the .xz file
+            decompressed_path = archive_path.with_suffix('')
+            with lzma.open(archive_path, 'rb') as compressed:
+                with open(decompressed_path, 'wb') as decompressed:
+                    shutil.copyfileobj(compressed, decompressed)
 
-                tar_ref.extract(binary_files[0], temp_dir)
-                extracted_path = Path(temp_dir) / binary_files[0]
-                target_path = self.base_dir / binary_name
-                shutil.copy2(extracted_path, target_path)
-                logger.info(f"Extracted {binary_name} to {target_path}")
+            # Then extract from the tar file
+            with tarfile.open(decompressed_path, "r:") as tar_ref:
+                binary_names = self._get_binary_names()
+                for binary_name in binary_names:
+                    # BtbN's builds have binaries in bin directory
+                    binary_files = [
+                        f for f in tar_ref.getnames() if f.endswith(f"/bin/{binary_name}")
+                    ]
+                    if not binary_files:
+                        # Fallback to old structure
+                        binary_files = [
+                            f for f in tar_ref.getnames() if f.endswith(f"/{binary_name}")
+                        ]
+                    if not binary_files:
+                        raise DownloadError(f"{binary_name} not found in archive")
+
+                    tar_ref.extract(binary_files[0], temp_dir)
+                    extracted_path = Path(temp_dir) / binary_files[0]
+                    target_path = self.base_dir / binary_name
+                    shutil.copy2(extracted_path, target_path)
+                    logger.info(f"Extracted {binary_name} to {target_path}")
+
+            # Clean up decompressed file
+            try:
+                os.unlink(decompressed_path)
+            except Exception as e:
+                logger.warning(f"Failed to clean up decompressed file: {e}")
+
+        except Exception as e:
+            raise DownloadError(f"Failed to extract tar.xz archive: {e}")
 
     def verify(self) -> bool:
         """Verify FFmpeg and FFprobe binaries work"""
@@ -299,7 +317,7 @@ class FFmpegDownloader:
 
             # Test FFmpeg functionality with enhanced error handling
             try:
-                ffmpeg_result = subprocess.run(
+                result = subprocess.run(
                     [str(self.ffmpeg_path), "-version"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -317,7 +335,7 @@ class FFmpegDownloader:
 
             # Test FFprobe functionality with enhanced error handling
             try:
-                ffprobe_result = subprocess.run(
+                result = subprocess.run(
                     [str(self.ffprobe_path), "-version"],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
@@ -334,25 +352,18 @@ class FFmpegDownloader:
                 return False
 
             # Check results
-            if ffmpeg_result.returncode == 0 and ffprobe_result.returncode == 0:
+            if result.returncode == 0:
                 try:
-                    ffmpeg_version = ffmpeg_result.stdout.split("\n")[0]
-                    ffprobe_version = ffprobe_result.stdout.split("\n")[0]
+                    ffmpeg_version = result.stdout.split("\n")[0]
                     logger.info(f"FFmpeg verification successful: {ffmpeg_version}")
-                    logger.info(f"FFprobe verification successful: {ffprobe_version}")
                     return True
                 except Exception as e:
                     logger.error(f"Failed to parse version output: {e}")
                     return False
             else:
-                if ffmpeg_result.returncode != 0:
-                    logger.error(
-                        f"FFmpeg verification failed with code {ffmpeg_result.returncode}: {ffmpeg_result.stderr}"
-                    )
-                if ffprobe_result.returncode != 0:
-                    logger.error(
-                        f"FFprobe verification failed with code {ffprobe_result.returncode}: {ffprobe_result.stderr}"
-                    )
+                logger.error(
+                    f"FFmpeg verification failed with code {result.returncode}: {result.stderr}"
+                )
                 return False
 
         except Exception as e:
