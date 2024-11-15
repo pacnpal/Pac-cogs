@@ -32,6 +32,11 @@ class EncoderParams:
         }
     }
 
+    # Minimum bitrates to ensure quality
+    MIN_VIDEO_BITRATE = 500_000  # 500 Kbps
+    MIN_AUDIO_BITRATE = 64_000   # 64 Kbps per channel
+    MAX_AUDIO_BITRATE = 192_000  # 192 Kbps per channel
+
     def __init__(self, cpu_cores: int, gpu_info: Dict[str, bool]):
         """Initialize encoder parameters manager
         
@@ -44,15 +49,7 @@ class EncoderParams:
         logger.info(f"Initialized encoder with {cpu_cores} CPU cores and GPU info: {gpu_info}")
 
     def get_params(self, video_info: Dict[str, Any], target_size_bytes: int) -> Dict[str, str]:
-        """Get optimal FFmpeg parameters based on hardware and video analysis
-        
-        Args:
-            video_info: Dict containing video analysis results
-            target_size_bytes: Target file size in bytes
-            
-        Returns:
-            Dict containing FFmpeg encoding parameters
-        """
+        """Get optimal FFmpeg parameters based on hardware and video analysis"""
         try:
             # Get base parameters
             params = self._get_base_params()
@@ -167,57 +164,64 @@ class EncoderParams:
         params = {}
         try:
             duration = float(video_info.get("duration", 0))
-            input_size = int(video_info.get("bitrate", 0) * duration / 8)  # Convert to bytes
+            if duration <= 0:
+                raise ValueError("Invalid video duration")
 
-            if duration > 0 and input_size > target_size_bytes:
-                # Calculate target bitrates
-                video_size_target = int(target_size_bytes * 0.95)  # Reserve 5% for container overhead
-                total_bitrate = int((video_size_target * 8) / duration)
+            # Calculate target bitrate based on file size
+            total_bitrate = int((target_size_bytes * 8) / duration)
 
-                # Calculate audio bitrate
-                audio_channels = int(video_info.get("audio_channels", 2))
-                min_audio_bitrate = 64000 * audio_channels
-                max_audio_bitrate = 192000 * audio_channels
-                audio_bitrate = min(
-                    max_audio_bitrate,
-                    max(min_audio_bitrate, int(total_bitrate * 0.15))
-                )
+            # Handle audio bitrate
+            audio_channels = int(video_info.get("audio_channels", 2))
+            audio_bitrate = min(
+                self.MAX_AUDIO_BITRATE * audio_channels,
+                max(self.MIN_AUDIO_BITRATE * audio_channels, int(total_bitrate * 0.1))
+            )
 
-                # Calculate video bitrate
-                video_bitrate = int(total_bitrate - audio_bitrate)
-                if video_bitrate <= 0:
-                    raise BitrateError("Calculated video bitrate is too low", total_bitrate, 0)
+            # Calculate video bitrate, ensuring it doesn't go below minimum
+            video_bitrate = max(self.MIN_VIDEO_BITRATE, total_bitrate - audio_bitrate)
 
-                # Set bitrate constraints
-                params["maxrate"] = str(int(video_bitrate * 1.5))
-                params["bufsize"] = str(int(video_bitrate * 2))
+            # Set video bitrate constraints
+            params.update({
+                "b:v": f"{int(video_bitrate)}",
+                "maxrate": f"{int(video_bitrate * 1.5)}",
+                "bufsize": f"{int(video_bitrate * 2)}"
+            })
 
-                # Quality adjustments based on compression ratio
-                ratio = input_size / target_size_bytes
-                if ratio > 4:
+            # Set audio parameters
+            params.update({
+                "c:a": "aac",
+                "b:a": f"{int(audio_bitrate/1000)}k",
+                "ar": "48000",  # Standard audio sample rate
+                "ac": str(audio_channels)
+            })
+
+            # Adjust CRF based on target size
+            input_bitrate = int(video_info.get("bitrate", 0))
+            if input_bitrate > 0:
+                compression_ratio = input_bitrate / video_bitrate
+                if compression_ratio > 4:
                     params["crf"] = "26"
                     params["preset"] = "faster"
-                elif ratio > 2:
+                elif compression_ratio > 2:
                     params["crf"] = "23"
                     params["preset"] = "medium"
                 else:
                     params["crf"] = "20"
                     params["preset"] = "slow"
 
-                # Audio settings
-                params.update({
-                    "c:a": "aac",
-                    "b:a": f"{int(audio_bitrate/1000)}k",
-                    "ar": str(video_info.get("audio_sample_rate", 48000)),
-                    "ac": str(audio_channels)
-                })
+            logger.info(f"Calculated bitrates - Video: {video_bitrate}bps, Audio: {audio_bitrate}bps")
+            return params
 
         except Exception as e:
             logger.error(f"Error calculating bitrates: {str(e)}")
             # Use safe default parameters
-            params.update(self._get_safe_defaults())
-
-        return params
+            return {
+                "c:a": "aac",
+                "b:a": "128k",
+                "ar": "48000",
+                "ac": "2",
+                "crf": "23"  # Use CRF mode instead of bitrate when calculation fails
+            }
 
     def _detect_content_type(self, video_info: Dict[str, Any]) -> str:
         """Detect content type based on video analysis"""
@@ -251,13 +255,22 @@ class EncoderParams:
                 raise ValueError(f"Invalid video codec: {params['c:v']}")
 
             # Validate preset
-            valid_presets = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
+            valid_presets = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "p1", "p2", "p3", "p4", "p5", "p6", "p7"]
             if params["preset"] not in valid_presets:
                 raise ValueError(f"Invalid preset: {params['preset']}")
 
             # Validate pixel format
             if params["pix_fmt"] not in ["yuv420p", "nv12", "yuv444p"]:
                 raise ValueError(f"Invalid pixel format: {params['pix_fmt']}")
+
+            # Validate audio parameters
+            if "c:a" in params and params["c:a"] == "aac":
+                if "b:a" not in params:
+                    raise ValueError("Missing audio bitrate parameter")
+                if "ar" not in params:
+                    raise ValueError("Missing audio sample rate parameter")
+                if "ac" not in params:
+                    raise ValueError("Missing audio channels parameter")
 
         except Exception as e:
             logger.error(f"Parameter validation failed: {str(e)}")
