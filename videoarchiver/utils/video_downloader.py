@@ -1,6 +1,7 @@
 """Video download and processing utilities"""
 
 import os
+import re
 import logging
 import asyncio
 import ffmpeg
@@ -87,18 +88,18 @@ class VideoDownloader:
         except Exception as e:
             logger.error(f"Error during VideoDownloader cleanup: {str(e)}")
 
-    def _get_url_patterns(self) -> List[str]:
-        """Get URL patterns for supported sites"""
+    def _get_url_patterns(self) -> List[Tuple[str, str]]:
+        """Get URL patterns and names for supported sites"""
         patterns = []
         try:
             with yt_dlp.YoutubeDL() as ydl:
-                for extractor in ydl._ies:
-                    if hasattr(extractor, '_VALID_URL') and extractor._VALID_URL:
+                for ie in ydl._ies:
+                    if hasattr(ie, '_VALID_URL') and ie._VALID_URL:
                         if not self.enabled_sites or any(
-                            site.lower() in extractor.IE_NAME.lower()
+                            site.lower() in ie.IE_NAME.lower()
                             for site in self.enabled_sites
                         ):
-                            patterns.append(extractor._VALID_URL)
+                            patterns.append((ie._VALID_URL, ie.IE_NAME))
         except Exception as e:
             logger.error(f"Error getting URL patterns: {str(e)}")
         return patterns
@@ -299,25 +300,14 @@ class VideoDownloader:
         return False
 
     def is_supported_url(self, url: str) -> bool:
-        """Check if URL is supported"""
+        """Check if URL is supported using regex patterns"""
         try:
-            with yt_dlp.YoutubeDL() as ydl:
-                # Get extractors
-                extractors = ydl._ies
-                # Try each extractor
-                for ie in extractors:
-                    # Skip if site is not enabled
-                    if self.enabled_sites and not any(
-                        site.lower() in ie.IE_NAME.lower()
-                        for site in self.enabled_sites
-                    ):
-                        continue
-                    # Create an instance of the extractor
-                    extractor = ie(ydl)
-                    # Try to match URL
-                    if extractor.suitable(url):
-                        return True
-                return False
+            # Try each pattern
+            for pattern, site_name in self.url_patterns:
+                if re.match(pattern, url):
+                    logger.debug(f"URL matched pattern for {site_name}")
+                    return True
+            return False
         except Exception as e:
             logger.error(f"Error checking URL support: {str(e)}")
             return False
