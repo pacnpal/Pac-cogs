@@ -5,7 +5,7 @@
     "end_user_data_statement": "This cog stores the following data:\n1. Guild-specific settings (channels, roles, preferences)\n2. Temporary video files during processing (automatically deleted)\n3. Message and channel IDs for tracking processed videos\n4. Queue state for video processing\n\nNo personal user data is permanently stored.",
     "install_msg": "Thanks for installing VideoArchiver! Before using:\n1. Ensure FFmpeg is installed on your system\n2. Configure archive and monitored channels using `[p]videoarchiver`\n3. Use `[p]help VideoArchiver` to see all commands\n\nFor support or issues, please visit the repository.",
     "author": [
-        "Cline"
+        "PacNPal"
     ],
     "required_cogs": {},
     "requirements": [
