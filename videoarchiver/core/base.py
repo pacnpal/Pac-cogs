@@ -386,7 +386,20 @@ class VideoArchiver(GroupCog):
                 max_history_age=86400,
                 persistence_path=str(queue_path),
             )
-            logger.info("Queue manager initialized")
+            
+            # Initialize queue manager with timeout
+            try:
+                await asyncio.wait_for(
+                    self.queue_manager.initialize(),
+                    timeout=INIT_TIMEOUT
+                )
+                logger.info("Queue manager initialized successfully")
+            except asyncio.TimeoutError:
+                logger.error("Queue manager initialization timed out")
+                raise ProcessingError("Queue manager initialization timed out")
+            except Exception as e:
+                logger.error(f"Queue manager initialization failed: {e}")
+                raise
 
             # Initialize processor with queue manager and shared FFmpeg manager
             self.processor = VideoProcessor(
@@ -429,6 +442,7 @@ class VideoArchiver(GroupCog):
                 logger.warning("Update checker start timed out")
 
             # Start queue processing as a background task
+            # Only start after queue manager is fully initialized
             self._queue_task = asyncio.create_task(
                 self.queue_manager.process_queue(self.processor.process_video)
             )
