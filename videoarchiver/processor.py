@@ -322,9 +322,10 @@ class VideoProcessor:
                 for word in words:
                     # Try each extractor
                     for ie in ydl._ies:
-                        if hasattr(ie, "_VALID_URL") and ie._VALID_URL:
+                        if hasattr(ie, '_VALID_URL') and ie._VALID_URL:
                             # Use regex pattern matching instead of suitable()
                             if re.match(ie._VALID_URL, word):
+                                logger.info(f"Found supported URL: {word} (Extractor: {ie.IE_NAME})")
                                 urls.append(word)
                                 break  # Stop once we find a matching pattern
         except Exception as e:
