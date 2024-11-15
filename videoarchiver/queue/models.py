@@ -16,13 +16,14 @@ class QueueItem:
     """Represents an item in the video processing queue"""
     
     url: str
-    message_id: int  # Changed to int for Discord ID
-    channel_id: int  # Changed to int for Discord ID
-    author_id: int   # Changed to int for Discord ID
-    guild_id: int    # Changed to int for Discord ID
+    message_id: int  # Discord ID
+    channel_id: int  # Discord ID
+    author_id: int   # Discord ID
+    guild_id: int    # Discord ID
     added_at: datetime = field(default_factory=datetime.utcnow)
     status: str = "pending"
     retries: int = 0
+    priority: int = 0  # Added priority field with default value 0
     last_retry: Optional[datetime] = None
     last_error: Optional[str] = None
     last_error_time: Optional[datetime] = None
