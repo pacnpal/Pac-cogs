@@ -40,9 +40,11 @@ from .events import setup_events
 
 logger = logging.getLogger("VideoArchiver")
 
-# Constants for timeouts - reduced for faster cleanup
-UNLOAD_TIMEOUT = 5  # seconds
-CLEANUP_TIMEOUT = 3  # seconds
+# Constants for timeouts - extremely aggressive timeouts
+UNLOAD_TIMEOUT = 2  # seconds
+CLEANUP_TIMEOUT = 1  # seconds
+INIT_TIMEOUT = 5    # seconds
+COMPONENT_INIT_TIMEOUT = 2  # seconds
 
 class VideoArchiver(GroupCog):
     """Archive videos from Discord channels"""
@@ -340,7 +342,7 @@ class VideoArchiver(GroupCog):
             asyncio.create_task(self._cleanup())
 
     async def _initialize(self) -> None:
-        """Initialize all components with proper error handling"""
+        """Initialize all components with proper error handling and timeouts"""
         try:
             # Initialize config first as other components depend on it
             config = Config.get_conf(self, identifier=855847, force_registration=True)
@@ -352,8 +354,14 @@ class VideoArchiver(GroupCog):
             self.download_path = self.data_path / "downloads"
             self.download_path.mkdir(parents=True, exist_ok=True)
 
-            # Clean existing downloads
-            await cleanup_downloads(str(self.download_path))
+            # Clean existing downloads with timeout
+            try:
+                await asyncio.wait_for(
+                    cleanup_downloads(str(self.download_path)), 
+                    timeout=CLEANUP_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Download cleanup timed out, continuing initialization")
 
             # Initialize shared FFmpeg manager
             self.ffmpeg_mgr = FFmpegManager()
@@ -362,10 +370,16 @@ class VideoArchiver(GroupCog):
             # Initialize components dict first
             self.components: Dict[int, Dict[str, Any]] = {}
 
-            # Initialize components for existing guilds
+            # Initialize components for existing guilds with timeout
             for guild in self.bot.guilds:
                 try:
-                    await initialize_guild_components(self, guild.id)
+                    await asyncio.wait_for(
+                        initialize_guild_components(self, guild.id),
+                        timeout=COMPONENT_INIT_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"Guild {guild.id} initialization timed out")
+                    continue
                 except Exception as e:
                     logger.error(f"Failed to initialize guild {guild.id}: {str(e)}")
                     continue
@@ -395,32 +409,65 @@ class VideoArchiver(GroupCog):
                 db=self.db,  # Pass database to processor (None by default)
             )
 
-            # Start update checker
-            await self.update_checker.start()
+            # Start update checker with timeout
+            try:
+                await asyncio.wait_for(
+                    self.update_checker.start(),
+                    timeout=INIT_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Update checker start timed out")
 
             # Set ready flag
             self.ready.set()
-
             logger.info("VideoArchiver initialization completed successfully")
 
         except Exception as e:
             logger.error(f"Critical error during initialization: {str(e)}")
-            await self._cleanup()
+            # Force cleanup on initialization error
+            try:
+                await asyncio.wait_for(
+                    force_cleanup_resources(self),
+                    timeout=CLEANUP_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.error("Force cleanup during initialization timed out")
             raise
 
     async def cog_load(self) -> None:
-        """Handle cog loading"""
+        """Handle cog loading with aggressive timeout"""
         try:
-            await asyncio.wait_for(self.ready.wait(), timeout=30)
-        except asyncio.TimeoutError:
-            await self._cleanup()
-            raise ProcessingError("Cog initialization timed out")
+            # Create initialization task
+            init_task = asyncio.create_task(self._initialize())
+            try:
+                # Wait for initialization with timeout
+                await asyncio.wait_for(init_task, timeout=INIT_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("Initialization timed out, forcing cleanup")
+                init_task.cancel()
+                await force_cleanup_resources(self)
+                raise ProcessingError("Cog initialization timed out")
+            
+            # Wait for ready flag with short timeout
+            try:
+                await asyncio.wait_for(self.ready.wait(), timeout=INIT_TIMEOUT)
+            except asyncio.TimeoutError:
+                await force_cleanup_resources(self)
+                raise ProcessingError("Ready flag wait timed out")
+                
         except Exception as e:
-            await self._cleanup()
+            # Ensure cleanup on any error
+            try:
+                await asyncio.wait_for(
+                    force_cleanup_resources(self),
+                    timeout=CLEANUP_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.error("Force cleanup during load error timed out")
             raise ProcessingError(f"Error during cog load: {str(e)}")
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded with aggressive timeout handling"""
+        """Clean up when cog is unloaded with extremely aggressive timeout handling"""
         self._unloading = True
         try:
             # Cancel any pending tasks immediately
@@ -430,34 +477,61 @@ class VideoArchiver(GroupCog):
             if self._cleanup_task and not self._cleanup_task.done():
                 self._cleanup_task.cancel()
 
-            # Try normal cleanup first with short timeout
+            # Try normal cleanup first with very short timeout
             cleanup_task = asyncio.create_task(cleanup_resources(self))
             try:
                 await asyncio.wait_for(cleanup_task, timeout=CLEANUP_TIMEOUT)
-            except asyncio.TimeoutError:
-                logger.warning("Normal cleanup timed out, forcing cleanup")
-                # Immediately cancel the normal cleanup task
+            except (asyncio.TimeoutError, Exception) as e:
+                if isinstance(e, asyncio.TimeoutError):
+                    logger.warning("Normal cleanup timed out, forcing cleanup")
+                else:
+                    logger.error(f"Error during normal cleanup: {str(e)}")
+                
+                # Cancel normal cleanup and force cleanup immediately
                 cleanup_task.cancel()
-                # Force cleanup without waiting
-                await force_cleanup_resources(self)
-            except Exception as e:
-                logger.error(f"Error during normal cleanup: {str(e)}")
-                await force_cleanup_resources(self)
+                try:
+                    # Force cleanup with very short timeout
+                    await asyncio.wait_for(
+                        force_cleanup_resources(self),
+                        timeout=CLEANUP_TIMEOUT
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Force cleanup timed out")
+                except Exception as e:
+                    logger.error(f"Error during force cleanup: {str(e)}")
+
         except Exception as e:
             logger.error(f"Error during cog unload: {str(e)}")
         finally:
             self._unloading = False
             # Ensure ready flag is cleared
             self.ready.clear()
-            # Clear all references
+            # Aggressively clear all references
             self.bot = None
             self.processor = None
             self.queue_manager = None
             self.update_checker = None
             self.ffmpeg_mgr = None
-            self.components.clear()
+            if hasattr(self, 'components'):
+                self.components.clear()
             self.db = None
+            # Clear any other potential references
+            self._init_task = None
+            self._cleanup_task = None
 
     async def _cleanup(self) -> None:
         """Clean up all resources with proper handling"""
-        await cleanup_resources(self)
+        try:
+            await asyncio.wait_for(
+                cleanup_resources(self),
+                timeout=CLEANUP_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Cleanup timed out, forcing cleanup")
+            try:
+                await asyncio.wait_for(
+                    force_cleanup_resources(self),
+                    timeout=CLEANUP_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                logger.error("Force cleanup timed out")
