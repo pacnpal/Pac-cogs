@@ -14,7 +14,6 @@ import traceback
 from videoarchiver.config_manager import ConfigManager
 from videoarchiver.update_checker import UpdateChecker
 from videoarchiver.processor import VideoProcessor
-from videoarchiver.commands import VideoArchiverCommands
 from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.message_manager import MessageManager
 from videoarchiver.utils.file_ops import cleanup_downloads
@@ -75,14 +74,6 @@ class VideoArchiver(commands.Cog):
             # Initialize other managers in correct order
             self.update_checker = UpdateChecker(self.bot, self.config_manager)
             self.processor = VideoProcessor(self.bot, self.config_manager, self.components)
-            
-            # Initialize commands handler
-            self.commands_handler = VideoArchiverCommands(
-                self.bot,
-                self.config_manager,
-                self.update_checker,
-                self.processor
-            )
             
             # Initialize components for existing guilds
             for guild in self.bot.guilds:
