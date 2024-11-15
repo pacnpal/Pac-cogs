@@ -1,8 +1,10 @@
 """VideoArchiver cog for Red-DiscordBot"""
+
 from __future__ import annotations
 
 import discord
 from redbot.core import commands, Config, data_manager, checks
+from discord import app_commands
 from pathlib import Path
 import logging
 import asyncio
@@ -26,7 +28,7 @@ from videoarchiver.utils.exceptions import (
     ConfigurationError as ConfigError,
     VideoVerificationError as UpdateError,
     QueueError,
-    FileCleanupError as FileOperationError
+    FileCleanupError as FileOperationError,
 )
 
 logger = logging.getLogger("VideoArchiver")
@@ -34,6 +36,7 @@ logger = logging.getLogger("VideoArchiver")
 # Constants for timeouts
 UNLOAD_TIMEOUT = 30  # seconds
 CLEANUP_TIMEOUT = 15  # seconds
+
 
 class VideoArchiver(commands.Cog):
     """Archive videos from Discord channels"""
@@ -129,7 +132,7 @@ class VideoArchiver(commands.Cog):
                 self.components,
                 queue_manager=self.queue_manager,
                 ffmpeg_mgr=self.ffmpeg_mgr,
-                db=self.db  # Pass database to processor (None by default)
+                db=self.db,  # Pass database to processor (None by default)
             )
 
             # Start update checker
@@ -141,51 +144,82 @@ class VideoArchiver(commands.Cog):
             logger.info("VideoArchiver initialization completed successfully")
 
         except Exception as e:
-            logger.error(f"Critical error during initialization: {traceback.format_exc()}")
+            logger.error(
+                f"Critical error during initialization: {traceback.format_exc()}"
+            )
             await self._cleanup()
             raise
 
-    @commands.group(name="videoarchiver")
+    @commands.hybrid_group(name="archivedb", fallback="help")
     @commands.guild_only()
-    async def videoarchiver(self, ctx: commands.Context):
-        """Video archiver commands"""
-        pass
+    async def archivedb(self, ctx: commands.Context):
+        """Manage the video archive database."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
 
-    @videoarchiver.command(name="toggledb")
+    @archivedb.command(name="enable")
+    @commands.guild_only()
     @checks.admin_or_permissions(administrator=True)
-    async def toggle_database(self, ctx: commands.Context):
-        """Toggle the video archive database on/off."""
+    async def enable_database(self, ctx: commands.Context):
+        """Enable the video archive database."""
         try:
-            current_setting = await self.config_manager.get_guild_setting(ctx.guild, "use_database")
-            new_setting = not current_setting
+            current_setting = await self.config_manager.get_guild_setting(
+                ctx.guild, "use_database"
+            )
+            if current_setting:
+                await ctx.send("The video archive database is already enabled.")
+                return
 
-            if new_setting and self.db is None:
-                # Initialize database if it's being enabled
-                self.db = VideoArchiveDB(self.data_path)
-                # Update processor with database
-                self.processor.db = self.db
-                self.processor.queue_handler.db = self.db
+            # Initialize database if it's being enabled
+            self.db = VideoArchiveDB(self.data_path)
+            # Update processor with database
+            self.processor.db = self.db
+            self.processor.queue_handler.db = self.db
 
-            elif not new_setting:
-                # Remove database if it's being disabled
-                self.db = None
-                self.processor.db = None
-                self.processor.queue_handler.db = None
-
-            await self.config_manager.set_guild_setting(ctx.guild, "use_database", new_setting)
-            status = "enabled" if new_setting else "disabled"
-            await ctx.send(f"Video archive database has been {status}.")
+            await self.config_manager.set_guild_setting(ctx.guild, "use_database", True)
+            await ctx.send("Video archive database has been enabled.")
 
         except Exception as e:
-            logger.error(f"Error toggling database: {e}")
-            await ctx.send("An error occurred while toggling the database setting.")
+            logger.error(f"Error enabling database: {e}")
+            await ctx.send("An error occurred while enabling the database.")
+
+    @archivedb.command(name="disable")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    async def disable_database(self, ctx: commands.Context):
+        """Disable the video archive database."""
+        try:
+            current_setting = await self.config_manager.get_guild_setting(
+                ctx.guild, "use_database"
+            )
+            if not current_setting:
+                await ctx.send("The video archive database is already disabled.")
+                return
+
+            # Remove database references
+            self.db = None
+            self.processor.db = None
+            self.processor.queue_handler.db = None
+
+            await self.config_manager.set_guild_setting(
+                ctx.guild, "use_database", False
+            )
+            await ctx.send("Video archive database has been disabled.")
+
+        except Exception as e:
+            logger.error(f"Error disabling database: {e}")
+            await ctx.send("An error occurred while disabling the database.")
 
     @commands.hybrid_command()
+    @commands.guild_only()
+    @app_commands.describe(url="The URL of the video to check")
     async def checkarchived(self, ctx: commands.Context, url: str):
         """Check if a video URL has been archived and get its Discord link if it exists."""
         try:
             if not self.db:
-                await ctx.send("The archive database is not enabled. Ask an admin to enable it with `/videoarchiver toggledb`")
+                await ctx.send(
+                    "The archive database is not enabled. Ask an admin to enable it with `/archivedb enable`"
+                )
                 return
 
             result = self.db.get_archived_video(url)
@@ -194,7 +228,7 @@ class VideoArchiver(commands.Cog):
                 embed = discord.Embed(
                     title="Video Found in Archive",
                     description=f"This video has been archived!\n\nOriginal URL: {url}",
-                    color=discord.Color.green()
+                    color=discord.Color.green(),
                 )
                 embed.add_field(name="Archived Link", value=discord_url)
                 await ctx.send(embed=embed)
@@ -202,12 +236,143 @@ class VideoArchiver(commands.Cog):
                 embed = discord.Embed(
                     title="Video Not Found",
                     description="This video has not been archived yet.",
-                    color=discord.Color.red()
+                    color=discord.Color.red(),
                 )
                 await ctx.send(embed=embed)
         except Exception as e:
             logger.error(f"Error checking archived video: {e}")
             await ctx.send("An error occurred while checking the archive.")
+
+    @commands.hybrid_group(name="archiver", fallback="help")
+    @commands.guild_only()
+    async def archiver(self, ctx: commands.Context):
+        """Manage video archiver settings."""
+        if ctx.invoked_subcommand is None:
+            await ctx.send_help(ctx.command)
+
+    @archiver.command(name="enable")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    async def enable_archiver(self, ctx: commands.Context):
+        """Enable video archiving in this server."""
+        try:
+            current_setting = await self.config_manager.get_guild_setting(
+                ctx.guild, "enabled"
+            )
+            if current_setting:
+                await ctx.send("Video archiving is already enabled.")
+                return
+
+            await self.config_manager.set_guild_setting(ctx.guild, "enabled", True)
+            await ctx.send("Video archiving has been enabled.")
+
+        except Exception as e:
+            logger.error(f"Error enabling archiver: {e}")
+            await ctx.send("An error occurred while enabling video archiving.")
+
+    @archiver.command(name="disable")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    async def disable_archiver(self, ctx: commands.Context):
+        """Disable video archiving in this server."""
+        try:
+            current_setting = await self.config_manager.get_guild_setting(
+                ctx.guild, "enabled"
+            )
+            if not current_setting:
+                await ctx.send("Video archiving is already disabled.")
+                return
+
+            await self.config_manager.set_guild_setting(ctx.guild, "enabled", False)
+            await ctx.send("Video archiving has been disabled.")
+
+        except Exception as e:
+            logger.error(f"Error disabling archiver: {e}")
+            await ctx.send("An error occurred while disabling video archiving.")
+
+    @archiver.command(name="setchannel")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(channel="The channel where archived videos will be stored")
+    async def set_archive_channel(
+        self, ctx: commands.Context, channel: discord.TextChannel
+    ):
+        """Set the channel where archived videos will be stored."""
+        try:
+            await self.config_manager.set_guild_setting(
+                ctx.guild, "archive_channel", channel.id
+            )
+            await ctx.send(f"Archive channel has been set to {channel.mention}.")
+        except Exception as e:
+            logger.error(f"Error setting archive channel: {e}")
+            await ctx.send("An error occurred while setting the archive channel.")
+
+    @archiver.command(name="setlog")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(channel="The channel where log messages will be sent")
+    async def set_log_channel(
+        self, ctx: commands.Context, channel: discord.TextChannel
+    ):
+        """Set the channel where log messages will be sent."""
+        try:
+            await self.config_manager.set_guild_setting(
+                ctx.guild, "log_channel", channel.id
+            )
+            await ctx.send(f"Log channel has been set to {channel.mention}.")
+        except Exception as e:
+            logger.error(f"Error setting log channel: {e}")
+            await ctx.send("An error occurred while setting the log channel.")
+
+    @archiver.command(name="addchannel")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(channel="The channel to monitor for videos")
+    async def add_enabled_channel(
+        self, ctx: commands.Context, channel: discord.TextChannel
+    ):
+        """Add a channel to monitor for videos."""
+        try:
+            enabled_channels = await self.config_manager.get_guild_setting(
+                ctx.guild, "enabled_channels"
+            )
+            if channel.id in enabled_channels:
+                await ctx.send(f"{channel.mention} is already being monitored.")
+                return
+
+            enabled_channels.append(channel.id)
+            await self.config_manager.set_guild_setting(
+                ctx.guild, "enabled_channels", enabled_channels
+            )
+            await ctx.send(f"Now monitoring {channel.mention} for videos.")
+        except Exception as e:
+            logger.error(f"Error adding enabled channel: {e}")
+            await ctx.send("An error occurred while adding the channel.")
+
+    @archiver.command(name="removechannel")
+    @commands.guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(channel="The channel to stop monitoring")
+    async def remove_enabled_channel(
+        self, ctx: commands.Context, channel: discord.TextChannel
+    ):
+        """Remove a channel from video monitoring."""
+        try:
+            enabled_channels = await self.config_manager.get_guild_setting(
+                ctx.guild, "enabled_channels"
+            )
+            if channel.id not in enabled_channels:
+                await ctx.send(f"{channel.mention} is not being monitored.")
+                return
+
+            enabled_channels.remove(channel.id)
+            await self.config_manager.set_guild_setting(
+                ctx.guild, "enabled_channels", enabled_channels
+            )
+            await ctx.send(f"Stopped monitoring {channel.mention} for videos.")
+        except Exception as e:
+            logger.error(f"Error removing enabled channel: {e}")
+            await ctx.send("An error occurred while removing the channel.")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
@@ -225,7 +390,7 @@ class VideoArchiver(commands.Cog):
                 return
 
             # Check if it's the archived reaction
-            if str(payload.emoji) == REACTIONS['archived']:
+            if str(payload.emoji) == REACTIONS["archived"]:
                 # Only process if database is enabled
                 if self.db:
                     user = self.bot.get_user(payload.user_id)
