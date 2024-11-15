@@ -31,7 +31,10 @@ from videoarchiver.utils.exceptions import (
 from videoarchiver.ffmpeg.exceptions import (
     FFmpegError,
     CompressionError,
-    VideoVerificationError as FFmpegVerificationError
+    VerificationError,
+    FFprobeError,
+    TimeoutError,
+    handle_ffmpeg_error
 )
 from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 
@@ -132,7 +135,7 @@ class VideoProcessor:
                     if not success:
                         raise VideoDownloadError(error)
                         
-                except (FFmpegError, CompressionError, FFmpegVerificationError) as e:
+                except (FFmpegError, CompressionError, VerificationError) as e:
                     raise VideoProcessingError(f"FFmpeg error: {str(e)}")
                 except Exception as e:
                     if isinstance(e, (VideoDownloadError, VideoProcessingError)):
