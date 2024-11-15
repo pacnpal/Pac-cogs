@@ -29,7 +29,13 @@ from videoarchiver.exceptions import (
 
 logger = logging.getLogger('VideoArchiver')
 
-class VideoArchiver(commands.Cog):
+def setup(bot):
+    """Load the VideoArchiver cog."""
+    cog = VideoArchiver(bot)
+    bot.add_cog(cog)
+    return cog
+
+class VideoArchiver(VideoArchiverCommands):
     """Archive videos from Discord channels"""
 
     def __init__(self, bot: commands.Bot) -> None:
@@ -76,13 +82,8 @@ class VideoArchiver(commands.Cog):
             self.update_checker = UpdateChecker(self.bot, self.config_manager)
             self.processor = VideoProcessor(self.bot, self.config_manager, self.components)
             
-            # Initialize commands last
-            self.commands = VideoArchiverCommands(
-                self.bot,
-                self.config_manager,
-                self.update_checker,
-                self.processor
-            )
+            # Initialize base class last
+            super().__init__(self.bot, self.config_manager, self.update_checker, self.processor)
             
             # Initialize components for existing guilds
             for guild in self.bot.guilds:
@@ -122,6 +123,10 @@ class VideoArchiver(commands.Cog):
         try:
             # Wait for initialization to complete
             await asyncio.wait_for(self.ready.wait(), timeout=30)
+            
+            # Sync commands for slash command support
+            await self.bot.sync_commands()
+            
         except asyncio.TimeoutError:
             await self._cleanup()
             raise ProcessingError("Cog initialization timed out")
@@ -273,154 +278,6 @@ class VideoArchiver(commands.Cog):
                     )
             except Exception as log_error:
                 logger.error(f"Failed to log error to guild: {str(log_error)}")
-
-    # Create command group
-    @commands.hybrid_group(name="videoarchiver", aliases=["va"])
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def videoarchiver(self, ctx: commands.Context):
-        """Video Archiver configuration commands"""
-        if ctx.invoked_subcommand is None:
-            embed = await self.config_manager.format_settings_embed(ctx.guild)
-            await ctx.send(embed=embed)
-
-    # Add command methods that delegate to VideoArchiverCommands
-    @videoarchiver.command(name="updateytdlp")
-    @commands.guild_only()
-    @checks.is_owner()
-    async def update_ytdlp(self, ctx: commands.Context):
-        """Update yt-dlp to the latest version"""
-        await self.commands.update_ytdlp(ctx)
-
-    @videoarchiver.command(name="toggleupdates")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def toggle_update_check(self, ctx: commands.Context):
-        """Toggle yt-dlp update notifications"""
-        await self.commands.toggle_update_check(ctx)
-
-    @videoarchiver.command(name="addrole")
-    @commands.guild_only()
-    async def add_allowed_role(self, ctx: commands.Context, role: discord.Role):
-        """Add a role that's allowed to trigger archiving"""
-        await self.commands.add_allowed_role(ctx, role)
-
-    @videoarchiver.command(name="removerole")
-    @commands.guild_only()
-    async def remove_allowed_role(self, ctx: commands.Context, role: discord.Role):
-        """Remove a role from allowed roles"""
-        await self.commands.remove_allowed_role(ctx, role)
-
-    @videoarchiver.command(name="listroles")
-    @commands.guild_only()
-    async def list_allowed_roles(self, ctx: commands.Context):
-        """List all roles allowed to trigger archiving"""
-        await self.commands.list_allowed_roles(ctx)
-
-    @videoarchiver.command(name="setconcurrent")
-    @commands.guild_only()
-    async def set_concurrent_downloads(self, ctx: commands.Context, count: int):
-        """Set the number of concurrent downloads (1-5)"""
-        await self.commands.set_concurrent_downloads(ctx, count)
-
-    @videoarchiver.command(name="setchannel")
-    @commands.guild_only()
-    async def set_archive_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Set the archive channel"""
-        await self.commands.set_archive_channel(ctx, channel)
-
-    @videoarchiver.command(name="setnotification")
-    @commands.guild_only()
-    async def set_notification_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Set the notification channel (where archive messages appear)"""
-        await self.commands.set_notification_channel(ctx, channel)
-
-    @videoarchiver.command(name="setlogchannel")
-    @commands.guild_only()
-    async def set_log_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Set the log channel for error messages and notifications"""
-        await self.commands.set_log_channel(ctx, channel)
-
-    @videoarchiver.command(name="addmonitor")
-    @commands.guild_only()
-    async def add_monitored_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Add a channel to monitor for videos"""
-        await self.commands.add_monitored_channel(ctx, channel)
-
-    @videoarchiver.command(name="removemonitor")
-    @commands.guild_only()
-    async def remove_monitored_channel(self, ctx: commands.Context, channel: discord.TextChannel):
-        """Remove a channel from monitoring"""
-        await self.commands.remove_monitored_channel(ctx, channel)
-
-    @videoarchiver.command(name="setformat")
-    @commands.guild_only()
-    async def set_video_format(self, ctx: commands.Context, format: str):
-        """Set the video format (e.g., mp4, webm)"""
-        await self.commands.set_video_format(ctx, format)
-
-    @videoarchiver.command(name="setquality")
-    @commands.guild_only()
-    async def set_video_quality(self, ctx: commands.Context, quality: int):
-        """Set the maximum video quality in pixels (e.g., 1080)"""
-        await self.commands.set_video_quality(ctx, quality)
-
-    @videoarchiver.command(name="setmaxsize")
-    @commands.guild_only()
-    async def set_max_file_size(self, ctx: commands.Context, size: int):
-        """Set the maximum file size in MB"""
-        await self.commands.set_max_file_size(ctx, size)
-
-    @videoarchiver.command(name="toggledelete")
-    @commands.guild_only()
-    async def toggle_delete_after_repost(self, ctx: commands.Context):
-        """Toggle whether to delete local files after reposting"""
-        await self.commands.toggle_delete_after_repost(ctx)
-
-    @videoarchiver.command(name="setduration")
-    @commands.guild_only()
-    async def set_message_duration(self, ctx: commands.Context, hours: int):
-        """Set how long to keep archive messages (0 for permanent)"""
-        await self.commands.set_message_duration(ctx, hours)
-
-    @videoarchiver.command(name="settemplate")
-    @commands.guild_only()
-    async def set_message_template(self, ctx: commands.Context, *, template: str):
-        """Set the archive message template. Use {author}, {url}, and {original_message} as placeholders"""
-        await self.commands.set_message_template(ctx, template=template)
-
-    @videoarchiver.command(name="enablesites")
-    @commands.guild_only()
-    async def enable_sites(self, ctx: commands.Context, *, sites: Optional[str] = None):
-        """Enable specific sites (leave empty for all sites). Separate multiple sites with spaces."""
-        await self.commands.enable_sites(ctx, sites=sites)
-
-    @videoarchiver.command(name="listsites")
-    @commands.guild_only()
-    async def list_sites(self, ctx: commands.Context):
-        """List all available sites and currently enabled sites"""
-        await self.commands.list_sites(ctx)
-
-    @videoarchiver.command(name="queue")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def show_queue(self, ctx: commands.Context):
-        """Show current queue status with basic metrics"""
-        await self.commands.show_queue(ctx)
-
-    @videoarchiver.command(name="queuemetrics")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def show_queue_metrics(self, ctx: commands.Context):
-        """Show detailed queue performance metrics"""
-        await self.commands.show_queue_metrics(ctx)
-
-    @videoarchiver.command(name="clearqueue")
-    @commands.guild_only()
-    @commands.admin_or_permissions(administrator=True)
-    async def clear_queue(self, ctx: commands.Context):
-        """Clear the video processing queue for this guild"""
-        await self.commands.clear_queue(ctx)
 
     async def cog_command_error(self, ctx: commands.Context, error: Exception) -> None:
         """Handle command errors"""
