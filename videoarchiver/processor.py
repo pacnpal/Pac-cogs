@@ -40,6 +40,17 @@ from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 
+def is_potential_url(word: str) -> bool:
+    """Check if a word looks like a URL before trying yt-dlp"""
+    # Check for common URL patterns
+    url_patterns = [
+        "http://", "https://", "www.",
+        "youtu.be", "youtube.com", "vimeo.com",
+        "twitch.tv", "twitter.com", "tiktok.com",
+        "instagram.com", "facebook.com"
+    ]
+    return any(pattern in word.lower() for pattern in url_patterns)
+
 class VideoProcessor:
     """Handles video processing operations"""
 
@@ -351,17 +362,21 @@ class VideoProcessor:
                     if not downloader:
                         raise ComponentError("Downloader not initialized")
 
-                    # Check each word in the message
-                    for word in message.content.split():
-                        # Use yt-dlp simulation to check if URL is supported
+                    # Pre-filter words that look like URLs
+                    potential_urls = [
+                        word for word in message.content.split()
+                        if is_potential_url(word)
+                    ]
+
+                    # Only check potential URLs with yt-dlp
+                    for url in potential_urls:
                         try:
-                            if downloader.is_supported_url(word):
-                                urls.append(word)
+                            if downloader.is_supported_url(url):
+                                urls.append(url)
                         except Exception as e:
-                            # Only log URL check errors if it's actually a URL
-                            if any(site in word for site in ["http://", "https://", "www."]):
-                                logger.error(f"Error checking URL {word}: {str(e)}")
+                            logger.error(f"Error checking URL {url}: {str(e)}")
                             continue
+
             except ComponentError as e:
                 logger.error(f"Component error: {str(e)}")
                 await self._log_message(

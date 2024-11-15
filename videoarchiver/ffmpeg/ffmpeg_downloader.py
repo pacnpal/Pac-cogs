@@ -286,42 +286,72 @@ class FFmpegDownloader:
         """Verify FFmpeg and FFprobe binaries work"""
         try:
             if not self.ffmpeg_path.exists() or not self.ffprobe_path.exists():
+                logger.error("FFmpeg or FFprobe binary not found")
                 return False
 
             # Ensure proper permissions
-            os.chmod(str(self.ffmpeg_path), 0o755)
-            os.chmod(str(self.ffprobe_path), 0o755)
+            try:
+                os.chmod(str(self.ffmpeg_path), 0o755)
+                os.chmod(str(self.ffprobe_path), 0o755)
+            except Exception as e:
+                logger.error(f"Failed to set binary permissions: {e}")
+                return False
 
-            # Test FFmpeg functionality
-            ffmpeg_result = subprocess.run(
-                [str(self.ffmpeg_path), "-version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
-            )
+            # Test FFmpeg functionality with enhanced error handling
+            try:
+                ffmpeg_result = subprocess.run(
+                    [str(self.ffmpeg_path), "-version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=5,
+                    text=True,
+                    check=False,  # Don't raise on non-zero return code
+                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
+                )
+            except subprocess.TimeoutExpired:
+                logger.error("FFmpeg verification timed out")
+                return False
+            except Exception as e:
+                logger.error(f"FFmpeg verification failed: {e}")
+                return False
 
-            # Test FFprobe functionality
-            ffprobe_result = subprocess.run(
-                [str(self.ffprobe_path), "-version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
-            )
+            # Test FFprobe functionality with enhanced error handling
+            try:
+                ffprobe_result = subprocess.run(
+                    [str(self.ffprobe_path), "-version"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=5,
+                    text=True,
+                    check=False,  # Don't raise on non-zero return code
+                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
+                )
+            except subprocess.TimeoutExpired:
+                logger.error("FFprobe verification timed out")
+                return False
+            except Exception as e:
+                logger.error(f"FFprobe verification failed: {e}")
+                return False
 
+            # Check results
             if ffmpeg_result.returncode == 0 and ffprobe_result.returncode == 0:
-                ffmpeg_version = ffmpeg_result.stdout.decode().split("\n")[0]
-                ffprobe_version = ffprobe_result.stdout.decode().split("\n")[0]
-                logger.info(f"FFmpeg verification successful: {ffmpeg_version}")
-                logger.info(f"FFprobe verification successful: {ffprobe_version}")
-                return True
+                try:
+                    ffmpeg_version = ffmpeg_result.stdout.split("\n")[0]
+                    ffprobe_version = ffprobe_result.stdout.split("\n")[0]
+                    logger.info(f"FFmpeg verification successful: {ffmpeg_version}")
+                    logger.info(f"FFprobe verification successful: {ffprobe_version}")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to parse version output: {e}")
+                    return False
             else:
                 if ffmpeg_result.returncode != 0:
                     logger.error(
-                        f"FFmpeg verification failed: {ffmpeg_result.stderr.decode()}"
+                        f"FFmpeg verification failed with code {ffmpeg_result.returncode}: {ffmpeg_result.stderr}"
                     )
                 if ffprobe_result.returncode != 0:
                     logger.error(
-                        f"FFprobe verification failed: {ffprobe_result.stderr.decode()}"
+                        f"FFprobe verification failed with code {ffprobe_result.returncode}: {ffprobe_result.stderr}"
                     )
                 return False
 

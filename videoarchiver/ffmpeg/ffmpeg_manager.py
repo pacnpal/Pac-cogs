@@ -122,7 +122,7 @@ class FFmpegManager:
     def _verify_ffmpeg(self) -> None:
         """Verify FFmpeg functionality with comprehensive checks"""
         try:
-            # Check FFmpeg version
+            # Check FFmpeg version with enhanced error handling
             version_cmd = [str(self.ffmpeg_path), "-version"]
             try:
                 result = subprocess.run(
@@ -130,10 +130,14 @@ class FFmpegManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=10
+                    timeout=10,
+                    check=False,  # Don't raise on non-zero return code
+                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
                 )
             except subprocess.TimeoutExpired:
                 raise TimeoutError("FFmpeg version check timed out")
+            except Exception as e:
+                raise VerificationError(f"FFmpeg version check failed: {e}")
 
             if result.returncode != 0:
                 error = handle_ffmpeg_error(result.stderr)
@@ -142,7 +146,7 @@ class FFmpegManager:
 
             logger.info(f"FFmpeg version: {result.stdout.split()[2]}")
 
-            # Check FFprobe version
+            # Check FFprobe version with enhanced error handling
             probe_cmd = [str(self.ffprobe_path), "-version"]
             try:
                 result = subprocess.run(
@@ -150,10 +154,14 @@ class FFmpegManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=10
+                    timeout=10,
+                    check=False,  # Don't raise on non-zero return code
+                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
                 )
             except subprocess.TimeoutExpired:
                 raise TimeoutError("FFprobe version check timed out")
+            except Exception as e:
+                raise VerificationError(f"FFprobe version check failed: {e}")
 
             if result.returncode != 0:
                 error = handle_ffmpeg_error(result.stderr)
@@ -162,7 +170,7 @@ class FFmpegManager:
 
             logger.info(f"FFprobe version: {result.stdout.split()[2]}")
 
-            # Check FFmpeg capabilities
+            # Check FFmpeg capabilities with enhanced error handling
             caps_cmd = [str(self.ffmpeg_path), "-hide_banner", "-encoders"]
             try:
                 result = subprocess.run(
@@ -170,10 +178,14 @@ class FFmpegManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=10
+                    timeout=10,
+                    check=False,  # Don't raise on non-zero return code
+                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
                 )
             except subprocess.TimeoutExpired:
                 raise TimeoutError("FFmpeg capabilities check timed out")
+            except Exception as e:
+                raise VerificationError(f"FFmpeg capabilities check failed: {e}")
 
             if result.returncode != 0:
                 error = handle_ffmpeg_error(result.stderr)
@@ -204,7 +216,7 @@ class FFmpegManager:
 
         except Exception as e:
             logger.error(f"FFmpeg verification failed: {traceback.format_exc()}")
-            if isinstance(e, (TimeoutError, EncodingError)):
+            if isinstance(e, (TimeoutError, EncodingError, VerificationError)):
                 raise
             raise VerificationError(f"FFmpeg verification failed: {e}")
 

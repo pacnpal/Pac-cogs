@@ -16,7 +16,9 @@ class DownloadError(FFmpegError):
 class VerificationError(FFmpegError):
     """Exception raised when FFmpeg verification fails"""
 
-    pass
+    def __init__(self, message: str, binary_type: str = "FFmpeg"):
+        self.binary_type = binary_type
+        super().__init__(f"{binary_type} verification failed: {message}")
 
 
 class EncodingError(FFmpegError):
@@ -142,5 +144,9 @@ def handle_ffmpeg_error(error_output: str) -> FFmpegError:
         return BitrateError("Bitrate requirements not met", 0, 0)
     elif "timeout" in error_output:
         return TimeoutError("Operation timed out")
+    elif "version" in error_output:
+        return VerificationError("Version check failed")
+    elif "verification" in error_output:
+        return VerificationError(error_output)
     else:
         return FFmpegError(f"FFmpeg operation failed: {error_output}")
