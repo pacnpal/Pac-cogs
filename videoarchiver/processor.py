@@ -204,13 +204,16 @@ class VideoProcessor:
             if message.content:
                 # Log message content for debugging
                 logger.debug(f"Processing message content: {message.content}")
-                logger.debug(f"Enabled sites: {settings.get('enabled_sites', [])}")
+                enabled_sites = settings.get("enabled_sites", [])
+                logger.debug(f"Enabled sites: {enabled_sites}")
 
                 # Add URLs from message content
                 for word in message.content.split():
                     # Log each word being checked
                     logger.debug(f"Checking word: {word}")
-                    if any(site in word.lower() for site in settings.get("enabled_sites", [])):
+                    # If no sites are enabled, accept all URLs
+                    # Otherwise, check if URL contains any enabled site
+                    if not enabled_sites or any(site in word.lower() for site in enabled_sites):
                         logger.debug(f"Found matching URL: {word}")
                         urls.append(word)
 
