@@ -41,7 +41,7 @@ class VideoArchiver(commands.Cog):
         "enabled_channels": [],
         "video_format": "mp4",
         "video_quality": "high",
-        "max_file_size": 25,  # MB
+        "max_file_size": 8,  # MB
         "message_duration": 30,  # seconds
         "message_template": "{author} archived a video from {channel}",
         "concurrent_downloads": 2,

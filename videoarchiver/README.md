@@ -10,28 +10,48 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Hardware-accelerated compression (NVIDIA, AMD, Intel, ARM)
   - Configurable video quality and format
   - Automatic file size optimization for Discord limits
+  - Default maximum file size: 8MB
+  - Default video format: MP4
+  - Default video quality: High
+
+- **Video Archive Database**
+  - Track and store archived video information
+  - Query archived videos by original URL
+  - Get Discord links for previously archived videos
+  - Optional database functionality (disabled by default)
+  - Automatic database management and cleanup
+  - Persistent video history tracking
 
 - **Modular Queue System**
   - Priority-based processing with state persistence
   - Efficient resource management and monitoring
   - Real-time performance metrics and health checks
   - Automatic cleanup and memory optimization
-  - Component-based architecture:
-    - Queue state persistence and recovery
-    - Health monitoring and metrics tracking
-    - Resource cleanup and maintenance
-    - Core queue operations management
+  - Default concurrent downloads: 2 (configurable 1-5)
+  - Maximum queue size: 1000 items
+  - Automatic retry on failures (3 attempts)
+  - Queue state persistence across bot restarts
+
+- **Progress Tracking**
+  - Real-time download progress monitoring
+  - Compression progress tracking
+  - Hardware acceleration statistics
+  - Detailed error tracking and analysis
+  - Memory usage monitoring
+  - Success rate calculations
+  - Automatic cleanup of temporary files
 
 - **Channel Management**
   - Flexible channel monitoring (specific channels or all)
   - Separate archive, notification, and log channels
   - Customizable message templates
-  - Configurable message duration
+  - Configurable message duration (default: 30 seconds)
 
 - **Access Control**
   - Role-based permissions
   - Site-specific enabling/disabling
   - Admin-only configuration commands
+  - Per-guild settings
 
 ## Installation
 
@@ -62,6 +82,19 @@ All commands support both prefix and slash command syntax:
 - **`va_update`**: Update yt-dlp to latest version
 - **`va_toggleupdates`**: Toggle update notifications
 
+### Archiver Management Commands (archiver_)
+- **`archiver enable`**: Enable video archiving in the server
+- **`archiver disable`**: Disable video archiving in the server
+- **`archiver setchannel <channel>`**: Set the archive channel
+- **`archiver setlog <channel>`**: Set the log channel
+- **`archiver addchannel <channel>`**: Add a channel to monitor
+- **`archiver removechannel <channel>`**: Remove a channel from monitoring
+
+### Database Management Commands (archivedb_)
+- **`archivedb enable`**: Enable the video archive database
+- **`archivedb disable`**: Disable the video archive database
+- **`checkarchived <url>`**: Check if a video URL has been archived
+
 ### Queue Management Commands (vaq_)
 - **`vaq_status`**: Show current queue status with basic metrics
 - **`vaq_metrics`**: Show detailed queue performance metrics
@@ -83,32 +116,24 @@ All commands support both prefix and slash command syntax:
 - **`vas_enable [sites...]`**: Enable specific sites (empty for all)
 - **`vas_list`**: List available and enabled sites
 
-## Queue System Architecture
+## Default Settings
 
-The queue system is built with a modular, component-based architecture:
-
-### Core Components
-- **Models**: Data structures for queue items and metrics
-- **Persistence**: Queue state persistence and recovery
-- **Monitoring**: Health checks and performance metrics
-- **Cleanup**: Resource management and maintenance
-- **Manager**: Core queue operations and coordination
-
-### Metrics and Monitoring
-- Real-time queue status and health monitoring
-- Comprehensive performance metrics:
-  - Processing counts and success rates
-  - Hardware acceleration statistics
-  - Memory usage tracking
-  - Error distribution analysis
-- Automatic recovery from failures
-- Resource usage optimization
-
-### State Management
-- Persistent queue state across bot restarts
-- Efficient memory management
-- Automatic cleanup of old entries
-- Priority-based processing
+```python
+{
+    "enabled": False,              # Video archiving disabled by default
+    "archive_channel": None,       # Must be set before use
+    "log_channel": None,          # Optional error logging channel
+    "enabled_channels": [],       # Channels to monitor
+    "video_format": "mp4",       # Default video format
+    "video_quality": "high",     # Default video quality
+    "max_file_size": 8,         # Maximum file size in MB
+    "message_duration": 30,     # Message duration in seconds
+    "message_template": "{author} archived a video from {channel}",
+    "concurrent_downloads": 2,  # Number of concurrent downloads
+    "enabled_sites": None,     # None means all sites enabled
+    "use_database": False     # Database tracking disabled by default
+}
+```
 
 ## Message Templates
 
@@ -116,25 +141,32 @@ You can customize archive messages using these variables:
 - `{author}`: Original message author
 - `{url}`: Original video URL
 - `{original_message}`: Link to original message
+- `{channel}`: Original channel name
 
 Example template:
 ```
 📥 Video archived from {author}
 Original: {url}
 Source: {original_message}
+Channel: {channel}
 ```
 
 ## Site Support
 
 The cog supports all sites compatible with yt-dlp. Use `vas_list` to see available sites and currently enabled ones.
 
-## Performance
+## Performance & Limitations
 
 - Hardware acceleration automatically detected and utilized
 - Configurable concurrent downloads (1-5)
-- Automatic file size optimization
-- Memory-efficient queue management
-- Automatic cleanup of temporary files
+- Maximum queue size: 1000 items
+- Maximum file size: 8MB by default (configurable up to Discord's limit)
+- Maximum video quality: 4320p (8K)
+- Automatic retry on failures (3 attempts with 5-second delay)
+- Queue cleanup interval: 30 minutes
+- Maximum history age: 24 hours
+- Unload timeout: 30 seconds
+- Cleanup timeout: 15 seconds
 
 ## Error Handling
 
@@ -143,6 +175,9 @@ The cog supports all sites compatible with yt-dlp. Use `vas_list` to see availab
 - Automatic retry mechanism
 - Queue persistence across restarts
 - Detailed error messages
+- Error type tracking and analysis
+- Automatic recovery procedures
+- Force cleanup on timeout
 
 ## Support
 

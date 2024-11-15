@@ -46,11 +46,11 @@ Before using the cog, you need to set it up. You can use either prefix commands 
 2. Add roles that can use the birthday command:
 
    ```
-   [p]addrole @Moderator
+   [p]birthdayallowrole @Moderator
    ```
    or
    ```
-   /addrole @Moderator
+   /birthdayallowrole @Moderator
    ```
 
 3. (Optional) Set the timezone for role expiration:
@@ -77,9 +77,9 @@ Before using the cog, you need to set it up. You can use either prefix commands 
 
 ## Usage
 
-To assign the birthday role to a user, you can use any of these methods:
+To assign or remove the birthday role from a user, you can use any of these methods:
 
-1. Command:
+1. Commands:
    ```
    [p]birthday @User
    ```
@@ -88,10 +88,20 @@ To assign the birthday role to a user, you can use any of these methods:
    /birthday @User
    ```
 
-2. Context Menu:
-   Right-click on a user and select "Apps > Give Birthday Role"
+   To remove:
+   ```
+   [p]removebirthday @User
+   ```
+   or
+   ```
+   /removebirthday @User
+   ```
 
-This will assign the birthday role to the user and send a celebratory message with random cake (or pie) emojis. The role will be automatically removed at midnight in the specified timezone.
+2. Context Menu:
+   - Right-click on a user and select "Apps > Give Birthday Role" to assign
+   - Right-click on a user and select "Apps > Remove Birthday Role" to remove
+
+When assigning the role, this will give the user the birthday role and send a celebratory message with random cake (or pie) emojis. The role will be automatically removed at midnight in the specified timezone.
 
 ## Features
 
@@ -105,6 +115,7 @@ This will assign the birthday role to the user and send a celebratory message wi
 - Full slash command and context menu support
 - Persistent birthday role removal scheduling (survives bot restarts)
 - Birthday role removal task checking
+- Manual birthday role removal option
 
 ## Commands
 
@@ -112,14 +123,16 @@ All commands support both prefix and slash command syntax:
 
 ### Admin Commands
 - `[p]setrole` or `/setrole`: Set the birthday role
-- `[p]addrole` or `/addrole`: Add a role that can use the birthday command
-- `[p]removerole` or `/removerole`: Remove a role from using the birthday command
+- `[p]birthdayallowrole` or `/birthdayallowrole`: Add a role that can use the birthday command
+- `[p]birthdayremoverole` or `/birthdayremoverole`: Remove a role from using the birthday command
 - `[p]settimezone` or `/settimezone`: Set the timezone for the birthday role expiration
 - `[p]setchannel` or `/setchannel`: Set the channel for birthday announcements
 
 ### User Commands
 - `[p]birthday` or `/birthday`: Assign the birthday role to a user
+- `[p]removebirthday` or `/removebirthday`: Remove the birthday role from a user
 - Context Menu > "Give Birthday Role": Right-click a user to assign the birthday role
+- Context Menu > "Remove Birthday Role": Right-click a user to remove the birthday role
 - `[p]bdaycheck` or `/bdaycheck`: Check upcoming birthday role removal tasks
 
 ## Support
