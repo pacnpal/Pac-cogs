@@ -106,7 +106,7 @@ class QueueItem:
     status: str = "pending"  # pending, processing, completed, failed
     error: Optional[str] = None
     attempt: int = 0
-    processing_time: float = 0.0
+    _processing_time: float = 0.0  # Use private field for processing_time
     size_bytes: int = 0
     last_error: Optional[str] = None
     retry_count: int = 0
@@ -116,6 +116,24 @@ class QueueItem:
     hardware_accel_attempted: bool = False
     compression_attempted: bool = False
     original_message: Optional[Any] = None  # Store the original message reference
+
+    @property
+    def processing_time(self) -> float:
+        """Get processing time as float"""
+        return self._processing_time
+
+    @processing_time.setter
+    def processing_time(self, value: Any) -> None:
+        """Set processing time, ensuring it's always a float"""
+        try:
+            if isinstance(value, str):
+                self._processing_time = float(value)
+            elif isinstance(value, (int, float)):
+                self._processing_time = float(value)
+            else:
+                self._processing_time = 0.0
+        except (ValueError, TypeError):
+            self._processing_time = 0.0
 
     def to_dict(self) -> dict:
         """Convert to dictionary with datetime handling"""
@@ -127,6 +145,9 @@ class QueueItem:
             data['last_retry'] = self.last_retry.isoformat()
         if self.last_error_time:
             data['last_error_time'] = self.last_error_time.isoformat()
+        # Convert _processing_time to processing_time in dict
+        data['processing_time'] = self.processing_time
+        data.pop('_processing_time', None)
         return data
 
     @classmethod
@@ -139,6 +160,18 @@ class QueueItem:
             data['last_retry'] = datetime.fromisoformat(data['last_retry'])
         if 'last_error_time' in data and isinstance(data['last_error_time'], str):
             data['last_error_time'] = datetime.fromisoformat(data['last_error_time'])
+        # Handle processing_time conversion
+        if 'processing_time' in data:
+            try:
+                if isinstance(data['processing_time'], str):
+                    data['_processing_time'] = float(data['processing_time'])
+                elif isinstance(data['processing_time'], (int, float)):
+                    data['_processing_time'] = float(data['processing_time'])
+                else:
+                    data['_processing_time'] = 0.0
+            except (ValueError, TypeError):
+                data['_processing_time'] = 0.0
+            data.pop('processing_time', None)
         return cls(**data)
 
 
@@ -291,6 +324,18 @@ class EnhancedVideoQueueManager:
                         item = self._queue.pop(0)
                         self._processing[item.url] = item
                         item.status = "processing"
+                        # Ensure processing_time is always a float
+                        try:
+                            if isinstance(item.processing_time, str):
+                                # Try to convert string to float if possible
+                                item.processing_time = float(item.processing_time)
+                            elif not isinstance(item.processing_time, (int, float)):
+                                # If not a number or convertible string, reset to 0
+                                item.processing_time = 0.0
+                        except (ValueError, TypeError):
+                            # If conversion fails, reset to 0
+                            item.processing_time = 0.0
+                        # Now set the current time
                         item.processing_time = time.time()
                         logger.info(f"Processing queue item: {item.url}")
 
@@ -547,6 +592,16 @@ class EnhancedVideoQueueManager:
                             elif not isinstance(item_data['last_error_time'], datetime):
                                 item_data['last_error_time'] = None
 
+                        # Ensure processing_time is a float
+                        if 'processing_time' in item_data:
+                            try:
+                                if isinstance(item_data['processing_time'], str):
+                                    item_data['processing_time'] = float(item_data['processing_time'])
+                                elif not isinstance(item_data['processing_time'], (int, float)):
+                                    item_data['processing_time'] = 0.0
+                            except (ValueError, TypeError):
+                                item_data['processing_time'] = 0.0
+
                         return QueueItem(**item_data)
                     return None
                 except Exception as e:
@@ -639,11 +694,11 @@ class EnhancedVideoQueueManager:
                     gc.collect()
 
                 # Check for potential deadlocks
-                processing_times = [
-                    time.time() - item.processing_time
-                    for item in self._processing.values()
-                    if item.processing_time > 0
-                ]
+                current_time = time.time()
+                processing_times = []
+                for item in self._processing.values():
+                    if isinstance(item.processing_time, (int, float)) and item.processing_time > 0:
+                        processing_times.append(current_time - item.processing_time)
 
                 if processing_times:
                     max_time = max(processing_times)
@@ -908,3 +963,4 @@ class EnhancedVideoQueueManager:
         except Exception as e:
             logger.error(f"Error clearing guild queue: {traceback.format_exc()}")
             raise QueueError(f"Failed to clear guild queue: {str(e)}")
+
