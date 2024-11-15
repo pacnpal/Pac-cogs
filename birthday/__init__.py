@@ -11,8 +11,9 @@ async def setup(bot: Red) -> None:
     try:
         cog = Birthday(bot)
         await bot.add_cog(cog)
-        # Add context menu command
-        bot.tree.add_command(birthday_context_menu)
+        # Add context menu command if it doesn't exist
+        if not discord.utils.get(bot.tree.get_commands(), name="Give Birthday Role"):
+            bot.tree.add_command(birthday_context_menu)
         # Initialize scheduled tasks
         try:
             await cog.reload_scheduled_tasks()
