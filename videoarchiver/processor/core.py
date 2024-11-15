@@ -1,6 +1,7 @@
 """Core VideoProcessor class that manages video processing operations"""
 
 import logging
+import asyncio
 import discord
 from discord.ext import commands
 from discord import app_commands
