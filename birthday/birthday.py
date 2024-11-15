@@ -1,5 +1,5 @@
 import discord
-from redbot.core import commands, checks
+from redbot.core import commands, checks, app_commands
 from redbot.core.bot import Red
 from redbot.core.config import Config
 from datetime import datetime, time, timedelta
@@ -22,75 +22,86 @@ class Birthday(commands.Cog):
         self.config.register_guild(**default_guild)
         self.birthday_tasks = {}
 
-    @commands.hybrid_group()
-    @checks.admin_or_permissions(manage_roles=True)
-    async def birthdayset(self, ctx):
-        """Birthday cog settings."""
-        if ctx.invoked_subcommand is None:
-            await ctx.send_help()
+    birthdayset = app_commands.Group(
+        name="birthdayset",
+        description="Birthday cog settings",
+        guild_only=True
+    )
 
-    @birthdayset.command()
+    @birthdayset.command(name="role")
+    @app_commands.guild_only()
+    @app_commands.describe(role="The role to set as the birthday role")
     @checks.is_owner()
-    async def role(self, ctx, role: discord.Role):
+    async def set_role(self, interaction: discord.Interaction, role: discord.Role):
         """Set the birthday role."""
-        await self.config.guild(ctx.guild).birthday_role.set(role.id)
-        await ctx.send(f"Birthday role set to {role.name}")
+        await self.config.guild(interaction.guild).birthday_role.set(role.id)
+        await interaction.response.send_message(f"Birthday role set to {role.name}")
 
-    @birthdayset.command()
+    @birthdayset.command(name="timezone")
+    @app_commands.guild_only()
+    @app_commands.describe(tz="The timezone for role expiration (e.g., UTC, America/New_York)")
     @checks.is_owner()
-    async def timezone(self, ctx, tz: str):
+    async def set_timezone(self, interaction: discord.Interaction, tz: str):
         """Set the timezone for the birthday role expiration."""
         try:
             ZoneInfo(tz)
-            await self.config.guild(ctx.guild).timezone.set(tz)
-            await ctx.send(f"Timezone set to {tz}")
+            await self.config.guild(interaction.guild).timezone.set(tz)
+            await interaction.response.send_message(f"Timezone set to {tz}")
         except ZoneInfoNotFoundError:
-            await ctx.send(f"Invalid timezone: {tz}. Please use a valid IANA time zone identifier.")
+            await interaction.response.send_message(f"Invalid timezone: {tz}. Please use a valid IANA time zone identifier.")
 
-    @birthdayset.command()
+    @birthdayset.command(name="channel")
+    @app_commands.guild_only()
+    @app_commands.describe(channel="The channel for birthday announcements")
     @checks.is_owner()
-    async def channel(self, ctx, channel: discord.TextChannel):
+    async def set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """Set the channel for birthday announcements."""
-        await self.config.guild(ctx.guild).birthday_channel.set(channel.id)
-        await ctx.send(f"Birthday announcement channel set to {channel.mention}")
+        await self.config.guild(interaction.guild).birthday_channel.set(channel.id)
+        await interaction.response.send_message(f"Birthday announcement channel set to {channel.mention}")
 
-    @birthdayset.command()
-    async def addrole(self, ctx, role: discord.Role):
+    @birthdayset.command(name="addrole")
+    @app_commands.guild_only()
+    @app_commands.describe(role="The role to allow using the birthday command")
+    async def add_allowed_role(self, interaction: discord.Interaction, role: discord.Role):
         """Add a role that can use the birthday command."""
-        async with self.config.guild(ctx.guild).allowed_roles() as allowed_roles:
+        async with self.config.guild(interaction.guild).allowed_roles() as allowed_roles:
             if role.id not in allowed_roles:
                 allowed_roles.append(role.id)
-        await ctx.send(f"Added {role.name} to the list of roles that can use the birthday command.")
+        await interaction.response.send_message(f"Added {role.name} to the list of roles that can use the birthday command.")
 
-    @birthdayset.command()
-    async def removerole(self, ctx, role: discord.Role):
+    @birthdayset.command(name="removerole")
+    @app_commands.guild_only()
+    @app_commands.describe(role="The role to remove from using the birthday command")
+    async def remove_allowed_role(self, interaction: discord.Interaction, role: discord.Role):
         """Remove a role from using the birthday command."""
-        async with self.config.guild(ctx.guild).allowed_roles() as allowed_roles:
+        async with self.config.guild(interaction.guild).allowed_roles() as allowed_roles:
             if role.id in allowed_roles:
                 allowed_roles.remove(role.id)
-        await ctx.send(f"Removed {role.name} from the list of roles that can use the birthday command.")
+        await interaction.response.send_message(f"Removed {role.name} from the list of roles that can use the birthday command.")
 
-    @commands.hybrid_command()
-    async def birthday(self, ctx, member: discord.Member):
+    @app_commands.command(name="birthday")
+    @app_commands.guild_only()
+    @app_commands.describe(member="The member to give the birthday role to")
+    async def birthday(self, interaction: discord.Interaction, member: discord.Member):
         """Assign the birthday role to a user until midnight in the set timezone."""
         # Check if the user has permission to use this command
-        allowed_roles = await self.config.guild(ctx.guild).allowed_roles()
-        if not any(role.id in allowed_roles for role in ctx.author.roles):
-            return await ctx.send("You don't have permission to use this command.")
+        allowed_roles = await self.config.guild(interaction.guild).allowed_roles()
+        if not any(role.id in allowed_roles for role in interaction.user.roles):
+            return await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
 
-        birthday_role_id = await self.config.guild(ctx.guild).birthday_role()
+        birthday_role_id = await self.config.guild(interaction.guild).birthday_role()
         if not birthday_role_id:
-            return await ctx.send("The birthday role hasn't been set. An admin needs to set it using `/birthdayset role`.")
+            return await interaction.response.send_message("The birthday role hasn't been set. An admin needs to set it using `/birthdayset role`.", ephemeral=True)
         
-        birthday_role = ctx.guild.get_role(birthday_role_id)
+        birthday_role = interaction.guild.get_role(birthday_role_id)
         if not birthday_role:
-            return await ctx.send("The birthday role doesn't exist anymore. Please ask an admin to set it again.")
+            return await interaction.response.send_message("The birthday role doesn't exist anymore. Please ask an admin to set it again.", ephemeral=True)
 
         # Assign the role, ignoring hierarchy
         try:
             await member.add_roles(birthday_role, reason="Birthday role")
         except discord.Forbidden:
-            return await ctx.send("I don't have permission to assign that role.")
+            return await interaction.response.send_message("I don't have permission to assign that role.", ephemeral=True)
 
         # Generate birthday message with random cakes (or pie)
         cakes = random.randint(0, 5)
@@ -100,53 +111,55 @@ class Birthday(commands.Cog):
             message = f"🎉 Happy Birthday, {member.mention}! Here's your cake{'s' if cakes > 1 else ''}: " + "🎂" * cakes
 
         # Get the birthday announcement channel
-        birthday_channel_id = await self.config.guild(ctx.guild).birthday_channel()
+        birthday_channel_id = await self.config.guild(interaction.guild).birthday_channel()
         if birthday_channel_id:
             channel = self.bot.get_channel(birthday_channel_id)
             if not channel:  # If the set channel doesn't exist anymore
-                channel = ctx.channel
+                channel = interaction.channel
         else:
-            channel = ctx.channel
+            channel = interaction.channel
 
         await channel.send(message)
+        await interaction.response.send_message("Birthday role assigned!", ephemeral=True)
 
         # Schedule role removal
-        timezone = await self.config.guild(ctx.guild).timezone()
+        timezone = await self.config.guild(interaction.guild).timezone()
         try:
             tz = ZoneInfo(timezone)
         except ZoneInfoNotFoundError:
-            await ctx.send(f"Warning: Invalid timezone set. Defaulting to UTC.")
+            await interaction.followup.send("Warning: Invalid timezone set. Defaulting to UTC.", ephemeral=True)
             tz = ZoneInfo("UTC")
 
         now = datetime.now(tz)
         midnight = datetime.combine(now.date() + timedelta(days=1), time.min).replace(tzinfo=tz)
 
-        await self.schedule_birthday_role_removal(ctx.guild, member, birthday_role, midnight)
+        await self.schedule_birthday_role_removal(interaction.guild, member, birthday_role, midnight)
 
-    @commands.hybrid_command()
-    async def bdaycheck(self, ctx):
+    @app_commands.command(name="bdaycheck")
+    @app_commands.guild_only()
+    async def bdaycheck(self, interaction: discord.Interaction):
         """Check the upcoming birthday role removal tasks."""
         # Check if the user has permission to use this command
-        allowed_roles = await self.config.guild(ctx.guild).allowed_roles()
-        if not any(role.id in allowed_roles for role in ctx.author.roles):
-            return await ctx.send("You don't have permission to use this command.")
+        allowed_roles = await self.config.guild(interaction.guild).allowed_roles()
+        if not any(role.id in allowed_roles for role in interaction.user.roles):
+            return await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
 
-        scheduled_tasks = await self.config.guild(ctx.guild).scheduled_tasks()
+        scheduled_tasks = await self.config.guild(interaction.guild).scheduled_tasks()
         if not scheduled_tasks:
-            return await ctx.send("There are no scheduled tasks.")
+            return await interaction.response.send_message("There are no scheduled tasks.", ephemeral=True)
 
         message = "Upcoming birthday role removal tasks:\n"
         for member_id, task_info in scheduled_tasks.items():
-            member = ctx.guild.get_member(int(member_id))
+            member = interaction.guild.get_member(int(member_id))
             if not member:
                 continue
-            role = ctx.guild.get_role(task_info["role_id"])
+            role = interaction.guild.get_role(task_info["role_id"])
             if not role:
                 continue
-            remove_at = datetime.fromisoformat(task_info["remove_at"]).replace(tzinfo=ZoneInfo(await self.config.guild(ctx.guild).timezone()))
+            remove_at = datetime.fromisoformat(task_info["remove_at"]).replace(tzinfo=ZoneInfo(await self.config.guild(interaction.guild).timezone()))
             message += f"- {member.display_name} ({member.id}): {role.name} will be removed at {remove_at}\n"
 
-        await ctx.send(message)
+        await interaction.response.send_message(message, ephemeral=True)
 
     async def schedule_birthday_role_removal(self, guild, member, role, when):
         """Schedule the removal of the birthday role."""
