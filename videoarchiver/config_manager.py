@@ -212,6 +212,7 @@ class ConfigManager:
         """Check if user has permission based on allowed roles with error handling"""
         try:
             allowed_roles = await self.get_setting(member.guild.id, "allowed_roles")
+            # If no roles are set, allow all users
             if not allowed_roles:
                 return True
             return any(role.id in allowed_roles for role in member.roles)
@@ -224,9 +225,15 @@ class ConfigManager:
         """Get all monitored channels for a guild with validation"""
         try:
             settings = await self.get_guild_settings(guild.id)
-            channels: List[discord.TextChannel] = []
+            monitored_channel_ids = settings["monitored_channels"]
             
-            for channel_id in settings["monitored_channels"]:
+            # If no channels are set to be monitored, return all text channels
+            if not monitored_channel_ids:
+                return [channel for channel in guild.channels if isinstance(channel, discord.TextChannel)]
+            
+            # Otherwise, return only the specified channels
+            channels: List[discord.TextChannel] = []
+            for channel_id in monitored_channel_ids:
                 channel = guild.get_channel(channel_id)
                 if channel and isinstance(channel, discord.TextChannel):
                     channels.append(channel)
@@ -285,7 +292,7 @@ class ConfigManager:
             )
             embed.add_field(
                 name="Monitored Channels",
-                value="\n".join(monitored_channels) if monitored_channels else "None",
+                value="\n".join(monitored_channels) if monitored_channels else "All channels",
                 inline=False
             )
             embed.add_field(
