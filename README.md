@@ -6,9 +6,9 @@ Welcome to **Pac-cogs**, a collection of custom cogs for [Red](https://github.co
 
 | Cog Name   | Description                                      |
 |------------|--------------------------------------------------|
-| **Birthday** | Assigns a special birthday role to users and sends a celebratory message with random cake or pie emojis. Features include: automatic role removal at midnight in configurable timezone, custom announcement channels, role-based command permissions, random cake/pie emoji generation, task persistence across bot restarts, and no hierarchy requirements for role assignment. Perfect for automated birthday celebrations! |
-| **Overseerr** | Allows interaction with [Overseerr](https://overseerr.dev/) directly from Discord. Users can search for movies or TV shows, request them, and have admins approve requests. Features include: media availability checking, request status tracking, admin role configuration, and direct integration with Overseerr's API. Requires a running Overseerr instance and API key. |
-| **VideoArchiver** | A powerful video archiving cog that automatically downloads and reposts videos from monitored channels. Features hardware-accelerated compression (NVIDIA, AMD, Intel, ARM), multi-video processing, role-based permissions, and support for multiple video platforms via yt-dlp. Automatically compresses videos to meet Discord's file size limits while maintaining quality. |
+| **Birthday** | Assigns a special birthday role to users and sends a celebratory message with random cake or pie emojis. Features include: automatic role removal at midnight in configurable timezone, custom announcement channels, role-based command permissions, random cake/pie emoji generation, task persistence across bot restarts, context menu support (right-click user to assign role), birthday role removal task checking, and no hierarchy requirements for role assignment. Perfect for automated birthday celebrations! |
+| **Overseerr** | Allows interaction with [Overseerr](https://overseerr.dev/) directly from Discord. Users can search for movies or TV shows, request them, and have admins approve requests. Features include: media availability checking, request status tracking, admin role configuration, direct integration with Overseerr's API, and full slash command support. Requires a running Overseerr instance and API key. |
+| **VideoArchiver** | A powerful video archiving cog that automatically downloads and reposts videos from monitored channels. Features hardware-accelerated compression (NVIDIA, AMD, Intel, ARM), multi-video processing, enhanced queue system with priority processing, role-based permissions, automatic file cleanup, queue persistence across bot restarts, and support for multiple video platforms via yt-dlp. Automatically compresses videos to meet Discord's file size limits while maintaining quality. |
 
 ## Installation
 
@@ -51,7 +51,7 @@ Replace `[p]` with your bot's prefix.
 
 ### Additional Requirements
 
-- **Birthday**: No additional requirements. Just configure the birthday role, timezone, and allowed roles after installation.
+- **Birthday**: No additional requirements. Just configure the birthday role, timezone, and allowed roles after installation. Supports both traditional commands, slash commands, and context menu interactions.
 
 - **Overseerr**: Requires a running [Overseerr](https://overseerr.dev/) instance and API key. You'll need to configure the Overseerr URL and API key after installation using:
     ```bash
@@ -59,6 +59,6 @@ Replace `[p]` with your bot's prefix.
     [p]overseerr apikey <your-api-key>
     ```
 
-- **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.
+- **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation. Features an enhanced queue system with priority processing, performance metrics, and automatic cleanup.
 
 For more details on setting up and managing Red, visit the [Red documentation](https://docs.discord.red).

@@ -27,41 +27,42 @@ To install this cog, follow these steps:
 
 Replace `[p]` with your bot's prefix.
 
-
 ## Setup
 
-Before using the cog, you'll need to configure it. You can use either prefix commands or slash commands:
+Before using the cog, you need to configure it. You can use either prefix commands or slash commands:
 
 1. Set the Overseerr URL:
     ```
-    [p]overseerr url https://your.overseerr.instance 
+    [p]seturl https://your.overseerr.instance 
     ```
     or
     ```
-    /overseerr url https://your.overseerr.instance
+    /seturl https://your.overseerr.instance
     ```
 
 2. Set the Overseerr API key:
     ```
-    [p]overseerr apikey your_api_key
+    [p]setapikey your_api_key
     ```
     or
     ```
-    /overseerr apikey your_api_key
+    /setapikey your_api_key
     ```
 
-3. Set the admin role allowed to approve requests:
+3. (Optional) Set the admin role name for approvals:
     ```
-    [p]overseerr adminrole @OverseerrAdmins
+    [p]setadminrole "Overseerr Admin"
     ```
     or
     ```
-    /overseerr adminrole @OverseerrAdmins
+    /setadminrole "Overseerr Admin"
     ```
 
 ## Usage
 
-Users can request movies or TV shows using:
+### Requesting Media
+
+To search for and request media:
 
 ```
 [p]request Movie/TV Show Name
@@ -70,6 +71,15 @@ or
 ```
 /request Movie/TV Show Name
 ```
+
+This will:
+1. Search for the media on Overseerr
+2. Display an interactive select menu with up to 25 results
+3. Show media type, release date, and current status (Available/Not Available/Requested) for each result
+4. Allow you to select the desired title from the menu
+5. Automatically check if the media is already available or requested before submitting a new request
+
+### Approving Requests
 
 Admins can approve requests using:
 
@@ -82,38 +92,43 @@ or
 ```
 
 ## Features
-- **Set Overseerr URL and API key**: Admins can configure the Overseerr URL and API key for API interactions.
-- **Search and request media**: Users can search for movies or TV shows and request them directly in Discord.
-- **Media availability status**: The cog checks if media is already available or has been requested before making new requests.
-- **Approve requests**: Admins with the appropriate role can approve Overseerr requests within Discord.
-- **Full slash command support**: All commands can be used as both traditional prefix commands and Discord slash commands.
+
+- **Interactive Media Selection**: Users get a dropdown menu of search results with detailed information
+- **Smart Status Checking**: Automatically checks if media is already available or requested
+- **Detailed Results**: Shows media type, release date, and availability status for each result
+- **Admin Approval System**: Role-based approval system for managing requests
+- **Full API Integration**: Direct integration with Overseerr's API for real-time status updates
+- **Hybrid Commands**: Supports both traditional prefix commands and Discord slash commands
+- **Error Handling**: Comprehensive error messages and user feedback
+- **Permission Management**: Role-based access control for admin functions
 
 ## Commands
 
 All commands support both prefix and slash command syntax:
 
 ### Admin Commands
-- **`[p]overseerr url <url>`** or **`/overseerr url <url>`**
-  - Set the Overseerr URL for the bot to communicate with Overseerr.
-  - Example: `[p]overseerr url https://your-overseerr-url` or `/overseerr url https://your-overseerr-url`
+- **`[p]seturl <url>`** or **`/seturl <url>`**
+  - Set the Overseerr URL for API communication
+  - Example: `[p]seturl https://your-overseerr-url` or `/seturl https://your-overseerr-url`
 
-- **`[p]overseerr apikey <apikey>`** or **`/overseerr apikey <apikey>`**
-  - Set the Overseerr API Key, retrieved from `https://your-overseerr-url/settings`.
-  - Example: `[p]overseerr apikey 4OK6WLU8Fv2T...` or `/overseerr apikey 4OK6WLU8Fv2T...`
+- **`[p]setapikey <apikey>`** or **`/setapikey <apikey>`**
+  - Set the Overseerr API Key (found in your Overseerr settings)
+  - Example: `[p]setapikey 4OK6WLU8Fv2T...` or `/setapikey 4OK6WLU8Fv2T...`
 
-- **`[p]overseerr adminrole <role_name>`** or **`/overseerr adminrole <role_name>`**
-  - Set the name of the admin role that is allowed to approve Overseerr requests.
-  - Example: `[p]overseerr adminrole @Overseerr Admin` or `/overseerr adminrole @Overseerr Admin`
+- **`[p]setadminrole <role_name>`** or **`/setadminrole <role_name>`**
+  - Set the admin role for request approvals
+  - Example: `[p]setadminrole "Overseerr Admin"` or `/setadminrole "Overseerr Admin"`
 
 ### User Commands
 - **`[p]request <media name>`** or **`/request <media name>`**
-  - Search for a movie or TV show and request it if it's not already available or requested.
+  - Search for and request movies or TV shows
+  - Displays an interactive select menu with detailed media information
+  - Automatically checks availability status
   - Example: `[p]request The Matrix` or `/request The Matrix`
 
 - **`[p]approve <request_id>`** or **`/approve <request_id>`**
-  - Approve a media request by its request ID (requires the admin role).
+  - Approve a media request (requires admin role)
   - Example: `[p]approve 123` or `/approve 123`
-
 
 ## Support
 

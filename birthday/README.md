@@ -1,6 +1,6 @@
 # Birthday Cog for Red-DiscordBot
 
-This cog allows you to assign a special role to users on their birthday and send them a celebratory message with cake (or pie) emojis! Supports both traditional prefix commands and slash commands.
+This cog allows you to assign a special role to users on their birthday and send them a celebratory message with cake (or pie) emojis! Supports both traditional prefix commands, slash commands, and context menu commands.
 
 ## Installation
 
@@ -34,11 +34,11 @@ Before using the cog, you need to set it up. You can use either prefix commands 
 1. Set the birthday role:
 
    ```
-   [p]birthdayset role @Birthday
+   [p]setrole @Birthday
    ```
    or
    ```
-   /birthdayset role @Birthday
+   /setrole @Birthday
    ```
 
    **Note:** The bot's role must be above the birthday role in the server's role hierarchy, but users assigning the birthday role do not need to have a role above it.
@@ -46,46 +46,50 @@ Before using the cog, you need to set it up. You can use either prefix commands 
 2. Add roles that can use the birthday command:
 
    ```
-   [p]birthdayset addrole @Moderator
+   [p]addrole @Moderator
    ```
    or
    ```
-   /birthdayset addrole @Moderator
+   /addrole @Moderator
    ```
 
 3. (Optional) Set the timezone for role expiration:
 
    ```
-   [p]birthdayset timezone America/New_York
+   [p]settimezone America/New_York
    ```
    or
    ```
-   /birthdayset timezone America/New_York
+   /settimezone America/New_York
    ```
 
 4. (Optional) Set a specific channel for birthday announcements:
 
    ```
-   [p]birthdayset channel #birthdays
+   [p]setchannel #birthdays
    ```
    or
    ```
-   /birthdayset channel #birthdays
+   /setchannel #birthdays
    ```
 
    If not set, the birthday message will be sent in the channel where the command is used.
 
 ## Usage
 
-To assign the birthday role to a user:
+To assign the birthday role to a user, you can use any of these methods:
 
-```
-[p]birthday @User
-```
-or
-```
-/birthday @User
-```
+1. Command:
+   ```
+   [p]birthday @User
+   ```
+   or
+   ```
+   /birthday @User
+   ```
+
+2. Context Menu:
+   Right-click on a user and select "Apps > Give Birthday Role"
 
 This will assign the birthday role to the user and send a celebratory message with random cake (or pie) emojis. The role will be automatically removed at midnight in the specified timezone.
 
@@ -93,23 +97,29 @@ This will assign the birthday role to the user and send a celebratory message wi
 
 - Assigns a special birthday role to users
 - Sends a celebratory message with random cake (or pie) emojis
-- Automatically removes the birthday role at midnight, temporarily stores so tasks will complete even if cog is reloaded
+- Automatically removes the birthday role at midnight
 - Configurable timezone for role expiration
 - Option to set a specific channel for birthday announcements (defaults to the channel where the command is used)
 - Restricts usage of the birthday command to specified roles
 - Users can assign the birthday role without needing a role higher than it in the hierarchy
-- Full slash command support for all commands
+- Full slash command and context menu support
+- Persistent birthday role removal scheduling (survives bot restarts)
+- Birthday role removal task checking
 
 ## Commands
 
 All commands support both prefix and slash command syntax:
 
-- `[p]birthdayset role` or `/birthdayset role`: Set the birthday role
-- `[p]birthdayset addrole` or `/birthdayset addrole`: Add a role that can use the birthday command
-- `[p]birthdayset removerole` or `/birthdayset removerole`: Remove a role from using the birthday command
-- `[p]birthdayset timezone` or `/birthdayset timezone`: Set the timezone for the birthday role expiration
-- `[p]birthdayset channel` or `/birthdayset channel`: Set the channel for birthday announcements
+### Admin Commands
+- `[p]setrole` or `/setrole`: Set the birthday role
+- `[p]addrole` or `/addrole`: Add a role that can use the birthday command
+- `[p]removerole` or `/removerole`: Remove a role from using the birthday command
+- `[p]settimezone` or `/settimezone`: Set the timezone for the birthday role expiration
+- `[p]setchannel` or `/setchannel`: Set the channel for birthday announcements
+
+### User Commands
 - `[p]birthday` or `/birthday`: Assign the birthday role to a user
+- Context Menu > "Give Birthday Role": Right-click a user to assign the birthday role
 - `[p]bdaycheck` or `/bdaycheck`: Check upcoming birthday role removal tasks
 
 ## Support

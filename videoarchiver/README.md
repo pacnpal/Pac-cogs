@@ -1,54 +1,41 @@
-# VideoArchiver Cog
+# VideoArchiver Cog for Red-DiscordBot
 
-A Red-DiscordBot cog for automatically archiving videos from monitored Discord channels. Supports both traditional prefix commands and Discord slash commands.
+A powerful video archiving cog that automatically downloads and reposts videos from monitored channels. Features hardware-accelerated compression, multi-video processing, and support for multiple video platforms.
 
 ## Features
 
-- Automatically detects and downloads videos from monitored channels
-- Supports multiple video hosting platforms through yt-dlp
-- Enhanced queue system with priority processing and performance metrics
-- Configurable video quality and format
-- Role-based access control
-- Automatic file cleanup
-- Hardware-accelerated video processing (when available)
-- Customizable notification messages
-- Queue persistence across bot restarts
-- Full slash command support for all commands
+- **Automatic Video Processing**
+  - Monitors specified channels for videos
+  - Supports multiple video platforms through yt-dlp
+  - Hardware-accelerated compression (NVIDIA, AMD, Intel, ARM)
+  - Configurable video quality and format
+  - Automatic file size optimization for Discord limits
 
-## File Structure
+- **Enhanced Queue System**
+  - Priority-based processing
+  - Queue persistence across bot restarts
+  - Performance metrics tracking
+  - Automatic cleanup and memory management
+  - Real-time queue status monitoring
+  - Detailed performance analytics
 
-The cog is organized into several modules for better maintainability:
+- **Channel Management**
+  - Flexible channel monitoring (specific channels or all)
+  - Separate archive, notification, and log channels
+  - Customizable message templates
+  - Configurable message duration
 
-### Core Files
-- `video_archiver.py`: Main cog class and entry point
-- `commands.py`: Discord command handlers
-- `config_manager.py`: Guild configuration management
-- `processor.py`: Video processing logic
-- `enhanced_queue.py`: Advanced queue management system
-- `update_checker.py`: yt-dlp update management
-- `exceptions.py`: Custom exception classes
-
-### Utils Package
-- `utils/video_downloader.py`: Video download and processing
-- `utils/message_manager.py`: Message handling and cleanup
-- `utils/file_ops.py`: File operations and secure deletion
-- `utils/path_manager.py`: Path management utilities
-- `utils/exceptions.py`: Utility-specific exceptions
-
-### FFmpeg Package
-- `ffmpeg/ffmpeg_manager.py`: FFmpeg configuration and management
-- `ffmpeg/gpu_detector.py`: GPU capability detection
-- `ffmpeg/video_analyzer.py`: Video analysis utilities
-- `ffmpeg/encoder_params.py`: Encoding parameter optimization
-- `ffmpeg/ffmpeg_downloader.py`: FFmpeg binary management
-- `ffmpeg/exceptions.py`: FFmpeg-specific exceptions
+- **Access Control**
+  - Role-based permissions
+  - Site-specific enabling/disabling
+  - Admin-only configuration commands
 
 ## Installation
 
-1. Install the cog using Red's cog manager:
+1. Install the cog:
 ```bash
-[p]repo add videoarchiver <repository_url>
-[p]cog install videoarchiver
+[p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
+[p]cog install Pac-cogs videoarchiver
 ```
 
 2. Load the cog:
@@ -56,183 +43,96 @@ The cog is organized into several modules for better maintainability:
 [p]load videoarchiver
 ```
 
-## Configuration
+## Commands
 
-Use the following commands to configure the cog. All commands support both prefix and slash command syntax:
+All commands support both prefix (`[p]videoarchiver` or `[p]va`) and slash command (`/videoarchiver`) syntax:
 
-### Channel Settings
-- Set the archive channel:
-  ```
-  [p]va setchannel <channel>
-  ```
-  or
-  ```
-  /va setchannel <channel>
-  ```
+### Core Settings
+- **`setchannel <channel>`**: Set the archive channel
+- **`setnotification <channel>`**: Set the notification channel
+- **`setlogchannel <channel>`**: Set the log channel for errors
+- **`setformat <mp4|webm>`**: Set video format
+- **`setquality <144-4320>`**: Set maximum video quality (in pixels)
+- **`setmaxsize <1-100>`**: Set maximum file size (in MB)
+- **`setconcurrent <1-5>`**: Set number of concurrent downloads
 
-- Set the notification channel:
-  ```
-  [p]va setnotification <channel>
-  ```
-  or
-  ```
-  /va setnotification <channel>
-  ```
+### Channel Monitoring
+- **`addmonitor [channel]`**: Add channel to monitor (empty for all channels)
+- **`removemonitor <channel>`**: Remove channel from monitoring
+- **`toggledelete`**: Toggle deletion of local files after reposting
 
-- Set the log channel:
-  ```
-  [p]va setlogchannel <channel>
-  ```
-  or
-  ```
-  /va setlogchannel <channel>
-  ```
-
-- Add/remove a monitored channel:
-  ```
-  [p]va addmonitor <channel>
-  [p]va removemonitor <channel>
-  ```
-  or
-  ```
-  /va addmonitor <channel>
-  /va removemonitor <channel>
-  ```
+### Message Configuration
+- **`setduration <0-720>`**: Set message duration in hours (0 for permanent)
+- **`settemplate <template>`**: Set message template using {author}, {url}, {original_message}
 
 ### Role Management
-- Add/remove allowed roles:
-  ```
-  [p]va addrole <role>
-  [p]va removerole <role>
-  [p]va listroles
-  ```
-  or
-  ```
-  /va addrole <role>
-  /va removerole <role>
-  /va listroles
-  ```
-
-### Video Settings
-- Set video format and quality:
-  ```
-  [p]va setformat <format>
-  [p]va setquality <pixels>
-  [p]va setmaxsize <MB>
-  [p]va setconcurrent <count>
-  ```
-  or
-  ```
-  /va setformat <format>
-  /va setquality <pixels>
-  /va setmaxsize <MB>
-  /va setconcurrent <count>
-  ```
-
-### Message Settings
-- Configure message handling:
-  ```
-  [p]va setduration <hours>
-  [p]va settemplate <template>
-  [p]va toggledelete
-  ```
-  or
-  ```
-  /va setduration <hours>
-  /va settemplate <template>
-  /va toggledelete
-  ```
+- **`addrole [role]`**: Add allowed role (empty for @everyone)
+- **`removerole <role>`**: Remove allowed role
+- **`listroles`**: List allowed roles
 
 ### Site Management
-- Manage supported sites:
-  ```
-  [p]va enablesites [sites...]
-  [p]va listsites
-  ```
-  or
-  ```
-  /va enablesites [sites...]
-  /va listsites
-  ```
+- **`enablesites [sites...]`**: Enable specific sites (empty for all)
+- **`listsites`**: List available and enabled sites
 
 ### Queue Management
-- Manage the processing queue:
-  ```
-  [p]va queue
-  [p]va clearqueue
-  [p]va queuemetrics
-  ```
-  or
-  ```
-  /va queue
-  /va clearqueue
-  /va queuemetrics
-  ```
+- **`queue`**: Show current queue status with basic metrics
+- **`queuemetrics`**: Show detailed queue performance metrics
+- **`clearqueue`**: Clear the video processing queue
 
-### Update Management
-- Manage yt-dlp updates:
-  ```
-  [p]va updateytdlp
-  [p]va toggleupdates
-  ```
-  or
-  ```
-  /va updateytdlp
-  /va toggleupdates
-  ```
+### System Management
+- **`updateytdlp`**: Update yt-dlp to latest version
+- **`toggleupdates`**: Toggle update notifications
 
-## Technical Details
+## Queue System
 
-### Enhanced Queue System
-The cog uses an advanced queue system with the following features:
-- Priority-based processing (first URL in messages gets highest priority)
-- Queue persistence across bot restarts
-- Automatic memory management and cleanup
-- Performance metrics tracking (success rate, processing times)
-- Health monitoring with automatic issue detection
-- Deadlock prevention
-- Configurable cleanup intervals
-- Size-limited queue to prevent memory issues
-- Detailed status tracking per guild
+The enhanced queue system provides:
 
-### Queue Metrics
-The queue system tracks various performance metrics:
-- Total processed videos
-- Success/failure rates
+### Basic Metrics
+- Pending/Processing/Completed/Failed counts
+- Success rate percentage
 - Average processing time
+
+### Detailed Metrics
+- Total processed videos
+- Total failures
 - Peak memory usage
-- Queue size per guild/channel
-- Processing history
-- Cleanup statistics
+- Last cleanup time
+- Real-time queue state
 
-### Configuration Management
-- Settings are stored per guild
-- Supports hot-reloading of configurations
-- Automatic validation of settings
+## Message Templates
 
-### Error Handling
+You can customize archive messages using these variables:
+- `{author}`: Original message author
+- `{url}`: Original video URL
+- `{original_message}`: Link to original message
+
+Example template:
+```
+📥 Video archived from {author}
+Original: {url}
+Source: {original_message}
+```
+
+## Site Support
+
+The cog supports all sites compatible with yt-dlp. Use `[p]va listsites` to see available sites and currently enabled ones.
+
+## Performance
+
+- Hardware acceleration automatically detected and utilized
+- Configurable concurrent downloads (1-5)
+- Automatic file size optimization
+- Memory-efficient queue management
+- Automatic cleanup of temporary files
+
+## Error Handling
+
 - Comprehensive error logging
-- Automatic retry mechanisms with configurable attempts
-- Guild-specific error reporting
-- Detailed failure tracking
-
-### Performance Optimizations
-- Hardware-accelerated video processing when available
-- Efficient file handling with secure deletion
-- Memory leak prevention through proper resource cleanup
-- Automatic resource monitoring
-- Periodic cleanup of old queue items
-- Memory usage optimization
-
-## Requirements
-
-- Python 3.8 or higher
-- FFmpeg
-- yt-dlp
-- Discord.py 2.0 or higher
-- Red-DiscordBot V3
-- psutil>=5.9.0
+- Dedicated log channel for issues
+- Automatic retry mechanism
+- Queue persistence across restarts
+- Detailed error messages
 
 ## Support
 
-For issues and feature requests, please use the issue tracker on GitHub.
+If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/pacnpal/Pac-cogs).
