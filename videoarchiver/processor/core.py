@@ -32,6 +32,7 @@ class VideoProcessor:
         self.components = components
         self.ffmpeg_mgr = ffmpeg_mgr
         self.db = db
+        self.queue_manager = queue_manager
 
         # Initialize handlers
         self.queue_handler = QueueHandler(bot, config_manager, components)
@@ -119,6 +120,10 @@ class VideoProcessor:
     async def show_queue_details(self, ctx: commands.Context):
         """Display detailed queue status and progress information"""
         try:
+            if not self.queue_manager:
+                await ctx.send("Queue manager is not initialized.")
+                return
+
             # Get queue status
             queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
 
