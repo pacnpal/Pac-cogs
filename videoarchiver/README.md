@@ -45,43 +45,40 @@ A powerful video archiving cog that automatically downloads and reposts videos f
 
 ## Commands
 
-All commands support both prefix (`[p]videoarchiver` or `[p]va`) and slash command (`/videoarchiver`) syntax:
+All commands support both prefix and slash command syntax:
 
-### Core Settings
-- **`setchannel <channel>`**: Set the archive channel
-- **`setnotification <channel>`**: Set the notification channel
-- **`setlogchannel <channel>`**: Set the log channel for errors
-- **`setformat <mp4|webm>`**: Set video format
-- **`setquality <144-4320>`**: Set maximum video quality (in pixels)
-- **`setmaxsize <1-100>`**: Set maximum file size (in MB)
-- **`setconcurrent <1-5>`**: Set number of concurrent downloads
+### Core Video Archiver Commands (va_)
+- **`va_settings`**: Show current video archiver settings
+- **`va_format <mp4|webm>`**: Set video format
+- **`va_quality <144-4320>`**: Set maximum video quality (in pixels)
+- **`va_maxsize <1-100>`**: Set maximum file size (in MB)
+- **`va_concurrent <1-5>`**: Set number of concurrent downloads
+- **`va_toggledelete`**: Toggle deletion of local files after reposting
+- **`va_duration <0-720>`**: Set message duration in hours (0 for permanent)
+- **`va_template <template>`**: Set message template using {author}, {url}, {original_message}
+- **`va_update`**: Update yt-dlp to latest version
+- **`va_toggleupdates`**: Toggle update notifications
 
-### Channel Monitoring
-- **`addmonitor [channel]`**: Add channel to monitor (empty for all channels)
-- **`removemonitor <channel>`**: Remove channel from monitoring
-- **`toggledelete`**: Toggle deletion of local files after reposting
+### Queue Management Commands (vaq_)
+- **`vaq_status`**: Show current queue status with basic metrics
+- **`vaq_metrics`**: Show detailed queue performance metrics
+- **`vaq_clear`**: Clear the video processing queue
 
-### Message Configuration
-- **`setduration <0-720>`**: Set message duration in hours (0 for permanent)
-- **`settemplate <template>`**: Set message template using {author}, {url}, {original_message}
+### Channel Configuration Commands (vac_)
+- **`vac_archive <channel>`**: Set the archive channel
+- **`vac_notify <channel>`**: Set the notification channel
+- **`vac_log <channel>`**: Set the log channel for errors
+- **`vac_monitor [channel]`**: Add channel to monitor (empty for all channels)
+- **`vac_unmonitor <channel>`**: Remove channel from monitoring
 
-### Role Management
-- **`addrole [role]`**: Add allowed role (empty for @everyone)
-- **`removerole <role>`**: Remove allowed role
-- **`listroles`**: List allowed roles
+### Role Management Commands (var_)
+- **`var_add [role]`**: Add allowed role (empty for @everyone)
+- **`var_remove <role>`**: Remove allowed role
+- **`var_list`**: List allowed roles
 
-### Site Management
-- **`enablesites [sites...]`**: Enable specific sites (empty for all)
-- **`listsites`**: List available and enabled sites
-
-### Queue Management
-- **`queue`**: Show current queue status with basic metrics
-- **`queuemetrics`**: Show detailed queue performance metrics
-- **`clearqueue`**: Clear the video processing queue
-
-### System Management
-- **`updateytdlp`**: Update yt-dlp to latest version
-- **`toggleupdates`**: Toggle update notifications
+### Site Management Commands (vas_)
+- **`vas_enable [sites...]`**: Enable specific sites (empty for all)
+- **`vas_list`**: List available and enabled sites
 
 ## Queue System
 
@@ -115,7 +112,7 @@ Source: {original_message}
 
 ## Site Support
 
-The cog supports all sites compatible with yt-dlp. Use `[p]va listsites` to see available sites and currently enabled ones.
+The cog supports all sites compatible with yt-dlp. Use `vas_list` to see available sites and currently enabled ones.
 
 ## Performance
 
