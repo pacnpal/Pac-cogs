@@ -24,6 +24,10 @@ class VideoCleanupError(VideoArchiverError):
     """Error cleaning up video files"""
     pass
 
+class FileCleanupError(VideoArchiverError):
+    """Error cleaning up files"""
+    pass
+
 class ConfigurationError(VideoArchiverError):
     """Error in configuration"""
     pass
