@@ -1,4 +1,4 @@
-"""Re-export commands from core.commands"""
-from .core.commands import VideoArchiverCommands
+"""Re-export commands from core.base"""
+from .core.base import VideoArchiver
 
-__all__ = ['VideoArchiverCommands']
+__all__ = ['VideoArchiver']
