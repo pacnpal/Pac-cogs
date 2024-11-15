@@ -154,26 +154,27 @@ class VideoArchiverCommands(commands.Cog):
         await ctx.send(f"Archive message template set to:\n{template}")
 
     @videoarchiver.command(name="enablesites")
-    async def enable_sites(self, ctx: commands.Context, *sites: str):
-        """Enable specific sites (leave empty for all sites)"""
-        sites = [s.lower() for s in sites]
-        if not sites:
+    async def enable_sites(self, ctx: commands.Context, *, sites: Optional[str] = None):
+        """Enable specific sites (leave empty for all sites). Separate multiple sites with spaces."""
+        if sites is None:
             await self.config.update_setting(ctx.guild.id, "enabled_sites", [])
             await ctx.send("All sites enabled")
             return
 
+        site_list = [s.strip().lower() for s in sites.split()]
+
         # Verify sites are valid
         with yt_dlp.YoutubeDL() as ydl:
             valid_sites = set(ie.IE_NAME.lower() for ie in ydl._ies)
-            invalid_sites = [s for s in sites if s not in valid_sites]
+            invalid_sites = [s for s in site_list if s not in valid_sites]
             if invalid_sites:
                 await ctx.send(
                     f"Invalid sites: {', '.join(invalid_sites)}\nValid sites: {', '.join(valid_sites)}"
                 )
                 return
 
-        await self.config.update_setting(ctx.guild.id, "enabled_sites", sites)
-        await ctx.send(f"Enabled sites: {', '.join(sites)}")
+        await self.config.update_setting(ctx.guild.id, "enabled_sites", site_list)
+        await ctx.send(f"Enabled sites: {', '.join(site_list)}")
 
     @videoarchiver.command(name="listsites")
     async def list_sites(self, ctx: commands.Context):
