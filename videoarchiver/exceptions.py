@@ -6,23 +6,43 @@ from .utils.exceptions import (
     VideoVerificationError,
     QueueError,
     FileCleanupError,
+    ResourceExhaustedError,
+    ProcessingError,
+    CleanupError,
+    FileOperationError,
+    VideoDownloadError,
+    VideoProcessingError,
+    VideoUploadError,
+    VideoCleanupError,
+    PermissionError,
+    NetworkError,
+    ResourceError,
+    ComponentError,
     DiscordAPIError,
 )
 
-# Re-export base exceptions
+# Re-export all exceptions
 __all__ = [
     'VideoArchiverError',
     'ConfigurationError',
     'VideoVerificationError',
     'QueueError',
     'FileCleanupError',
-    'UpdateError',
+    'ResourceExhaustedError',
     'ProcessingError',
-    'ConfigError',
+    'CleanupError',
+    'FileOperationError',
+    'VideoDownloadError',
+    'VideoProcessingError',
+    'VideoUploadError',
+    'VideoCleanupError',
+    'PermissionError',
+    'NetworkError',
+    'ResourceError',
+    'ComponentError',
     'DiscordAPIError',
 ]
 
 # Alias exceptions for backward compatibility
-ProcessingError = VideoArchiverError
 ConfigError = ConfigurationError
 UpdateError = VideoVerificationError
