@@ -5,22 +5,23 @@ from typing import Optional
 import yt_dlp
 from datetime import datetime
 
+def setup(bot):
+    """Load the VideoArchiverCommands cog."""
+    cog = VideoArchiverCommands(bot)
+    bot.add_cog(cog)
+    return cog
+
 class VideoArchiverCommands(commands.Cog):
     """Command handler for VideoArchiver"""
 
-    def __init__(self, bot, config_manager, update_checker, processor):
+    def __init__(self, bot, config_manager=None, update_checker=None, processor=None):
         self.bot = bot
         self.config = config_manager
         self.update_checker = update_checker
         self.processor = processor
         super().__init__()
 
-    async def cog_load(self) -> None:
-        """Initialize commands when cog loads"""
-        # Red-DiscordBot handles command syncing automatically
-        pass
-
-    @commands.hybrid_group(name="videoarchiver", aliases=["va"])
+    @commands.hybrid_group(name="videoarchiver", aliases=["va"], fallback="settings")
     @commands.guild_only()
     @commands.admin_or_permissions(administrator=True)
     async def videoarchiver(self, ctx: commands.Context):
@@ -48,10 +49,12 @@ class VideoArchiverCommands(commands.Cog):
 
     @videoarchiver.command(name="addrole")
     @commands.guild_only()
-    async def add_allowed_role(self, ctx: commands.Context, role: discord.Role):
-        """Add a role that's allowed to trigger archiving"""
-        await self.config.add_to_list(ctx.guild.id, "allowed_roles", role.id)
-        await ctx.send(f"Added {role.name} to allowed roles")
+    async def add_allowed_role(self, ctx: commands.Context, role: Optional[discord.Role] = None):
+        """Add a role that's allowed to trigger archiving (default: @everyone)"""
+        role_id = role.id if role else ctx.guild.default_role.id
+        role_name = role.name if role else "@everyone"
+        await self.config.add_to_list(ctx.guild.id, "allowed_roles", role_id)
+        await ctx.send(f"Added {role_name} to allowed roles")
 
     @videoarchiver.command(name="removerole")
     @commands.guild_only()
@@ -71,7 +74,8 @@ class VideoArchiverCommands(commands.Cog):
             )
             return
         role_names = [
-            r.name for r in [ctx.guild.get_role(role_id) for role_id in roles] if r
+            r.name if r else "@everyone" 
+            for r in [ctx.guild.get_role(role_id) for role_id in roles]
         ]
         await ctx.send(f"Allowed roles: {', '.join(role_names)}")
 
@@ -117,11 +121,15 @@ class VideoArchiverCommands(commands.Cog):
     @videoarchiver.command(name="addmonitor")
     @commands.guild_only()
     async def add_monitored_channel(
-        self, ctx: commands.Context, channel: discord.TextChannel
+        self, ctx: commands.Context, channel: Optional[discord.TextChannel] = None
     ):
-        """Add a channel to monitor for videos"""
-        await self.config.add_to_list(ctx.guild.id, "monitored_channels", channel.id)
-        await ctx.send(f"Now monitoring {channel.mention} for videos")
+        """Add a channel to monitor for videos (default: all channels)"""
+        if channel:
+            await self.config.add_to_list(ctx.guild.id, "monitored_channels", channel.id)
+            await ctx.send(f"Now monitoring {channel.mention} for videos")
+        else:
+            await self.config.update_setting(ctx.guild.id, "monitored_channels", [])
+            await ctx.send("Now monitoring all channels for videos")
 
     @videoarchiver.command(name="removemonitor")
     @commands.guild_only()

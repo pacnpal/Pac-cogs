@@ -32,7 +32,7 @@ logger = logging.getLogger('VideoArchiver')
 def setup(bot):
     """Load the VideoArchiver cog."""
     cog = VideoArchiver(bot)
-    bot.add_cog(cog)
+    asyncio.create_task(bot.add_cog(cog))
     return cog
 
 class VideoArchiver(VideoArchiverCommands):
