@@ -62,6 +62,7 @@ class VideoArchiver(commands.Cog):
             
             # Initialize queue manager
             queue_path = self.data_path / "queue_state.json"
+            queue_path.parent.mkdir(parents=True, exist_ok=True)
             self.queue_manager = EnhancedVideoQueueManager(
                 max_retries=3,
                 retry_delay=5,
