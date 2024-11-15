@@ -20,6 +20,17 @@ logger = logging.getLogger("QueueManager")
 class EnhancedVideoQueueManager:
     """Enhanced queue manager with improved memory management and performance"""
 
+    # Class-level initialization lock to prevent multiple instances
+    _instance_lock = asyncio.Lock()
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        """Ensure singleton instance"""
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(
         self,
         max_retries: int = 3,
@@ -32,6 +43,10 @@ class EnhancedVideoQueueManager:
         deadlock_threshold: int = 300,  # 5 minutes
         check_interval: int = 60,     # 1 minute
     ):
+        """Initialize only once"""
+        if self._initialized:
+            return
+            
         # Configuration
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -48,14 +63,14 @@ class EnhancedVideoQueueManager:
         self._channel_queues: Dict[int, Set[str]] = {}
         self._active_tasks: Set[asyncio.Task] = set()
         
-        # Locks - Establish consistent ordering
-        self._global_lock = asyncio.Lock()  # Primary lock for coordinating all operations
-        self._queue_lock = asyncio.Lock()   # Secondary lock for queue operations
-        self._processing_lock = asyncio.Lock()  # Tertiary lock for processing operations
+        # Locks
+        self._global_lock = asyncio.Lock()
+        self._queue_lock = asyncio.Lock()
+        self._processing_lock = asyncio.Lock()
         
         # State
         self._shutdown = False
-        self._initialized = asyncio.Event()
+        self._init_event = asyncio.Event()  # Single event for initialization state
         self.metrics = QueueMetrics()
 
         # Components
@@ -70,10 +85,19 @@ class EnhancedVideoQueueManager:
             max_history_age=max_history_age
         )
 
+        # Mark instance as initialized
+        self._initialized = True
+
     async def initialize(self) -> None:
         """Initialize the queue manager components sequentially"""
-        try:
-            async with self._global_lock:
+        # Use class-level lock to prevent multiple initializations
+        async with self._instance_lock:
+            # Check if already initialized
+            if self._init_event.is_set():
+                logger.info("Queue manager already initialized")
+                return
+
+            try:
                 logger.info("Starting queue manager initialization...")
                 
                 # Load persisted state first if available
@@ -112,13 +136,13 @@ class EnhancedVideoQueueManager:
                 logger.info("Queue cleanup started")
 
                 # Signal initialization complete
-                self._initialized.set()
+                self._init_event.set()
                 logger.info("Queue manager initialization completed")
 
-        except Exception as e:
-            logger.error(f"Failed to initialize queue manager: {e}")
-            self._shutdown = True
-            raise
+            except Exception as e:
+                logger.error(f"Failed to initialize queue manager: {e}")
+                self._shutdown = True
+                raise
 
     async def _load_persisted_state(self) -> None:
         """Load persisted queue state"""
@@ -153,7 +177,7 @@ class EnhancedVideoQueueManager:
     ) -> None:
         """Process items in the queue"""
         # Wait for initialization to complete
-        await self._initialized.wait()
+        await self._init_event.wait()
         
         logger.info("Queue processor started")
         last_persist_time = time.time()
@@ -283,7 +307,8 @@ class EnhancedVideoQueueManager:
         if self._shutdown:
             raise QueueError("Queue manager is shutting down")
 
-        await self._initialized.wait()
+        # Wait for initialization using the correct event
+        await self._init_event.wait()
 
         try:
             async with self._global_lock:
