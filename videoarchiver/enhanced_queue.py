@@ -45,12 +45,9 @@ class QueueMetrics:
     last_cleanup: datetime = field(default_factory=datetime.utcnow)
     retries: int = 0
     peak_memory_usage: float = 0.0
-    errors_by_type: Dict[str, int] = field(default_factory=dict)
-    last_error: Optional[str] = None
-    last_error_time: Optional[datetime] = None
-    last_cleanup: datetime = field(default_factory=datetime.utcnow)
-    retries: int = 0
     processing_times: List[float] = field(default_factory=list)
+    compression_failures: int = 0
+    hardware_accel_failures: int = 0
 
     def update(self, processing_time: float, success: bool, error: str = None):
         """Update metrics with new processing information"""
@@ -64,6 +61,12 @@ class QueueMetrics:
                 self.errors_by_type[error_type] = (
                     self.errors_by_type.get(error_type, 0) + 1
                 )
+                
+                # Track specific error types
+                if "compression error" in error.lower():
+                    self.compression_failures += 1
+                elif "hardware acceleration failed" in error.lower():
+                    self.hardware_accel_failures += 1
 
         # Update processing times with sliding window
         self.processing_times.append(processing_time)
@@ -110,6 +113,8 @@ class QueueItem:
     last_retry: Optional[datetime] = None
     processing_times: List[float] = field(default_factory=list)
     last_error_time: Optional[datetime] = None
+    hardware_accel_attempted: bool = False
+    compression_attempted: bool = False
 
 
 class EnhancedVideoQueueManager:
@@ -124,6 +129,7 @@ class EnhancedVideoQueueManager:
         max_history_age: int = 86400,  # 24 hours
         persistence_path: Optional[str] = None,
         backup_interval: int = 300,  # 5 minutes
+        deadlock_threshold: int = 900,  # 15 minutes (reduced from 1 hour)
     ):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -132,6 +138,7 @@ class EnhancedVideoQueueManager:
         self.max_history_age = max_history_age
         self.persistence_path = persistence_path
         self.backup_interval = backup_interval
+        self.deadlock_threshold = deadlock_threshold
 
         # Queue storage with priority
         self._queue: List[QueueItem] = []
@@ -279,11 +286,20 @@ class EnhancedVideoQueueManager:
                             item.last_error = error
                             item.last_error_time = datetime.utcnow()
 
-                            # Handle retries
+                            # Handle retries with improved logic
                             if item.retry_count < self.max_retries:
                                 item.retry_count += 1
                                 item.status = "pending"
                                 item.last_retry = datetime.utcnow()
+
+                                # Adjust processing strategy based on error type
+                                if "hardware acceleration failed" in str(error).lower():
+                                    item.hardware_accel_attempted = True
+                                elif "compression error" in str(error).lower():
+                                    item.compression_attempted = True
+
+                                # Add back to queue with adjusted priority
+                                item.priority = max(0, item.priority - 1)  # Lower priority for retries
                                 self._queue.append(item)
                                 logger.warning(
                                     f"Retrying item: {item.url} (attempt {item.retry_count})"
@@ -294,27 +310,36 @@ class EnhancedVideoQueueManager:
                                     f"Failed to process item after {self.max_retries} attempts: {item.url}"
                                 )
 
+                        # Always remove from processing, regardless of outcome
                         self._processing.pop(item.url, None)
 
                 except Exception as e:
                     logger.error(
                         f"Error processing item {item.url}: {traceback.format_exc()}"
                     )
+                    # Ensure item is properly handled even on unexpected errors
                     async with self._processing_lock:
                         item.status = "failed"
                         item.error = str(e)
                         item.last_error = str(e)
                         item.last_error_time = datetime.utcnow()
                         self._failed[item.url] = item
+                        # Always remove from processing
                         self._processing.pop(item.url, None)
 
                 # Persist state after processing
                 if self.persistence_path:
-                    await self._persist_queue()
+                    try:
+                        await self._persist_queue()
+                    except Exception as e:
+                        logger.error(f"Failed to persist queue state: {e}")
+                        # Continue processing even if persistence fails
 
             except Exception as e:
-                logger.error(f"Error in queue processor: {traceback.format_exc()}")
+                logger.error(f"Critical error in queue processor: {traceback.format_exc()}")
+                # Ensure we don't get stuck in a tight loop on critical errors
                 await asyncio.sleep(1)
+                continue  # Continue to next iteration to process remaining items
 
             # Small delay to prevent CPU overload
             await asyncio.sleep(0.1)
@@ -358,6 +383,8 @@ class EnhancedVideoQueueManager:
                         if self.metrics.last_error_time
                         else None
                     ),
+                    "compression_failures": self.metrics.compression_failures,
+                    "hardware_accel_failures": self.metrics.hardware_accel_failures,
                 },
             }
 
@@ -393,6 +420,8 @@ class EnhancedVideoQueueManager:
                 item["added_at"] = datetime.fromisoformat(item["added_at"])
                 if item.get("last_retry"):
                     item["last_retry"] = datetime.fromisoformat(item["last_retry"])
+                if item.get("last_error_time"):
+                    item["last_error_time"] = datetime.fromisoformat(item["last_error_time"])
                 self._queue.append(QueueItem(**item))
 
             self._processing = {
@@ -402,15 +431,19 @@ class EnhancedVideoQueueManager:
             self._failed = {k: QueueItem(**v) for k, v in state["failed"].items()}
 
             # Restore metrics
-            self.metrics.total_processed = state["metrics"]["total_processed"]
-            self.metrics.total_failed = state["metrics"]["total_failed"]
-            self.metrics.avg_processing_time = state["metrics"]["avg_processing_time"]
-            self.metrics.success_rate = state["metrics"]["success_rate"]
-            self.metrics.errors_by_type = state["metrics"]["errors_by_type"]
-            self.metrics.last_error = state["metrics"]["last_error"]
-            if state["metrics"]["last_error_time"]:
+            metrics_data = state["metrics"]
+            self.metrics.total_processed = metrics_data["total_processed"]
+            self.metrics.total_failed = metrics_data["total_failed"]
+            self.metrics.avg_processing_time = metrics_data["avg_processing_time"]
+            self.metrics.success_rate = metrics_data["success_rate"]
+            self.metrics.errors_by_type = metrics_data["errors_by_type"]
+            self.metrics.last_error = metrics_data["last_error"]
+            self.metrics.compression_failures = metrics_data.get("compression_failures", 0)
+            self.metrics.hardware_accel_failures = metrics_data.get("hardware_accel_failures", 0)
+            
+            if metrics_data["last_error_time"]:
                 self.metrics.last_error_time = datetime.fromisoformat(
-                    state["metrics"]["last_error_time"]
+                    metrics_data["last_error_time"]
                 )
 
             logger.info("Successfully loaded persisted queue state")
@@ -444,10 +477,9 @@ class EnhancedVideoQueueManager:
                     logger.warning(f"High memory usage detected: {memory_usage:.2f}MB")
                     # Force garbage collection
                     import gc
-
                     gc.collect()
 
-                # Check for potential deadlocks
+                # Check for potential deadlocks with reduced threshold
                 processing_times = [
                     time.time() - item.processing_time
                     for item in self._processing.values()
@@ -456,7 +488,7 @@ class EnhancedVideoQueueManager:
 
                 if processing_times:
                     max_time = max(processing_times)
-                    if max_time > 3600:  # 1 hour
+                    if max_time > self.deadlock_threshold:  # Reduced from 3600s to 900s
                         logger.warning(
                             f"Potential deadlock detected: Item processing for {max_time:.2f}s"
                         )
@@ -492,7 +524,7 @@ class EnhancedVideoQueueManager:
                 for url, item in list(self._processing.items()):
                     if (
                         item.processing_time > 0
-                        and (current_time - item.processing_time) > 3600
+                        and (current_time - item.processing_time) > self.deadlock_threshold
                     ):
                         # Move to failed queue if max retries reached
                         if item.retry_count >= self.max_retries:
@@ -505,6 +537,8 @@ class EnhancedVideoQueueManager:
                             item.processing_time = 0
                             item.last_retry = datetime.utcnow()
                             item.status = "pending"
+                            # Lower priority for stuck items
+                            item.priority = max(0, item.priority - 2)
                             self._queue.append(item)
                             self._processing.pop(url)
                             logger.info(f"Recovered stuck item for retry: {url}")
@@ -564,7 +598,9 @@ class EnhancedVideoQueueManager:
                 "avg_processing_time": self.metrics.avg_processing_time,
                 "peak_memory_usage": self.metrics.peak_memory_usage,
                 "last_cleanup": self.metrics.last_cleanup.strftime("%Y-%m-%d %H:%M:%S"),
-                "errors_by_type": self.metrics.errors_by_type
+                "errors_by_type": self.metrics.errors_by_type,
+                "compression_failures": self.metrics.compression_failures,
+                "hardware_accel_failures": self.metrics.hardware_accel_failures
             }
 
             return {
@@ -590,7 +626,9 @@ class EnhancedVideoQueueManager:
                     "avg_processing_time": 0.0,
                     "peak_memory_usage": 0.0,
                     "last_cleanup": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "errors_by_type": {}
+                    "errors_by_type": {},
+                    "compression_failures": 0,
+                    "hardware_accel_failures": 0
                 }
             }
 

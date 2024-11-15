@@ -94,14 +94,14 @@ class VideoDownloader:
         self.active_downloads: Dict[str, str] = {}
         self._downloads_lock = asyncio.Lock()
 
-        # Configure yt-dlp options
+        # Configure yt-dlp options with improved settings
         self.ydl_opts = {
-            "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",  # More flexible format
-            "outtmpl": "%(title)s.%(ext)s",  # Base filename only, path added later
+            "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",
+            "outtmpl": "%(title)s.%(ext)s",
             "merge_output_format": video_format,
-            "quiet": True,  # Reduce output noise
-            "no_warnings": True,  # Reduce warning noise
-            "extract_flat": True,  # Don't download video info
+            "quiet": True,
+            "no_warnings": True,
+            "extract_flat": True,
             "concurrent_fragment_downloads": concurrent_downloads,
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
@@ -109,47 +109,42 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": str(
-                self.ffmpeg_mgr.get_ffmpeg_path()
-            ),  # Convert Path to string
-            "ffprobe_location": str(
-                self.ffmpeg_mgr.get_ffprobe_path()
-            ),  # Add ffprobe path
-            "paths": {"home": str(self.download_path)},  # Set home directory for yt-dlp
-            "logger": logger,  # Use our logger
-            "ignoreerrors": True,  # Don't stop on download errors
-            "no_color": True,  # Disable ANSI colors in output
-            "geo_bypass": True,  # Try to bypass geo-restrictions
-            "socket_timeout": 30,  # Increase timeout
+            "ffmpeg_location": str(self.ffmpeg_mgr.get_ffmpeg_path()),
+            "ffprobe_location": str(self.ffmpeg_mgr.get_ffprobe_path()),
+            "paths": {"home": str(self.download_path)},
+            "logger": logger,
+            "ignoreerrors": True,
+            "no_color": True,
+            "geo_bypass": True,
+            "socket_timeout": 30,
+            "http_chunk_size": 10485760,  # 10MB chunks for better stability
+            "external_downloader_args": {
+                "ffmpeg": ["-timeout", "30000000"]  # 30 second timeout
+            }
         }
 
     def is_supported_url(self, url: str) -> bool:
         """Check if URL is supported by attempting a simulated download"""
-        # First check if URL matches common video platform patterns
         if not is_video_url_pattern(url):
             return False
 
         try:
-            # Configure yt-dlp for simulation
             simulate_opts = {
                 **self.ydl_opts,
-                "simulate": True,  # Only simulate download
-                "quiet": True,  # Reduce output noise
+                "simulate": True,
+                "quiet": True,
                 "no_warnings": True,
-                "extract_flat": True,  # Don't download video info
-                "skip_download": True,  # Skip actual download
-                "format": "best",  # Don't spend time finding best format
+                "extract_flat": True,
+                "skip_download": True,
+                "format": "best",
             }
 
-            # Create a new yt-dlp instance for simulation
             with yt_dlp.YoutubeDL(simulate_opts) as ydl:
                 try:
-                    # Try to extract info without downloading
                     info = ydl.extract_info(url, download=False)
                     if info is None:
                         return False
 
-                    # Check if site is enabled (if enabled_sites is configured)
                     if self.enabled_sites:
                         extractor = info.get("extractor", "").lower()
                         if not any(
@@ -164,7 +159,6 @@ class VideoDownloader:
                     return True
 
                 except yt_dlp.utils.UnsupportedError:
-                    # Quietly handle unsupported URLs
                     return False
                 except Exception as e:
                     if "Unsupported URL" not in str(e):
@@ -173,6 +167,174 @@ class VideoDownloader:
 
         except Exception as e:
             logger.error(f"Error during URL check: {str(e)}")
+            return False
+
+    async def download_video(self, url: str) -> Tuple[bool, str, str]:
+        """Download and process a video with improved error handling and retry logic"""
+        original_file = None
+        compressed_file = None
+        temp_dir = None
+        hardware_accel_failed = False
+        compression_params = None
+
+        try:
+            with temp_path_context() as temp_dir:
+                # Download the video
+                success, file_path, error = await self._safe_download(url, temp_dir)
+                if not success:
+                    return False, "", error
+
+                original_file = file_path
+
+                async with self._downloads_lock:
+                    self.active_downloads[url] = original_file
+
+                # Check file size and compress if needed
+                file_size = os.path.getsize(original_file)
+                if file_size > (self.max_file_size * 1024 * 1024):
+                    logger.info(f"Compressing video: {original_file}")
+                    try:
+                        # Get optimal compression parameters
+                        compression_params = self.ffmpeg_mgr.get_compression_params(
+                            original_file, self.max_file_size
+                        )
+                        compressed_file = os.path.join(
+                            self.download_path,
+                            f"compressed_{os.path.basename(original_file)}",
+                        )
+
+                        # Try hardware acceleration first
+                        success = await self._try_compression(
+                            original_file,
+                            compressed_file,
+                            compression_params,
+                            use_hardware=True
+                        )
+
+                        # If hardware acceleration fails, fall back to CPU
+                        if not success:
+                            hardware_accel_failed = True
+                            logger.warning("Hardware acceleration failed, falling back to CPU encoding")
+                            success = await self._try_compression(
+                                original_file,
+                                compressed_file,
+                                compression_params,
+                                use_hardware=False
+                            )
+
+                        if not success:
+                            raise CompressionError(
+                                "Failed to compress with both hardware and CPU encoding"
+                            )
+
+                        # Verify compressed file
+                        if not self._verify_video_file(compressed_file):
+                            raise VideoVerificationError(
+                                "Compressed file verification failed"
+                            )
+
+                        compressed_size = os.path.getsize(compressed_file)
+                        if compressed_size <= (self.max_file_size * 1024 * 1024):
+                            await self._safe_delete_file(original_file)
+                            return True, compressed_file, ""
+                        else:
+                            await self._safe_delete_file(compressed_file)
+                            raise CompressionError(
+                                "Failed to compress to target size",
+                                input_size=file_size,
+                                target_size=self.max_file_size * 1024 * 1024,
+                            )
+
+                    except Exception as e:
+                        error_msg = str(e)
+                        if hardware_accel_failed:
+                            error_msg = f"Hardware acceleration failed, CPU fallback error: {error_msg}"
+                        if compressed_file and os.path.exists(compressed_file):
+                            await self._safe_delete_file(compressed_file)
+                        return False, "", error_msg
+
+                else:
+                    # Move file to final location
+                    final_path = os.path.join(
+                        self.download_path, os.path.basename(original_file)
+                    )
+                    success = await self._safe_move_file(original_file, final_path)
+                    if not success:
+                        return False, "", "Failed to move file to final location"
+                    return True, final_path, ""
+
+        except Exception as e:
+            logger.error(f"Download error: {str(e)}")
+            return False, "", str(e)
+
+        finally:
+            # Clean up
+            async with self._downloads_lock:
+                self.active_downloads.pop(url, None)
+
+            try:
+                if original_file and os.path.exists(original_file):
+                    await self._safe_delete_file(original_file)
+                if (
+                    compressed_file
+                    and os.path.exists(compressed_file)
+                    and not compressed_file.startswith(self.download_path)
+                ):
+                    await self._safe_delete_file(compressed_file)
+            except Exception as e:
+                logger.error(f"Error during file cleanup: {str(e)}")
+
+    async def _try_compression(
+        self,
+        input_file: str,
+        output_file: str,
+        params: Dict[str, str],
+        use_hardware: bool = True
+    ) -> bool:
+        """Attempt video compression with given parameters"""
+        try:
+            # Build FFmpeg command
+            ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
+            cmd = [ffmpeg_path, "-y", "-i", input_file]
+
+            # Modify parameters based on hardware acceleration preference
+            if use_hardware:
+                gpu_info = self.ffmpeg_mgr.gpu_info
+                if gpu_info["nvidia"] and params.get("c:v") == "libx264":
+                    params["c:v"] = "h264_nvenc"
+                elif gpu_info["amd"] and params.get("c:v") == "libx264":
+                    params["c:v"] = "h264_amf"
+                elif gpu_info["intel"] and params.get("c:v") == "libx264":
+                    params["c:v"] = "h264_qsv"
+            else:
+                params["c:v"] = "libx264"
+
+            # Add all parameters to command
+            for key, value in params.items():
+                cmd.extend([f"-{key}", str(value)])
+
+            # Add output file
+            cmd.append(output_file)
+
+            # Run compression
+            logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
+            result = await asyncio.get_event_loop().run_in_executor(
+                self.download_pool,
+                lambda: subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                ),
+            )
+
+            return os.path.exists(output_file)
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg compression failed: {e.stderr.decode()}")
+            return False
+        except Exception as e:
+            logger.error(f"Compression attempt failed: {str(e)}")
             return False
 
     def _check_file_size(self, info):
@@ -203,10 +365,7 @@ class VideoDownloader:
     def _verify_video_file(self, file_path: str) -> bool:
         """Verify video file integrity"""
         try:
-            # Use ffprobe from FFmpegManager
             ffprobe_path = str(self.ffmpeg_mgr.get_ffprobe_path())
-            logger.debug(f"Using ffprobe from: {ffprobe_path}")
-
             cmd = [
                 ffprobe_path,
                 "-v",
@@ -231,19 +390,19 @@ class VideoDownloader:
 
             probe = json.loads(result.stdout)
 
-            # Check if file has video stream
+            # Verify video stream
             video_streams = [s for s in probe["streams"] if s["codec_type"] == "video"]
             if not video_streams:
                 raise VideoVerificationError("No video streams found")
 
-            # Check if duration is valid
+            # Verify duration
             duration = float(probe["format"].get("duration", 0))
             if duration <= 0:
                 raise VideoVerificationError("Invalid video duration")
 
-            # Check if file is readable
+            # Verify file is readable
             with open(file_path, "rb") as f:
-                f.seek(0, 2)  # Seek to end
+                f.seek(0, 2)
                 if f.tell() == 0:
                     raise VideoVerificationError("Empty file")
 
@@ -280,160 +439,9 @@ class VideoDownloader:
             except Exception as e:
                 logger.error(f"Download attempt {attempt + 1} failed: {str(e)}")
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(
-                        self.RETRY_DELAY * (attempt + 1)
-                    )  # Exponential backoff
+                    await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))
                 else:
                     return False, "", f"All download attempts failed: {str(e)}"
-
-    async def download_video(self, url: str) -> Tuple[bool, str, str]:
-        """Download and process a video"""
-        original_file = None
-        compressed_file = None
-        temp_dir = None
-
-        try:
-            # Create temporary directory for download
-            with temp_path_context() as temp_dir:
-                # Download the video
-                success, file_path, error = await self._safe_download(url, temp_dir)
-                if not success:
-                    return False, "", error
-
-                original_file = file_path
-
-                # Track this download
-                async with self._downloads_lock:
-                    self.active_downloads[url] = original_file
-
-                # Check file size and compress if needed
-                file_size = os.path.getsize(original_file)
-                if file_size > (self.max_file_size * 1024 * 1024):
-                    logger.info(f"Compressing video: {original_file}")
-                    try:
-                        # Get optimal compression parameters
-                        params = self.ffmpeg_mgr.get_compression_params(
-                            original_file, self.max_file_size
-                        )
-                        compressed_file = os.path.join(
-                            self.download_path,
-                            f"compressed_{os.path.basename(original_file)}",
-                        )
-
-                        # Build FFmpeg command with full path
-                        ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
-                        logger.debug(f"Using FFmpeg from: {ffmpeg_path}")
-
-                        # Build command with all parameters
-                        cmd = [ffmpeg_path, "-y"]  # Overwrite output file if it exists
-
-                        # Add input file
-                        cmd.extend(["-i", original_file])
-
-                        # Add all compression parameters
-                        for key, value in params.items():
-                            if key == "c:v" and value == "libx264":
-                                # Use hardware acceleration if available
-                                gpu_info = self.ffmpeg_mgr.gpu_info
-                                if gpu_info["nvidia"]:
-                                    cmd.extend(["-c:v", "h264_nvenc"])
-                                elif gpu_info["amd"]:
-                                    cmd.extend(["-c:v", "h264_amf"])
-                                elif gpu_info["intel"]:
-                                    cmd.extend(["-c:v", "h264_qsv"])
-                                else:
-                                    cmd.extend(["-c:v", "libx264"])
-                            else:
-                                cmd.extend([f"-{key}", str(value)])
-
-                        # Add output file
-                        cmd.append(compressed_file)
-
-                        # Run compression in executor
-                        logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
-                        try:
-                            result = await asyncio.get_event_loop().run_in_executor(
-                                self.download_pool,
-                                lambda: subprocess.run(
-                                    cmd,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    check=True,
-                                ),
-                            )
-                            logger.debug(f"FFmpeg output: {result.stderr.decode()}")
-                        except subprocess.CalledProcessError as e:
-                            error = handle_ffmpeg_error(e.stderr.decode())
-                            logger.error(f"FFmpeg error: {e.stderr.decode()}")
-                            raise error
-
-                        if not os.path.exists(compressed_file):
-                            raise FileNotFoundError(
-                                "Compression completed but file not found"
-                            )
-
-                        # Verify compressed file
-                        if not self._verify_video_file(compressed_file):
-                            raise VideoVerificationError(
-                                "Compressed file is not a valid video"
-                            )
-
-                        compressed_size = os.path.getsize(compressed_file)
-                        if compressed_size <= (self.max_file_size * 1024 * 1024):
-                            await self._safe_delete_file(original_file)
-                            return True, compressed_file, ""
-                        else:
-                            await self._safe_delete_file(compressed_file)
-                            raise CompressionError(
-                                "Failed to compress to target size",
-                                input_size=file_size,
-                                target_size=self.max_file_size * 1024 * 1024,
-                            )
-                    except (
-                        FFmpegError,
-                        VideoVerificationError,
-                        FileNotFoundError,
-                        CompressionError,
-                    ) as e:
-                        if compressed_file and os.path.exists(compressed_file):
-                            await self._safe_delete_file(compressed_file)
-                        return False, "", str(e)
-                    except Exception as e:
-                        if compressed_file and os.path.exists(compressed_file):
-                            await self._safe_delete_file(compressed_file)
-                        logger.error(f"Compression error: {str(e)}")
-                        return False, "", f"Compression error: {str(e)}"
-                else:
-                    # Move file to final location
-                    final_path = os.path.join(
-                        self.download_path, os.path.basename(original_file)
-                    )
-                    # Use safe move with retries
-                    success = await self._safe_move_file(original_file, final_path)
-                    if not success:
-                        return False, "", "Failed to move file to final location"
-                    return True, final_path, ""
-
-        except Exception as e:
-            logger.error(f"Download error: {str(e)}")
-            return False, "", str(e)
-
-        finally:
-            # Clean up
-            async with self._downloads_lock:
-                self.active_downloads.pop(url, None)
-
-            try:
-                if original_file and os.path.exists(original_file):
-                    await self._safe_delete_file(original_file)
-                if (
-                    compressed_file
-                    and os.path.exists(compressed_file)
-                    and not compressed_file.startswith(self.download_path)
-                ):
-                    await self._safe_delete_file(compressed_file)
-            except Exception as e:
-                logger.error(f"Error during file cleanup: {str(e)}")
 
     async def _safe_delete_file(self, file_path: str) -> bool:
         """Safely delete a file with retries"""
@@ -453,9 +461,7 @@ class VideoDownloader:
         """Safely move a file with retries"""
         for attempt in range(self.FILE_OP_RETRIES):
             try:
-                # Ensure destination directory exists
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
-                # Try to move the file
                 shutil.move(src, dst)
                 return True
             except Exception as e:

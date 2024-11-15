@@ -10,37 +10,37 @@ logger = logging.getLogger("VideoArchiver")
 class EncoderParams:
     """Manages FFmpeg encoding parameters based on hardware and content"""
 
-    # Quality presets based on content type
+    # Quality presets based on content type with more conservative settings
     QUALITY_PRESETS = {
         "gaming": {
-            "crf": "20",
-            "preset": "p4",  # NVENC preset
+            "crf": "23",  # Less aggressive compression
+            "preset": "p5",  # More balanced NVENC preset
             "tune": "zerolatency",
             "x264opts": "rc-lookahead=20:me=hex:subme=6:ref=3:b-adapt=1:direct=spatial"
         },
         "animation": {
-            "crf": "18",
-            "preset": "p7",  # NVENC preset
+            "crf": "20",  # Less aggressive compression
+            "preset": "p6",  # More balanced NVENC preset
             "tune": "animation",
-            "x264opts": "rc-lookahead=60:me=umh:subme=9:ref=6:b-adapt=2:direct=auto:deblock=-1,-1"
+            "x264opts": "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto:deblock=-1,-1"
         },
         "film": {
-            "crf": "22",
-            "preset": "p6",  # NVENC preset
+            "crf": "23",  # Less aggressive compression
+            "preset": "p5",  # More balanced NVENC preset
             "tune": "film",
-            "x264opts": "rc-lookahead=50:me=umh:subme=8:ref=4:b-adapt=2:direct=auto"
+            "x264opts": "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto"
         }
     }
 
-    # NVENC specific presets
+    # NVENC specific presets (p1=fastest/lowest quality, p7=slowest/highest quality)
     NVENC_PRESETS = ["p1", "p2", "p3", "p4", "p5", "p6", "p7"]
     # CPU specific presets
     CPU_PRESETS = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
-    # Minimum bitrates to ensure quality
-    MIN_VIDEO_BITRATE = 500_000  # 500 Kbps
-    MIN_AUDIO_BITRATE = 64_000   # 64 Kbps per channel
-    MAX_AUDIO_BITRATE = 192_000  # 192 Kbps per channel
+    # Adjusted minimum bitrates to ensure better quality
+    MIN_VIDEO_BITRATE = 800_000  # 800 Kbps (increased from 500)
+    MIN_AUDIO_BITRATE = 96_000   # 96 Kbps per channel (increased from 64)
+    MAX_AUDIO_BITRATE = 256_000  # 256 Kbps per channel (increased from 192)
 
     def __init__(self, cpu_cores: int, gpu_info: Dict[str, bool]):
         """Initialize encoder parameters manager"""
@@ -66,7 +66,7 @@ class EncoderParams:
                 params.update(gpu_params)
                 # Convert CPU preset to GPU preset if using NVENC
                 if params.get("c:v") == "h264_nvenc" and params.get("preset") in self.CPU_PRESETS:
-                    params["preset"] = "p6"  # Default to p6 for NVENC
+                    params["preset"] = "p5"  # Default to p5 for better balance
                 logger.debug(f"GPU-specific parameters: {gpu_params}")
 
             # Calculate and update bitrate parameters
@@ -90,13 +90,13 @@ class EncoderParams:
         return {
             "c:v": "libx264",  # Default to CPU encoding
             "threads": str(self.cpu_cores),
-            "preset": "medium",
-            "crf": "23",
+            "preset": "medium",  # More balanced preset
+            "crf": "23",  # More balanced CRF
             "movflags": "+faststart",
             "profile:v": "high",
             "level": "4.1",
             "pix_fmt": "yuv420p",
-            "x264opts": "rc-lookahead=60:me=umh:subme=7:ref=4:b-adapt=2:direct=auto",
+            "x264opts": "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto",
             "tune": "film",
             "fastfirstpass": "1"
         }
@@ -118,11 +118,11 @@ class EncoderParams:
         if video_info.get("has_high_motion", False):
             params.update({
                 "tune": "grain",
-                "x264opts": "rc-lookahead=60:me=umh:subme=7:ref=4:b-adapt=2:direct=auto:deblock=-1,-1:psy-rd=1.0:aq-strength=0.8"
+                "x264opts": "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto:deblock=-1,-1:psy-rd=1.0:aq-strength=0.8"
             })
 
         if video_info.get("has_dark_scenes", False):
-            x264opts = params.get("x264opts", "rc-lookahead=60:me=umh:subme=7:ref=4:b-adapt=2:direct=auto")
+            x264opts = params.get("x264opts", "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto")
             params.update({
                 "x264opts": x264opts + ":aq-mode=3:aq-strength=1.0:deblock=1:1",
                 "tune": "film" if not video_info.get("has_high_motion") else "grain"
@@ -131,67 +131,75 @@ class EncoderParams:
         return params
 
     def _get_gpu_specific_params(self) -> Dict[str, str]:
-        """Get GPU-specific encoding parameters"""
+        """Get GPU-specific encoding parameters with improved fallback handling"""
         if self.gpu_info.get("nvidia", False):
             return {
                 "c:v": "h264_nvenc",
-                "preset": "p6",  # Use NVENC preset
+                "preset": "p5",  # More balanced preset
                 "rc:v": "vbr",
-                "cq:v": "19",
+                "cq:v": "23",  # More balanced quality
                 "b_ref_mode": "middle",
                 "spatial-aq": "1",
                 "temporal-aq": "1",
                 "rc-lookahead": "32",
-                "surfaces": "64",
+                "surfaces": "32",  # Reduced from 64 for better stability
                 "max_muxing_queue_size": "1024",
-                "gpu": "any"
+                "gpu": "any",
+                "strict": "normal",  # Less strict mode for better compatibility
+                "weighted_pred": "1",
+                "bluray-compat": "0",  # Disable for better compression
+                "init_qpP": "23"  # Initial P-frame QP
             }
         elif self.gpu_info.get("amd", False):
             return {
                 "c:v": "h264_amf",
-                "quality": "quality",
+                "quality": "balanced",  # Changed from quality to balanced
                 "rc": "vbr_peak",
                 "enforce_hrd": "1",
                 "vbaq": "1",
                 "preanalysis": "1",
-                "max_muxing_queue_size": "1024"
+                "max_muxing_queue_size": "1024",
+                "usage": "transcoding",
+                "profile": "high"
             }
         elif self.gpu_info.get("intel", False):
             return {
                 "c:v": "h264_qsv",
-                "preset": "veryslow",
+                "preset": "medium",  # Changed from veryslow to medium
                 "look_ahead": "1",
                 "global_quality": "23",
-                "max_muxing_queue_size": "1024"
+                "max_muxing_queue_size": "1024",
+                "rdo": "1",
+                "max_frame_size": "0"
             }
         return {}
 
     def _get_bitrate_params(self, video_info: Dict[str, Any], target_size_bytes: int) -> Dict[str, str]:
-        """Calculate and get bitrate-related parameters"""
+        """Calculate and get bitrate-related parameters with more conservative settings"""
         params = {}
         try:
             duration = float(video_info.get("duration", 0))
             if duration <= 0:
                 raise ValueError("Invalid video duration")
 
-            # Calculate target bitrate based on file size
+            # Calculate target bitrate based on file size with more conservative approach
             total_bitrate = int((target_size_bytes * 8) / duration)
 
             # Handle audio bitrate
             audio_channels = int(video_info.get("audio_channels", 2))
             audio_bitrate = min(
                 self.MAX_AUDIO_BITRATE * audio_channels,
-                max(self.MIN_AUDIO_BITRATE * audio_channels, int(total_bitrate * 0.1))
+                max(self.MIN_AUDIO_BITRATE * audio_channels, int(total_bitrate * 0.15))  # Increased from 0.1
             )
 
             # Calculate video bitrate, ensuring it doesn't go below minimum
             video_bitrate = max(self.MIN_VIDEO_BITRATE, total_bitrate - audio_bitrate)
 
-            # Set video bitrate constraints
+            # Set video bitrate constraints with more conservative buffer
             params.update({
                 "b:v": f"{int(video_bitrate)}",
-                "maxrate": f"{int(video_bitrate * 1.5)}",
-                "bufsize": f"{int(video_bitrate * 2)}"
+                "maxrate": f"{int(video_bitrate * 1.3)}",  # Reduced from 1.5
+                "bufsize": f"{int(video_bitrate * 1.5)}"   # Reduced from 2.0
             })
 
             # Set audio parameters
@@ -202,19 +210,19 @@ class EncoderParams:
                 "ac": str(audio_channels)
             })
 
-            # Adjust quality based on target size
+            # Adjust quality based on target size with more conservative thresholds
             input_bitrate = int(video_info.get("bitrate", 0))
             if input_bitrate > 0:
                 compression_ratio = input_bitrate / video_bitrate
                 if compression_ratio > 4:
-                    params["crf"] = "26"
+                    params["crf"] = "24"  # Less aggressive than 26
                     params["preset"] = "p4" if self.gpu_info.get("nvidia", False) else "faster"
                 elif compression_ratio > 2:
                     params["crf"] = "23"
-                    params["preset"] = "p6" if self.gpu_info.get("nvidia", False) else "medium"
+                    params["preset"] = "p5" if self.gpu_info.get("nvidia", False) else "medium"
                 else:
-                    params["crf"] = "20"
-                    params["preset"] = "p7" if self.gpu_info.get("nvidia", False) else "slow"
+                    params["crf"] = "21"  # Less aggressive than 20
+                    params["preset"] = "p6" if self.gpu_info.get("nvidia", False) else "slow"
 
             logger.info(f"Calculated bitrates - Video: {video_bitrate}bps, Audio: {audio_bitrate}bps")
             return params
@@ -298,5 +306,7 @@ class EncoderParams:
             "c:a": "aac",
             "b:a": "128k",
             "ar": "48000",
-            "ac": "2"
+            "ac": "2",
+            "threads": str(self.cpu_cores),
+            "x264opts": "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto"
         }
