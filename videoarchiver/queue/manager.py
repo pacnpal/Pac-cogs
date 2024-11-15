@@ -139,6 +139,9 @@ class EnhancedVideoQueueManager:
             processor: Function that processes queue items
         """
         logger.info("Queue processor started")
+        last_persist_time = time.time()
+        persist_interval = 60  # Persist state every 60 seconds instead of every operation
+        
         while not self._shutdown:
             try:
                 # Get next item from queue
@@ -149,7 +152,8 @@ class EnhancedVideoQueueManager:
                         self._processing[item.url] = item
 
                 if not item:
-                    await asyncio.sleep(1)
+                    # Use shorter sleep when queue is empty
+                    await asyncio.sleep(0.1)
                     continue
 
                 try:
@@ -200,8 +204,9 @@ class EnhancedVideoQueueManager:
                             error=str(e)
                         )
 
-                # Persist state if enabled
-                if self.persistence:
+                # Persist state if enabled and interval has passed
+                current_time = time.time()
+                if self.persistence and (current_time - last_persist_time) >= persist_interval:
                     await self.persistence.persist_queue_state(
                         self._queue,
                         self._processing,
@@ -209,12 +214,14 @@ class EnhancedVideoQueueManager:
                         self._failed,
                         self.metrics
                     )
+                    last_persist_time = current_time
 
             except Exception as e:
                 logger.error(f"Critical error in queue processor: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)  # Brief pause on error before retrying
 
-            await asyncio.sleep(0.1)
+            # Allow other tasks to run between iterations
+            await asyncio.sleep(0)
 
         logger.info("Queue processor stopped")
 
