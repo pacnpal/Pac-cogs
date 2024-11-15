@@ -1,7 +1,8 @@
 """Birthday cog for Red-DiscordBot"""
 from redbot.core.bot import Red
 import logging
-from .birthday import Birthday
+import discord
+from .birthday import Birthday, birthday_context_menu
 
 logger = logging.getLogger("Birthday")
 
@@ -10,6 +11,8 @@ async def setup(bot: Red) -> None:
     try:
         cog = Birthday(bot)
         await bot.add_cog(cog)
+        # Add context menu command
+        bot.tree.add_command(birthday_context_menu)
         # Initialize scheduled tasks
         try:
             await cog.reload_scheduled_tasks()
@@ -26,6 +29,8 @@ async def teardown(bot: Red) -> None:
     try:
         if "Birthday" in bot.cogs:
             await bot.remove_cog("Birthday")
+        # Remove context menu command
+        bot.tree.remove_command("Give Birthday Role", type=discord.AppCommandType.user)
     except Exception as e:
         logger.error(f"Error during teardown: {str(e)}")
         raise

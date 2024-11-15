@@ -6,6 +6,65 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import random
 
+# Define context menu command outside the class
+@app_commands.context_menu(name="Give Birthday Role")
+async def birthday_context_menu(interaction: discord.Interaction, member: discord.Member):
+    cog = interaction.client.get_cog("Birthday")
+    if not cog:
+        await interaction.response.send_message("Birthday cog is not loaded.", ephemeral=True)
+        return
+
+    # Check if the user has permission to use this command
+    allowed_roles = await cog.config.guild(interaction.guild).allowed_roles()
+    if not any(role.id in allowed_roles for role in interaction.user.roles):
+        return await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+
+    birthday_role_id = await cog.config.guild(interaction.guild).birthday_role()
+    if not birthday_role_id:
+        return await interaction.response.send_message("The birthday role hasn't been set. An admin needs to set it using `/setrole`.", ephemeral=True)
+    
+    birthday_role = interaction.guild.get_role(birthday_role_id)
+    if not birthday_role:
+        return await interaction.response.send_message("The birthday role doesn't exist anymore. Please ask an admin to set it again.", ephemeral=True)
+
+    # Assign the role, ignoring hierarchy
+    try:
+        await member.add_roles(birthday_role, reason="Birthday role")
+    except discord.Forbidden:
+        return await interaction.response.send_message("I don't have permission to assign that role.", ephemeral=True)
+
+    # Generate birthday message with random cakes (or pie)
+    cakes = random.randint(0, 5)
+    if cakes == 0:
+        message = f"🎉 Happy Birthday, {member.mention}! Sorry, out of cake today! Here's pie instead: 🥧"
+    else:
+        message = f"🎉 Happy Birthday, {member.mention}! Here's your cake{'s' if cakes > 1 else ''}: " + "🎂" * cakes
+
+    # Get the birthday announcement channel
+    birthday_channel_id = await cog.config.guild(interaction.guild).birthday_channel()
+    if birthday_channel_id:
+        channel = interaction.client.get_channel(birthday_channel_id)
+        if not channel:  # If the set channel doesn't exist anymore
+            channel = interaction.channel
+    else:
+        channel = interaction.channel
+
+    await channel.send(message)
+    await interaction.response.send_message("Birthday role assigned!", ephemeral=True)
+
+    # Schedule role removal
+    timezone = await cog.config.guild(interaction.guild).timezone()
+    try:
+        tz = ZoneInfo(timezone)
+    except ZoneInfoNotFoundError:
+        await interaction.followup.send("Warning: Invalid timezone set. Defaulting to UTC.", ephemeral=True)
+        tz = ZoneInfo("UTC")
+
+    now = datetime.now(tz)
+    midnight = datetime.combine(now.date() + timedelta(days=1), time.min).replace(tzinfo=tz)
+
+    await cog.schedule_birthday_role_removal(interaction.guild, member, birthday_role, midnight)
+
 class Birthday(commands.Cog):
     """A cog to assign a birthday role until midnight in a specified timezone."""
 
