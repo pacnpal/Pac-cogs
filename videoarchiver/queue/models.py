@@ -12,6 +12,67 @@ logging.basicConfig(
 logger = logging.getLogger("QueueModels")
 
 @dataclass
+class QueueItem:
+    """Represents an item in the video processing queue"""
+    
+    url: str
+    message_id: str
+    channel_id: str
+    user_id: str
+    added_at: datetime = field(default_factory=datetime.utcnow)
+    status: str = "pending"
+    retries: int = 0
+    last_retry: Optional[datetime] = None
+    last_error: Optional[str] = None
+    last_error_time: Optional[datetime] = None
+    processing_time: float = 0.0
+    output_path: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        """Convert string dates to datetime objects after initialization"""
+        if isinstance(self.added_at, str):
+            try:
+                self.added_at = datetime.fromisoformat(self.added_at)
+            except ValueError:
+                self.added_at = datetime.utcnow()
+        elif not isinstance(self.added_at, datetime):
+            self.added_at = datetime.utcnow()
+
+        if isinstance(self.last_retry, str):
+            try:
+                self.last_retry = datetime.fromisoformat(self.last_retry)
+            except ValueError:
+                self.last_retry = None
+        elif not isinstance(self.last_retry, datetime):
+            self.last_retry = None
+
+        if isinstance(self.last_error_time, str):
+            try:
+                self.last_error_time = datetime.fromisoformat(self.last_error_time)
+            except ValueError:
+                self.last_error_time = None
+        elif not isinstance(self.last_error_time, datetime):
+            self.last_error_time = None
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary with datetime handling"""
+        data = asdict(self)
+        # Convert datetime objects to ISO format strings
+        if self.added_at:
+            data['added_at'] = self.added_at.isoformat()
+        if self.last_retry:
+            data['last_retry'] = self.last_retry.isoformat()
+        if self.last_error_time:
+            data['last_error_time'] = self.last_error_time.isoformat()
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'QueueItem':
+        """Create from dictionary with datetime handling"""
+        return cls(**data)
+
+@dataclass
 class QueueMetrics:
     """Metrics tracking for queue performance and health"""
 
@@ -28,6 +89,26 @@ class QueueMetrics:
     processing_times: List[float] = field(default_factory=list)
     compression_failures: int = 0
     hardware_accel_failures: int = 0
+
+    def __post_init__(self):
+        """Convert string dates to datetime objects after initialization"""
+        # Handle last_error_time conversion
+        if isinstance(self.last_error_time, str):
+            try:
+                self.last_error_time = datetime.fromisoformat(self.last_error_time)
+            except (ValueError, TypeError):
+                self.last_error_time = None
+        elif not isinstance(self.last_error_time, datetime):
+            self.last_error_time = None
+
+        # Handle last_cleanup conversion
+        if isinstance(self.last_cleanup, str):
+            try:
+                self.last_cleanup = datetime.fromisoformat(self.last_cleanup)
+            except (ValueError, TypeError):
+                self.last_cleanup = datetime.utcnow()
+        elif not isinstance(self.last_cleanup, datetime):
+            self.last_cleanup = datetime.utcnow()
 
     def update(self, processing_time: float, success: bool, error: str = None):
         """Update metrics with new processing information"""
@@ -67,84 +148,28 @@ class QueueMetrics:
             else 0.0
         )
 
-@dataclass
-class QueueItem:
-    """Represents a video processing task in the queue"""
-
-    url: str
-    message_id: int
-    channel_id: int
-    guild_id: int
-    author_id: int
-    added_at: datetime
-    priority: int = 0  # Higher number = higher priority
-    status: str = "pending"  # pending, processing, completed, failed
-    error: Optional[str] = None
-    attempt: int = 0
-    _processing_time: float = 0.0  # Use private field for processing_time
-    size_bytes: int = 0
-    last_error: Optional[str] = None
-    retry_count: int = 0
-    last_retry: Optional[datetime] = None
-    processing_times: List[float] = field(default_factory=list)
-    last_error_time: Optional[datetime] = None
-    hardware_accel_attempted: bool = False
-    compression_attempted: bool = False
-    original_message: Optional[Any] = None  # Store the original message reference
-
-    @property
-    def processing_time(self) -> float:
-        """Get processing time as float"""
-        return self._processing_time
-
-    @processing_time.setter
-    def processing_time(self, value: Any) -> None:
-        """Set processing time, ensuring it's always a float"""
-        try:
-            if isinstance(value, str):
-                self._processing_time = float(value)
-            elif isinstance(value, (int, float)):
-                self._processing_time = float(value)
-            else:
-                self._processing_time = 0.0
-        except (ValueError, TypeError):
-            self._processing_time = 0.0
-
     def to_dict(self) -> dict:
         """Convert to dictionary with datetime handling"""
         data = asdict(self)
         # Convert datetime objects to ISO format strings
-        if self.added_at:
-            data['added_at'] = self.added_at.isoformat()
-        if self.last_retry:
-            data['last_retry'] = self.last_retry.isoformat()
         if self.last_error_time:
             data['last_error_time'] = self.last_error_time.isoformat()
-        # Convert _processing_time to processing_time in dict
-        data['processing_time'] = self.processing_time
-        data.pop('_processing_time', None)
+        if self.last_cleanup:
+            data['last_cleanup'] = self.last_cleanup.isoformat()
         return data
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'QueueItem':
+    def from_dict(cls, data: dict) -> 'QueueMetrics':
         """Create from dictionary with datetime handling"""
         # Convert ISO format strings back to datetime objects
-        if 'added_at' in data and isinstance(data['added_at'], str):
-            data['added_at'] = datetime.fromisoformat(data['added_at'])
-        if 'last_retry' in data and isinstance(data['last_retry'], str):
-            data['last_retry'] = datetime.fromisoformat(data['last_retry'])
         if 'last_error_time' in data and isinstance(data['last_error_time'], str):
-            data['last_error_time'] = datetime.fromisoformat(data['last_error_time'])
-        # Handle processing_time conversion
-        if 'processing_time' in data:
             try:
-                if isinstance(data['processing_time'], str):
-                    data['_processing_time'] = float(data['processing_time'])
-                elif isinstance(data['processing_time'], (int, float)):
-                    data['_processing_time'] = float(data['processing_time'])
-                else:
-                    data['_processing_time'] = 0.0
-            except (ValueError, TypeError):
-                data['_processing_time'] = 0.0
-            data.pop('processing_time', None)
+                data['last_error_time'] = datetime.fromisoformat(data['last_error_time'])
+            except ValueError:
+                data['last_error_time'] = None
+        if 'last_cleanup' in data and isinstance(data['last_cleanup'], str):
+            try:
+                data['last_cleanup'] = datetime.fromisoformat(data['last_cleanup'])
+            except ValueError:
+                data['last_cleanup'] = datetime.utcnow()
         return cls(**data)
