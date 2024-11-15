@@ -17,13 +17,7 @@ class Overseerr(commands.Cog):
         }
         self.config.register_global(**default_global)
 
-    overseerr = app_commands.Group(
-        name="overseerr",
-        description="Overseerr configuration commands",
-        guild_only=True
-    )
-
-    @overseerr.command(name="url")
+    @app_commands.command(name="seturl")
     @app_commands.guild_only()
     @app_commands.describe(url="The URL of your Overseerr instance")
     @commands.admin()
@@ -33,7 +27,7 @@ class Overseerr(commands.Cog):
         await self.config.overseerr_url.set(url)
         await interaction.response.send_message(f"Overseerr URL set to: {url}")
 
-    @overseerr.command(name="apikey")
+    @app_commands.command(name="setapikey")
     @app_commands.guild_only()
     @app_commands.describe(api_key="Your Overseerr API key")
     @commands.admin()
@@ -42,7 +36,7 @@ class Overseerr(commands.Cog):
         await self.config.overseerr_api_key.set(api_key)
         await interaction.response.send_message("Overseerr API key has been set.")
 
-    @overseerr.command(name="adminrole")
+    @app_commands.command(name="setadminrole")
     @app_commands.guild_only()
     @app_commands.describe(role_name="The name of the admin role")
     @commands.admin()
@@ -60,7 +54,7 @@ class Overseerr(commands.Cog):
         overseerr_api_key = await self.config.overseerr_api_key()
 
         if not overseerr_url or not overseerr_api_key:
-            await interaction.response.send_message("Overseerr is not configured. Please ask an admin to set it up using `/overseerr url` and `/overseerr apikey`.", ephemeral=True)
+            await interaction.response.send_message("Overseerr is not configured. Please ask an admin to set it up using `/seturl` and `/setapikey`.", ephemeral=True)
             return
 
         search_url = f"{overseerr_url}/api/v1/search"
@@ -179,7 +173,7 @@ class Overseerr(commands.Cog):
         overseerr_api_key = await self.config.overseerr_api_key()
         
         if not overseerr_url or not overseerr_api_key:
-            await interaction.response.send_message("Overseerr is not configured. Please ask an admin to set it up using `/overseerr url` and `/overseerr apikey`.", ephemeral=True)
+            await interaction.response.send_message("Overseerr is not configured. Please ask an admin to set it up using `/seturl` and `/setapikey`.", ephemeral=True)
             return
 
         approve_url = f"{overseerr_url}/api/v1/request/{request_id}/approve"
@@ -210,6 +204,3 @@ class Overseerr(commands.Cog):
                         status += " (Requested)"
                     return status
                 return "Status Unknown"
-
-async def setup(bot: Red):
-    await bot.add_cog(Overseerr(bot))
