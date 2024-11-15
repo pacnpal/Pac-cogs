@@ -112,20 +112,20 @@ class Birthday(commands.Cog):
         await self.config.guild(ctx.guild).birthday_channel.set(channel.id)
         await ctx.send(f"Birthday announcement channel set to {channel.mention}")
 
-    @commands.hybrid_command(name="addrole")
+    @commands.hybrid_command(name="birthdayallowrole")
     @app_commands.guild_only()
     @app_commands.describe(role="The role to allow using the birthday command")
-    async def add_allowed_role(self, ctx: commands.Context, role: discord.Role):
+    async def birthday_allow_role(self, ctx: commands.Context, role: discord.Role):
         """Add a role that can use the birthday command."""
         async with self.config.guild(ctx.guild).allowed_roles() as allowed_roles:
             if role.id not in allowed_roles:
                 allowed_roles.append(role.id)
         await ctx.send(f"Added {role.name} to the list of roles that can use the birthday command.")
 
-    @commands.hybrid_command(name="removerole")
+    @commands.hybrid_command(name="birthdayremoverole")
     @app_commands.guild_only()
     @app_commands.describe(role="The role to remove from using the birthday command")
-    async def remove_allowed_role(self, ctx: commands.Context, role: discord.Role):
+    async def birthday_remove_role(self, ctx: commands.Context, role: discord.Role):
         """Remove a role from using the birthday command."""
         async with self.config.guild(ctx.guild).allowed_roles() as allowed_roles:
             if role.id in allowed_roles:

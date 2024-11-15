@@ -293,7 +293,9 @@ class VideoProcessor:
                 for word in words:
                     # Try each extractor
                     for ie in ydl._ies:
-                        if ie.suitable(word):
+                        # Use suitable as a classmethod and check the result
+                        result = ie.suitable(word)
+                        if result and not isinstance(result, str):
                             urls.append(word)
                             break  # Stop once we find a matching extractor
         except Exception as e:

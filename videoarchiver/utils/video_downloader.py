@@ -93,7 +93,7 @@ class VideoDownloader:
         try:
             with yt_dlp.YoutubeDL() as ydl:
                 for extractor in ydl._ies:
-                    if hasattr(extractor, "_VALID_URL") and extractor._VALID_URL:
+                    if hasattr(extractor, '_VALID_URL') and extractor._VALID_URL:
                         if not self.enabled_sites or any(
                             site.lower() in extractor.IE_NAME.lower()
                             for site in self.enabled_sites
@@ -313,8 +313,8 @@ class VideoDownloader:
                             for site in self.enabled_sites
                         ):
                             continue
-                        # Try to match URL
-                        if extractor.suitable(url):
+                        # Try to match URL using the class method
+                        if extractor.suitable(url) and not isinstance(extractor.suitable(url), str):
                             return True
                 return False
         except Exception as e:
