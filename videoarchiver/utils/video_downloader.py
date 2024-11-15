@@ -54,8 +54,8 @@ def is_video_url_pattern(url: str) -> bool:
 
 
 class VideoDownloader:
-    MAX_RETRIES = 3
-    RETRY_DELAY = 5  # seconds
+    MAX_RETRIES = 5  # Increased from 3
+    RETRY_DELAY = 10  # Increased from 5
     FILE_OP_RETRIES = 3
     FILE_OP_RETRY_DELAY = 1  # seconds
 
@@ -66,7 +66,7 @@ class VideoDownloader:
         max_quality: int,
         max_file_size: int,
         enabled_sites: Optional[List[str]] = None,
-        concurrent_downloads: int = 3,
+        concurrent_downloads: int = 2,  # Reduced from 3
         ffmpeg_mgr: Optional[FFmpegManager] = None,
     ):
         # Ensure download path exists with proper permissions
@@ -86,7 +86,7 @@ class VideoDownloader:
 
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
-            max_workers=max(1, min(5, concurrent_downloads)),
+            max_workers=max(1, min(3, concurrent_downloads)),
             thread_name_prefix="videoarchiver_download",
         )
 
@@ -102,7 +102,7 @@ class VideoDownloader:
             "quiet": True,
             "no_warnings": True,
             "extract_flat": True,
-            "concurrent_fragment_downloads": concurrent_downloads,
+            "concurrent_fragment_downloads": 1,  # Reduced from default
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
             "file_access_retries": self.FILE_OP_RETRIES,
@@ -116,11 +116,14 @@ class VideoDownloader:
             "ignoreerrors": True,
             "no_color": True,
             "geo_bypass": True,
-            "socket_timeout": 30,
-            "http_chunk_size": 10485760,  # 10MB chunks for better stability
+            "socket_timeout": 60,  # Increased from 30
+            "http_chunk_size": 1048576,  # Reduced to 1MB chunks for better stability
             "external_downloader_args": {
-                "ffmpeg": ["-timeout", "30000000"]  # 30 second timeout
-            }
+                "ffmpeg": ["-timeout", "60000000"]  # Increased to 60 seconds
+            },
+            "max_sleep_interval": 5,  # Maximum time to sleep between retries
+            "sleep_interval": 1,  # Initial sleep interval
+            "max_filesize": max_file_size * 1024 * 1024,  # Set max file size limit
         }
 
     def is_supported_url(self, url: str) -> bool:
@@ -174,7 +177,7 @@ class VideoDownloader:
         url: str,
         progress_callback: Optional[Callable[[float], None]] = None
     ) -> Tuple[bool, str, str]:
-        """Download and process a video with improved error handling and retry logic"""
+        """Download and process a video with improved error handling"""
         original_file = None
         compressed_file = None
         temp_dir = None
@@ -230,7 +233,9 @@ class VideoDownloader:
 
                         if not success:
                             raise CompressionError(
-                                "Failed to compress with both hardware and CPU encoding"
+                                "Failed to compress with both hardware and CPU encoding",
+                                file_size,
+                                self.max_file_size * 1024 * 1024
                             )
 
                         # Verify compressed file
@@ -247,8 +252,8 @@ class VideoDownloader:
                             await self._safe_delete_file(compressed_file)
                             raise CompressionError(
                                 "Failed to compress to target size",
-                                input_size=file_size,
-                                target_size=self.max_file_size * 1024 * 1024,
+                                file_size,
+                                self.max_file_size * 1024 * 1024,
                             )
 
                     except Exception as e:
@@ -400,7 +405,13 @@ class VideoDownloader:
                 percent = float(d.get("_percent_str", "0").replace('%', ''))
                 speed = d.get("_speed_str", "N/A")
                 eta = d.get("_eta_str", "N/A")
-                logger.debug(f"Download progress: {percent}% at {speed}, ETA: {eta}")
+                downloaded = d.get("downloaded_bytes", 0)
+                total = d.get("total_bytes", 0) or d.get("total_bytes_estimate", 0)
+                
+                logger.debug(
+                    f"Download progress: {percent}% at {speed}, "
+                    f"ETA: {eta}, Downloaded: {downloaded}/{total} bytes"
+                )
             except Exception as e:
                 logger.debug(f"Error logging progress: {str(e)}")
 
@@ -461,6 +472,7 @@ class VideoDownloader:
         progress_callback: Optional[Callable[[float], None]] = None
     ) -> Tuple[bool, str, str]:
         """Safely download video with retries"""
+        last_error = None
         for attempt in range(self.MAX_RETRIES):
             try:
                 ydl_opts = self.ydl_opts.copy()
@@ -497,11 +509,14 @@ class VideoDownloader:
                 return True, file_path, ""
 
             except Exception as e:
+                last_error = str(e)
                 logger.error(f"Download attempt {attempt + 1} failed: {str(e)}")
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))
+                    # Exponential backoff with jitter
+                    delay = self.RETRY_DELAY * (2 ** attempt) + (attempt * 2)
+                    await asyncio.sleep(delay)
                 else:
-                    return False, "", f"All download attempts failed: {str(e)}"
+                    return False, "", f"All download attempts failed: {last_error}"
 
     async def _safe_delete_file(self, file_path: str) -> bool:
         """Safely delete a file with retries"""
