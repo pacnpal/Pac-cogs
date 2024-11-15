@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 
 from .message_handler import MessageHandler
 from .queue_handler import QueueHandler
@@ -47,6 +47,10 @@ class VideoProcessor:
         # Queue processing is managed by VideoArchiver class
         self._queue_task = None
         logger.info("VideoProcessor initialized successfully")
+
+    async def process_video(self, item) -> Tuple[bool, Optional[str]]:
+        """Process a video from the queue by delegating to queue handler"""
+        return await self.queue_handler.process_video(item)
 
     async def process_message(self, message: discord.Message) -> None:
         """Process a message for video content"""
