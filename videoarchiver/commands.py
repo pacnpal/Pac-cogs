@@ -17,8 +17,8 @@ class VideoArchiverCommands(commands.Cog):
 
     async def cog_load(self) -> None:
         """Initialize commands when cog loads"""
-        # Ensure all commands are synced for slash command support
-        await self.bot.sync_commands()
+        # Red-DiscordBot handles command syncing automatically
+        pass
 
     @commands.hybrid_group(name="videoarchiver", aliases=["va"])
     @commands.guild_only()

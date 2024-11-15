@@ -124,9 +124,6 @@ class VideoArchiver(VideoArchiverCommands):
             # Wait for initialization to complete
             await asyncio.wait_for(self.ready.wait(), timeout=30)
             
-            # Sync commands for slash command support
-            await self.bot.sync_commands()
-            
         except asyncio.TimeoutError:
             await self._cleanup()
             raise ProcessingError("Cog initialization timed out")
