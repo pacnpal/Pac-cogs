@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple, Callable, Any
 import asyncio
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.file_ops import secure_delete_file, cleanup_downloads
@@ -25,14 +26,16 @@ class VideoProcessor:
         self.components = components
         
         # Initialize enhanced queue manager with persistence and error recovery
-        queue_path = os.path.join(os.path.dirname(__file__), "data", "queue_state.json")
+        data_dir = Path(os.path.dirname(__file__)) / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        queue_path = data_dir / "queue_state.json"
         self.queue_manager = EnhancedVideoQueueManager(
             max_retries=3,
             retry_delay=5,
             max_queue_size=1000,
             cleanup_interval=1800,  # 30 minutes (reduced from 1 hour for more frequent cleanup)
             max_history_age=86400,  # 24 hours
-            persistence_path=queue_path
+            persistence_path=str(queue_path)
         )
 
         # Track failed downloads for cleanup
