@@ -11,7 +11,7 @@ import asyncio
 # Set up logging
 logger = logging.getLogger("red.birthday")
 
-# Define context menu command outside the class
+# Define context menu commands outside the class
 @app_commands.context_menu(name="Give Birthday Role")
 async def birthday_context_menu(interaction: discord.Interaction, member: discord.Member):
     try:
@@ -91,6 +91,62 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
         except:
             pass
 
+@app_commands.context_menu(name="Remove Birthday Role")
+async def remove_birthday_context_menu(interaction: discord.Interaction, member: discord.Member):
+    try:
+        # Defer the response immediately to prevent timeout
+        await interaction.response.defer(ephemeral=True)
+        
+        cog = interaction.client.get_cog("Birthday")
+        if not cog:
+            logger.error("Birthday cog not loaded during context menu execution")
+            await interaction.followup.send("Birthday cog is not loaded.", ephemeral=True)
+            return
+
+        # Check if the user has permission to use this command
+        allowed_roles = await cog.config.guild(interaction.guild).allowed_roles()
+        if not any(role.id in allowed_roles for role in interaction.user.roles):
+            logger.warning(f"User {interaction.user.id} attempted to remove birthday role without permission")
+            return await interaction.followup.send("You don't have permission to use this command.", ephemeral=True)
+
+        birthday_role_id = await cog.config.guild(interaction.guild).birthday_role()
+        if not birthday_role_id:
+            logger.error(f"Birthday role not set for guild {interaction.guild.id}")
+            return await interaction.followup.send("The birthday role hasn't been set.", ephemeral=True)
+
+        birthday_role = interaction.guild.get_role(birthday_role_id)
+        if not birthday_role:
+            logger.error(f"Birthday role {birthday_role_id} not found in guild {interaction.guild.id}")
+            return await interaction.followup.send("The birthday role doesn't exist anymore.", ephemeral=True)
+
+        if birthday_role not in member.roles:
+            return await interaction.followup.send(f"{member.display_name} doesn't have the birthday role.", ephemeral=True)
+
+        try:
+            await member.remove_roles(birthday_role, reason="Birthday role manually removed")
+            logger.info(f"Birthday role manually removed from {member.id} in guild {interaction.guild.id}")
+        except discord.Forbidden:
+            logger.error(f"Failed to remove birthday role from {member.id} in guild {interaction.guild.id}: Insufficient permissions")
+            return await interaction.followup.send("I don't have permission to remove that role.", ephemeral=True)
+        except discord.HTTPException as e:
+            logger.error(f"Failed to remove birthday role from {member.id} in guild {interaction.guild.id}: {str(e)}")
+            return await interaction.followup.send("Failed to remove the birthday role due to a Discord error.", ephemeral=True)
+
+        # Remove scheduled task if it exists
+        if str(member.id) in (await cog.config.guild(interaction.guild).scheduled_tasks()):
+            await cog.config.guild(interaction.guild).scheduled_tasks.clear_raw(str(member.id))
+            if interaction.guild.id in cog.birthday_tasks:
+                cog.birthday_tasks[interaction.guild.id].cancel()
+                del cog.birthday_tasks[interaction.guild.id]
+
+        await interaction.followup.send(f"Birthday role removed from {member.display_name}!", ephemeral=True)
+    except Exception as e:
+        logger.error(f"Unexpected error in remove birthday context menu: {str(e)}", exc_info=True)
+        try:
+            await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
+        except:
+            pass
+
 class Birthday(commands.Cog):
     """A cog to assign a birthday role until midnight in a specified timezone."""
 
@@ -107,6 +163,8 @@ class Birthday(commands.Cog):
         self.config.register_guild(**default_guild)
         self.birthday_tasks = {}
         self.cleanup_task = None
+        self.bot.tree.add_command(birthday_context_menu)
+        self.bot.tree.add_command(remove_birthday_context_menu)
         self.bot.loop.create_task(self.initialize())
 
     async def initialize(self):
@@ -121,6 +179,8 @@ class Birthday(commands.Cog):
             self.cleanup_task.cancel()
         for task in self.birthday_tasks.values():
             task.cancel()
+        self.bot.tree.remove_command(birthday_context_menu.name, type=discord.AppCommandType.user)
+        self.bot.tree.remove_command(remove_birthday_context_menu.name, type=discord.AppCommandType.user)
 
     @commands.hybrid_command(name="removebirthday")
     @app_commands.guild_only()
@@ -223,7 +283,6 @@ class Birthday(commands.Cog):
             finally:
                 await asyncio.sleep(3600)  # Wait an hour before next check
 
-    # [Previous commands remain unchanged...]
     @commands.hybrid_command(name="setrole")
     @app_commands.guild_only()
     @app_commands.describe(role="The role to set as the birthday role")
