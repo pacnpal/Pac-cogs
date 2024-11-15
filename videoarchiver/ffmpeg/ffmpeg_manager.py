@@ -5,10 +5,30 @@ import platform
 import multiprocessing
 import logging
 import subprocess
+import traceback
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from videoarchiver.ffmpeg.exceptions import FFmpegError
+from videoarchiver.ffmpeg.exceptions import (
+    FFmpegError,
+    DownloadError,
+    VerificationError,
+    EncodingError,
+    AnalysisError,
+    GPUError,
+    HardwareAccelerationError,
+    FFmpegNotFoundError,
+    FFprobeError,
+    CompressionError,
+    FormatError,
+    PermissionError,
+    TimeoutError,
+    ResourceError,
+    QualityError,
+    AudioError,
+    BitrateError,
+    handle_ffmpeg_error
+)
 from videoarchiver.ffmpeg.gpu_detector import GPUDetector
 from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
 from videoarchiver.ffmpeg.encoder_params import EncoderParams
@@ -59,6 +79,13 @@ class FFmpegManager:
                 logger.info(f"Found existing FFmpeg: {self.downloader.ffmpeg_path}")
                 logger.info(f"Found existing FFprobe: {self.downloader.ffprobe_path}")
                 if self.downloader.verify():
+                    # Set executable permissions
+                    if platform.system() != "Windows":
+                        try:
+                            os.chmod(str(self.downloader.ffmpeg_path), 0o755)
+                            os.chmod(str(self.downloader.ffprobe_path), 0o755)
+                        except Exception as e:
+                            raise PermissionError(f"Failed to set binary permissions: {e}")
                     return {
                         "ffmpeg": self.downloader.ffmpeg_path,
                         "ffprobe": self.downloader.ffprobe_path
@@ -68,9 +95,13 @@ class FFmpegManager:
 
             # Download and verify binaries
             logger.info("Downloading FFmpeg and FFprobe...")
-            binaries = self.downloader.download()
+            try:
+                binaries = self.downloader.download()
+            except Exception as e:
+                raise DownloadError(f"Failed to download FFmpeg: {e}")
+
             if not self.downloader.verify():
-                raise FFmpegError("Downloaded binaries are not functional")
+                raise VerificationError("Downloaded binaries are not functional")
                 
             # Set executable permissions
             try:
@@ -78,12 +109,14 @@ class FFmpegManager:
                     os.chmod(str(binaries["ffmpeg"]), 0o755)
                     os.chmod(str(binaries["ffprobe"]), 0o755)
             except Exception as e:
-                logger.error(f"Failed to set binary permissions: {e}")
+                raise PermissionError(f"Failed to set binary permissions: {e}")
                 
             return binaries
             
         except Exception as e:
             logger.error(f"Failed to initialize binaries: {e}")
+            if isinstance(e, (DownloadError, VerificationError, PermissionError)):
+                raise
             raise FFmpegError(f"Failed to initialize binaries: {e}")
 
     def _verify_ffmpeg(self) -> None:
@@ -91,41 +124,61 @@ class FFmpegManager:
         try:
             # Check FFmpeg version
             version_cmd = [str(self.ffmpeg_path), "-version"]
-            result = subprocess.run(
-                version_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10
-            )
+            try:
+                result = subprocess.run(
+                    version_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=10
+                )
+            except subprocess.TimeoutExpired:
+                raise TimeoutError("FFmpeg version check timed out")
+
             if result.returncode != 0:
-                raise FFmpegError("FFmpeg version check failed")
+                error = handle_ffmpeg_error(result.stderr)
+                logger.error(f"FFmpeg version check failed: {result.stderr}")
+                raise error
+
             logger.info(f"FFmpeg version: {result.stdout.split()[2]}")
 
             # Check FFprobe version
             probe_cmd = [str(self.ffprobe_path), "-version"]
-            result = subprocess.run(
-                probe_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10
-            )
+            try:
+                result = subprocess.run(
+                    probe_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=10
+                )
+            except subprocess.TimeoutExpired:
+                raise TimeoutError("FFprobe version check timed out")
+
             if result.returncode != 0:
-                raise FFmpegError("FFprobe version check failed")
+                error = handle_ffmpeg_error(result.stderr)
+                logger.error(f"FFprobe version check failed: {result.stderr}")
+                raise error
+
             logger.info(f"FFprobe version: {result.stdout.split()[2]}")
 
             # Check FFmpeg capabilities
             caps_cmd = [str(self.ffmpeg_path), "-hide_banner", "-encoders"]
-            result = subprocess.run(
-                caps_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=10
-            )
+            try:
+                result = subprocess.run(
+                    caps_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=10
+                )
+            except subprocess.TimeoutExpired:
+                raise TimeoutError("FFmpeg capabilities check timed out")
+
             if result.returncode != 0:
-                raise FFmpegError("FFmpeg capabilities check failed")
+                error = handle_ffmpeg_error(result.stderr)
+                logger.error(f"FFmpeg capabilities check failed: {result.stderr}")
+                raise error
 
             # Verify encoders
             required_encoders = ["libx264"]
@@ -144,13 +197,16 @@ class FFmpegManager:
             
             if missing_encoders:
                 logger.warning(f"Missing encoders: {', '.join(missing_encoders)}")
+                if "libx264" in missing_encoders:
+                    raise EncodingError("Required encoder libx264 not available")
             
             logger.info("FFmpeg verification completed successfully")
 
-        except subprocess.TimeoutExpired:
-            raise FFmpegError("FFmpeg verification timed out")
         except Exception as e:
-            raise FFmpegError(f"FFmpeg verification failed: {e}")
+            logger.error(f"FFmpeg verification failed: {traceback.format_exc()}")
+            if isinstance(e, (TimeoutError, EncodingError)):
+                raise
+            raise VerificationError(f"FFmpeg verification failed: {e}")
 
     def analyze_video(self, input_path: str) -> Dict[str, Any]:
         """Analyze video content for optimal encoding settings"""
@@ -160,7 +216,9 @@ class FFmpegManager:
             return self.video_analyzer.analyze_video(input_path)
         except Exception as e:
             logger.error(f"Video analysis failed: {e}")
-            return {}
+            if isinstance(e, FileNotFoundError):
+                raise
+            raise AnalysisError(f"Failed to analyze video: {e}")
 
     def get_compression_params(self, input_path: str, target_size_mb: int) -> Dict[str, str]:
         """Get optimal compression parameters for the given input file"""
@@ -168,7 +226,7 @@ class FFmpegManager:
             # Analyze video first
             video_info = self.analyze_video(input_path)
             if not video_info:
-                raise FFmpegError("Failed to analyze video")
+                raise AnalysisError("Failed to analyze video")
                 
             # Convert target size to bytes
             target_size_bytes = target_size_mb * 1024 * 1024
@@ -180,6 +238,8 @@ class FFmpegManager:
             
         except Exception as e:
             logger.error(f"Failed to get compression parameters: {e}")
+            if isinstance(e, AnalysisError):
+                raise
             # Return safe default parameters
             return {
                 "c:v": "libx264",
@@ -192,13 +252,13 @@ class FFmpegManager:
     def get_ffmpeg_path(self) -> str:
         """Get path to FFmpeg binary"""
         if not self.ffmpeg_path.exists():
-            raise FFmpegError("FFmpeg is not available")
+            raise FFmpegNotFoundError("FFmpeg is not available")
         return str(self.ffmpeg_path)
 
     def get_ffprobe_path(self) -> str:
         """Get path to FFprobe binary"""
         if not self.ffprobe_path.exists():
-            raise FFmpegError("FFprobe is not available")
+            raise FFmpegNotFoundError("FFprobe is not available")
         return str(self.ffprobe_path)
 
     def force_download(self) -> bool:

@@ -14,7 +14,14 @@ from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
-from videoarchiver.utils.exceptions import VideoVerificationError
+from videoarchiver.ffmpeg.exceptions import (
+    FFmpegError,
+    CompressionError,
+    VideoVerificationError,
+    FFprobeError,
+    TimeoutError,
+    handle_ffmpeg_error
+)
 from videoarchiver.utils.file_ops import secure_delete_file
 from videoarchiver.utils.path_manager import temp_path_context
 
@@ -34,6 +41,7 @@ class VideoDownloader:
         max_file_size: int,
         enabled_sites: Optional[List[str]] = None,
         concurrent_downloads: int = 3,
+        ffmpeg_mgr: Optional[FFmpegManager] = None,
     ):
         # Ensure download path exists with proper permissions
         self.download_path = Path(download_path)
@@ -47,8 +55,8 @@ class VideoDownloader:
         self.enabled_sites = enabled_sites
 
         # Initialize FFmpeg manager
-        self.ffmpeg_mgr = FFmpegManager()
-        logger.info(f"FFmpeg path: {self.ffmpeg_mgr.get_ffmpeg_path()}")
+        self.ffmpeg_mgr = ffmpeg_mgr or FFmpegManager()
+        logger.info(f"Using FFmpeg from: {self.ffmpeg_mgr.get_ffmpeg_path()}")
 
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
@@ -76,7 +84,11 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": self.ffmpeg_mgr.get_ffmpeg_path(),
+            "ffmpeg_location": str(self.ffmpeg_mgr.get_ffmpeg_path()),  # Convert Path to string
+            "ffprobe_location": str(self.ffmpeg_mgr.get_ffprobe_path()),  # Add ffprobe path
+            "paths": {
+                "home": str(self.download_path)  # Set home directory for yt-dlp
+            },
             "logger": logger,  # Use our logger
             "ignoreerrors": True,  # Don't stop on download errors
             "no_color": True,  # Disable ANSI colors in output
@@ -269,29 +281,52 @@ class VideoDownloader:
                             f"compressed_{os.path.basename(original_file)}",
                         )
 
-                        # Run FFmpeg directly with subprocess instead of ffmpeg-python
-                        cmd = [
-                            self.ffmpeg_mgr.get_ffmpeg_path(),
-                            "-i", original_file
-                        ]
+                        # Build FFmpeg command with full path
+                        ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
+                        logger.debug(f"Using FFmpeg from: {ffmpeg_path}")
                         
-                        # Add all parameters
+                        # Build command with all parameters
+                        cmd = [ffmpeg_path, "-y"]  # Overwrite output file if it exists
+                        
+                        # Add input file
+                        cmd.extend(["-i", original_file])
+                        
+                        # Add all compression parameters
                         for key, value in params.items():
-                            cmd.extend([f"-{key}", str(value)])
+                            if key == "c:v" and value == "libx264":
+                                # Use hardware acceleration if available
+                                gpu_info = self.ffmpeg_mgr.gpu_info
+                                if gpu_info["nvidia"]:
+                                    cmd.extend(["-c:v", "h264_nvenc"])
+                                elif gpu_info["amd"]:
+                                    cmd.extend(["-c:v", "h264_amf"])
+                                elif gpu_info["intel"]:
+                                    cmd.extend(["-c:v", "h264_qsv"])
+                                else:
+                                    cmd.extend(["-c:v", "libx264"])
+                            else:
+                                cmd.extend([f"-{key}", str(value)])
                             
                         # Add output file
                         cmd.append(compressed_file)
                         
                         # Run compression in executor
-                        await asyncio.get_event_loop().run_in_executor(
-                            self.download_pool,
-                            lambda: subprocess.run(
-                                cmd,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                check=True
+                        logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
+                        try:
+                            result = await asyncio.get_event_loop().run_in_executor(
+                                self.download_pool,
+                                lambda: subprocess.run(
+                                    cmd,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    check=True
+                                )
                             )
-                        )
+                            logger.debug(f"FFmpeg output: {result.stderr.decode()}")
+                        except subprocess.CalledProcessError as e:
+                            error = handle_ffmpeg_error(e.stderr.decode())
+                            logger.error(f"FFmpeg error: {e.stderr.decode()}")
+                            raise error
 
                         if not os.path.exists(compressed_file):
                             raise FileNotFoundError(
@@ -310,7 +345,15 @@ class VideoDownloader:
                             return True, compressed_file, ""
                         else:
                             await self._safe_delete_file(compressed_file)
-                            return False, "", "Failed to compress to target size"
+                            raise CompressionError(
+                                "Failed to compress to target size",
+                                input_size=file_size,
+                                target_size=self.max_file_size * 1024 * 1024
+                            )
+                    except (FFmpegError, VideoVerificationError, FileNotFoundError, CompressionError) as e:
+                        if compressed_file and os.path.exists(compressed_file):
+                            await self._safe_delete_file(compressed_file)
+                        return False, "", str(e)
                     except Exception as e:
                         if compressed_file and os.path.exists(compressed_file):
                             await self._safe_delete_file(compressed_file)

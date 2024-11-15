@@ -14,7 +14,25 @@ from pathlib import Path
 
 from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.file_ops import secure_delete_file, cleanup_downloads
-from videoarchiver.exceptions import ProcessingError, DiscordAPIError
+from videoarchiver.utils.exceptions import (
+    VideoArchiverError,
+    VideoDownloadError,
+    VideoProcessingError,
+    VideoVerificationError,
+    VideoUploadError,
+    VideoCleanupError,
+    ConfigurationError,
+    PermissionError,
+    NetworkError,
+    ResourceError,
+    QueueError,
+    ComponentError
+)
+from videoarchiver.ffmpeg.exceptions import (
+    FFmpegError,
+    CompressionError,
+    VideoVerificationError as FFmpegVerificationError
+)
 from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
@@ -56,6 +74,15 @@ class VideoProcessor:
         self._failed_downloads = set()
         self._failed_downloads_lock = asyncio.Lock()
 
+        # Force re-download FFmpeg binaries to ensure we have working copies
+        for guild_id in self.components:
+            if "ffmpeg_mgr" in self.components[guild_id]:
+                try:
+                    logger.info(f"Force re-downloading FFmpeg binaries for guild {guild_id}")
+                    self.components[guild_id]["ffmpeg_mgr"].force_download()
+                except Exception as e:
+                    logger.error(f"Failed to force re-download FFmpeg: {e}")
+
         # Start queue processing
         logger.info("Starting video processing queue...")
         self._queue_task = asyncio.create_task(self.queue_manager.process_queue(self._process_video))
@@ -68,18 +95,18 @@ class VideoProcessor:
             # Get the message
             channel = self.bot.get_channel(item.channel_id)
             if not channel:
-                return False, "Channel not found"
+                raise ConfigurationError("Channel not found")
 
             try:
                 message = await channel.fetch_message(item.message_id)
                 if not message:
-                    return False, "Message not found"
+                    raise ConfigurationError("Message not found")
             except discord.NotFound:
-                return False, "Message not found"
+                raise ConfigurationError("Message not found")
             except discord.Forbidden:
-                return False, "Bot lacks permissions to fetch message"
+                raise PermissionError("Bot lacks permissions to fetch message")
             except Exception as e:
-                return False, f"Error fetching message: {str(e)}"
+                raise NetworkError(f"Error fetching message: {str(e)}")
 
             guild_id = message.guild.id
             file_path = None
@@ -92,30 +119,25 @@ class VideoProcessor:
                 # Download video with enhanced error handling
                 try:
                     if guild_id not in self.components:
-                        return False, f"Components not initialized for guild {guild_id}"
+                        raise ComponentError(f"Components not initialized for guild {guild_id}")
                     
                     downloader = self.components[guild_id]["downloader"]
                     if not downloader:
-                        return False, "Downloader not initialized"
+                        raise ComponentError("Downloader not initialized")
 
                     logger.info(f"Starting download for URL: {item.url}")
                     success, file_path, error = await downloader.download_video(item.url)
                     logger.info(f"Download result: success={success}, file_path={file_path}, error={error}")
+                    
+                    if not success:
+                        raise VideoDownloadError(error)
+                        
+                except (FFmpegError, CompressionError, FFmpegVerificationError) as e:
+                    raise VideoProcessingError(f"FFmpeg error: {str(e)}")
                 except Exception as e:
-                    logger.error(f"Download error: {traceback.format_exc()}")
-                    success, file_path, error = False, None, str(e)
-
-                if not success:
-                    await message.remove_reaction("⏳", self.bot.user)
-                    await message.add_reaction("❌")
-                    await self._log_message(
-                        message.guild, f"Failed to download video: {error}", "error"
-                    )
-                    # Track failed download for cleanup
-                    if file_path:
-                        async with self._failed_downloads_lock:
-                            self._failed_downloads.add(file_path)
-                    return False, error
+                    if isinstance(e, (VideoDownloadError, VideoProcessingError)):
+                        raise
+                    raise VideoDownloadError(str(e))
 
                 # Get channels with enhanced error handling
                 try:
@@ -129,14 +151,11 @@ class VideoProcessor:
                         notification_channel = archive_channel
 
                     if not archive_channel or not notification_channel:
-                        raise DiscordAPIError("Required channels not found")
+                        raise ConfigurationError("Required channels not found")
                 except Exception as e:
-                    await self._log_message(
-                        message.guild,
-                        f"Channel configuration error: {str(e)}",
-                        "error",
-                    )
-                    return False, str(e)
+                    if isinstance(e, ConfigurationError):
+                        raise
+                    raise ConfigurationError(f"Channel configuration error: {str(e)}")
 
                 try:
                     # Upload to archive channel with original message link
@@ -191,12 +210,7 @@ class VideoProcessor:
                     return True, None
 
                 except discord.HTTPException as e:
-                    await self._log_message(
-                        message.guild, f"Discord API error: {str(e)}", "error"
-                    )
-                    await message.remove_reaction("⏳", self.bot.user)
-                    await message.add_reaction("❌")
-                    return False, str(e)
+                    raise NetworkError(f"Discord API error: {str(e)}")
 
                 finally:
                     # Always attempt to delete the file if configured
@@ -208,35 +222,44 @@ class VideoProcessor:
                                     f"Successfully deleted file: {file_path}",
                                 )
                             else:
-                                await self._log_message(
-                                    message.guild,
-                                    f"Failed to delete file: {file_path}",
-                                    "error",
-                                )
-                                # Emergency cleanup
-                                cleanup_downloads(
-                                    str(
-                                        self.components[guild_id][
-                                            "downloader"
-                                        ].download_path
-                                    )
-                                )
+                                raise VideoCleanupError(f"Failed to delete file: {file_path}")
                         except Exception as e:
-                            logger.error(f"File deletion error: {str(e)}")
+                            if not isinstance(e, VideoCleanupError):
+                                e = VideoCleanupError(f"File deletion error: {str(e)}")
+                            logger.error(str(e))
                             # Track for later cleanup
                             async with self._failed_downloads_lock:
                                 self._failed_downloads.add(file_path)
+                            raise e
 
             except Exception as e:
                 logger.error(f"Process error: {traceback.format_exc()}")
-                await self._log_message(
-                    message.guild, f"Error in process: {str(e)}", "error"
-                )
-                return False, str(e)
+                if not isinstance(e, VideoArchiverError):
+                    e = VideoProcessingError(f"Error in process: {str(e)}")
+                raise e
 
         except Exception as e:
             logger.error(f"Error processing video: {traceback.format_exc()}")
-            return False, str(e)
+            error_msg = str(e)
+            
+            # Update message reactions based on error type
+            await message.remove_reaction("⏳", self.bot.user)
+            if isinstance(e, PermissionError):
+                await message.add_reaction("🚫")
+            elif isinstance(e, (NetworkError, ResourceError)):
+                await message.add_reaction("📡")
+            else:
+                await message.add_reaction("❌")
+            
+            # Log error with appropriate level
+            if isinstance(e, (ConfigurationError, ComponentError)):
+                await self._log_message(message.guild, error_msg, "error")
+            elif isinstance(e, (VideoDownloadError, VideoProcessingError)):
+                await self._log_message(message.guild, error_msg, "warning")
+            else:
+                await self._log_message(message.guild, error_msg, "error")
+                
+            return False, error_msg
 
     async def process_video_url(self, url: str, message: discord.Message, priority: int = 0) -> bool:
         """Process a video URL: download, reupload, and cleanup"""
@@ -273,7 +296,7 @@ class VideoProcessor:
                     callback=None,  # No callback needed since _process_video handles everything
                     priority=priority,
                 )
-            except Exception as e:
+            except QueueError as e:
                 logger.error(f"Queue error: {str(e)}")
                 await message.remove_reaction("⏳", self.bot.user)
                 await message.add_reaction("❌")
@@ -296,9 +319,10 @@ class VideoProcessor:
 
         except Exception as e:
             logger.error(f"Error processing video: {traceback.format_exc()}")
-            await self._log_message(
-                message.guild, f"Error processing video: {str(e)}", "error"
-            )
+            error_msg = str(e)
+            if not isinstance(e, VideoArchiverError):
+                error_msg = f"Unexpected error processing video: {error_msg}"
+            await self._log_message(message.guild, error_msg, "error")
             await message.remove_reaction("⏳", self.bot.user)
             await message.add_reaction("❌")
             return False
@@ -318,9 +342,12 @@ class VideoProcessor:
 
             # Find all video URLs in message using yt-dlp simulation
             urls = []
-            if message.guild.id in self.components:
-                downloader = self.components[message.guild.id]["downloader"]
-                if downloader:
+            try:
+                if message.guild.id in self.components:
+                    downloader = self.components[message.guild.id]["downloader"]
+                    if not downloader:
+                        raise ComponentError("Downloader not initialized")
+
                     # Check each word in the message
                     for word in message.content.split():
                         # Use yt-dlp simulation to check if URL is supported
@@ -332,6 +359,12 @@ class VideoProcessor:
                             if any(site in word for site in ["http://", "https://", "www."]):
                                 logger.error(f"Error checking URL {word}: {str(e)}")
                             continue
+            except ComponentError as e:
+                logger.error(f"Component error: {str(e)}")
+                await self._log_message(
+                    message.guild, f"Component error: {str(e)}", "error"
+                )
+                return
 
             if urls:
                 logger.info(f"Found {len(urls)} video URLs in message {message.id}")
@@ -340,13 +373,21 @@ class VideoProcessor:
                     # First URL gets highest priority
                     priority = len(urls) - i
                     logger.info(f"Processing URL {url} with priority {priority}")
-                    await self.process_video_url(url, message, priority)
+                    try:
+                        await self.process_video_url(url, message, priority)
+                    except Exception as e:
+                        logger.error(f"Error processing URL {url}: {str(e)}")
+                        await self._log_message(
+                            message.guild, f"Error processing URL {url}: {str(e)}", "error"
+                        )
+                        continue
 
         except Exception as e:
+            error_msg = str(e)
+            if not isinstance(e, VideoArchiverError):
+                error_msg = f"Unexpected error processing message: {error_msg}"
             logger.error(f"Error processing message: {traceback.format_exc()}")
-            await self._log_message(
-                message.guild, f"Error processing message: {str(e)}", "error"
-            )
+            await self._log_message(message.guild, error_msg, "error")
 
     async def _log_message(
         self, guild: discord.Guild, message: str, level: str = "info"

@@ -18,6 +18,7 @@ from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.message_manager import MessageManager
 from videoarchiver.utils.file_ops import cleanup_downloads
 from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager  # Add FFmpeg manager import
 from videoarchiver.exceptions import (
     ProcessingError,
     ConfigError,
@@ -164,6 +165,8 @@ class VideoArchiver(commands.Cog):
                             await components['message_manager'].cancel_all_deletions()
                         if 'downloader' in components:
                             components['downloader'] = None
+                        if 'ffmpeg_mgr' in components:
+                            components['ffmpeg_mgr'] = None
                     except Exception as e:
                         logger.error(f"Error cleaning up guild {guild_id}: {str(e)}")
 
@@ -199,16 +202,23 @@ class VideoArchiver(commands.Cog):
                     await old_components['message_manager'].cancel_all_deletions()
                 if 'downloader' in old_components:
                     old_components['downloader'] = None
+                if 'ffmpeg_mgr' in old_components:
+                    old_components['ffmpeg_mgr'] = None
 
+            # Initialize FFmpeg manager first
+            ffmpeg_mgr = FFmpegManager()
+            
             # Initialize new components with validated settings
             self.components[guild_id] = {
+                'ffmpeg_mgr': ffmpeg_mgr,  # Add FFmpeg manager to components
                 'downloader': VideoDownloader(
                     str(self.download_path),
                     settings['video_format'],
                     settings['video_quality'],
                     settings['max_file_size'],
                     settings['enabled_sites'] if settings['enabled_sites'] else None,
-                    settings['concurrent_downloads']
+                    settings['concurrent_downloads'],
+                    ffmpeg_mgr=ffmpeg_mgr  # Pass FFmpeg manager to VideoDownloader
                 ),
                 'message_manager': MessageManager(
                     settings['message_duration'],
@@ -245,6 +255,8 @@ class VideoArchiver(commands.Cog):
                     await components['message_manager'].cancel_all_deletions()
                 if 'downloader' in components:
                     components['downloader'] = None
+                if 'ffmpeg_mgr' in components:
+                    components['ffmpeg_mgr'] = None
                 
                 # Remove guild components
                 self.components.pop(guild.id)
