@@ -718,18 +718,21 @@ class EnhancedVideoQueueManager:
                 async with self._queue_lock:
                     # Clean up completed items
                     for url in list(self._completed.keys()):
-                        item = self._completed[url]
                         try:
+                            item = self._completed[url]
                             # Ensure added_at is a datetime object
-                            if isinstance(item.added_at, str):
+                            if not isinstance(item.added_at, datetime):
                                 try:
-                                    item.added_at = datetime.fromisoformat(item.added_at)
-                                except ValueError:
-                                    # If conversion fails, use current time to ensure item gets cleaned up
+                                    if isinstance(item.added_at, str):
+                                        item.added_at = datetime.fromisoformat(item.added_at)
+                                    else:
+                                        # If not string or datetime, set to current time
+                                        item.added_at = current_time
+                                except (ValueError, TypeError):
+                                    # If conversion fails, use current time
                                     item.added_at = current_time
-                            elif not isinstance(item.added_at, datetime):
-                                item.added_at = current_time
-
+                            
+                            # Now safe to compare datetimes
                             if item.added_at < cleanup_cutoff:
                                 self._completed.pop(url)
                         except Exception as e:
@@ -739,18 +742,21 @@ class EnhancedVideoQueueManager:
 
                     # Clean up failed items
                     for url in list(self._failed.keys()):
-                        item = self._failed[url]
                         try:
+                            item = self._failed[url]
                             # Ensure added_at is a datetime object
-                            if isinstance(item.added_at, str):
+                            if not isinstance(item.added_at, datetime):
                                 try:
-                                    item.added_at = datetime.fromisoformat(item.added_at)
-                                except ValueError:
-                                    # If conversion fails, use current time to ensure item gets cleaned up
+                                    if isinstance(item.added_at, str):
+                                        item.added_at = datetime.fromisoformat(item.added_at)
+                                    else:
+                                        # If not string or datetime, set to current time
+                                        item.added_at = current_time
+                                except (ValueError, TypeError):
+                                    # If conversion fails, use current time
                                     item.added_at = current_time
-                            elif not isinstance(item.added_at, datetime):
-                                item.added_at = current_time
-
+                            
+                            # Now safe to compare datetimes
                             if item.added_at < cleanup_cutoff:
                                 self._failed.pop(url)
                         except Exception as e:

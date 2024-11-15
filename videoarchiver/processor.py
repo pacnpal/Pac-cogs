@@ -275,11 +275,22 @@ class VideoProcessor:
             def progress_callback(progress: float) -> None:
                 if original_message:
                     try:
-                        # Get event loop for the current context
-                        loop = asyncio.get_running_loop()
+                        # Try to get the current event loop
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            # If no event loop is running in this thread, 
+                            # we'll use the bot's loop which we know exists
+                            loop = self.bot.loop
+                            
+                        if not loop.is_running():
+                            logger.warning("Event loop is not running, skipping progress update")
+                            return
+                            
                         # Create a task to update the reaction
-                        loop.create_task(
-                            self.update_download_progress_reaction(original_message, progress)
+                        asyncio.run_coroutine_threadsafe(
+                            self.update_download_progress_reaction(original_message, progress),
+                            loop
                         )
                     except Exception as e:
                         logger.error(f"Error in progress callback: {e}")
