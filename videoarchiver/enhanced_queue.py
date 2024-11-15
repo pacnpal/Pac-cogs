@@ -538,6 +538,60 @@ class EnhancedVideoQueueManager:
             logger.error(f"Error during cleanup: {str(e)}")
             raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
 
+    def get_queue_status(self, guild_id: int) -> dict:
+        """Get current queue status and metrics for a guild
+        
+        Args:
+            guild_id: The ID of the guild to get status for
+            
+        Returns:
+            dict: Queue status including counts and metrics
+        """
+        try:
+            # Count items for this guild
+            pending = len([item for item in self._queue if item.guild_id == guild_id])
+            processing = len([item for item in self._processing.values() if item.guild_id == guild_id])
+            completed = len([item for item in self._completed.values() if item.guild_id == guild_id])
+            failed = len([item for item in self._failed.values() if item.guild_id == guild_id])
+
+            # Get metrics
+            metrics = {
+                "total_processed": self.metrics.total_processed,
+                "total_failed": self.metrics.total_failed,
+                "success_rate": self.metrics.success_rate,
+                "avg_processing_time": self.metrics.avg_processing_time,
+                "peak_memory_usage": self.metrics.peak_memory_usage,
+                "last_cleanup": self.metrics.last_cleanup.strftime("%Y-%m-%d %H:%M:%S"),
+                "errors_by_type": self.metrics.errors_by_type
+            }
+
+            return {
+                "pending": pending,
+                "processing": processing,
+                "completed": completed,
+                "failed": failed,
+                "metrics": metrics
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting queue status: {str(e)}")
+            # Return empty status on error
+            return {
+                "pending": 0,
+                "processing": 0,
+                "completed": 0,
+                "failed": 0,
+                "metrics": {
+                    "total_processed": 0,
+                    "total_failed": 0,
+                    "success_rate": 0.0,
+                    "avg_processing_time": 0.0,
+                    "peak_memory_usage": 0.0,
+                    "last_cleanup": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                    "errors_by_type": {}
+                }
+            }
+
     async def clear_guild_queue(self, guild_id: int) -> int:
         """Clear all queue items for a specific guild
         
