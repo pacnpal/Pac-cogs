@@ -237,11 +237,19 @@ class FFmpegDownloader:
         with zipfile.ZipFile(archive_path, "r") as zip_ref:
             binary_names = self._get_binary_names()
             for binary_name in binary_names:
+                # BtbN's builds have binaries in bin directory
                 binary_files = [
                     f
                     for f in zip_ref.namelist()
-                    if f.endswith(f"/{binary_name}") or f.endswith(f"\\{binary_name}")
+                    if f.endswith(f"/bin/{binary_name}") or f.endswith(f"\\bin\\{binary_name}")
                 ]
+                if not binary_files:
+                    # Fallback to old structure
+                    binary_files = [
+                        f
+                        for f in zip_ref.namelist()
+                        if f.endswith(f"/{binary_name}") or f.endswith(f"\\{binary_name}")
+                    ]
                 if not binary_files:
                     raise DownloadError(f"{binary_name} not found in archive")
 
@@ -256,9 +264,15 @@ class FFmpegDownloader:
         with tarfile.open(archive_path, "r:xz") as tar_ref:
             binary_names = self._get_binary_names()
             for binary_name in binary_names:
+                # BtbN's builds have binaries in bin directory
                 binary_files = [
-                    f for f in tar_ref.getnames() if f.endswith(f"/{binary_name}")
+                    f for f in tar_ref.getnames() if f.endswith(f"/bin/{binary_name}")
                 ]
+                if not binary_files:
+                    # Fallback to old structure
+                    binary_files = [
+                        f for f in tar_ref.getnames() if f.endswith(f"/{binary_name}")
+                    ]
                 if not binary_files:
                     raise DownloadError(f"{binary_name} not found in archive")
 
