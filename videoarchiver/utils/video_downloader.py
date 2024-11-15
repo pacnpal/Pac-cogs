@@ -17,11 +17,12 @@ from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
 from videoarchiver.ffmpeg.exceptions import (
     FFmpegError,
     CompressionError,
-    VideoVerificationError,
+    VerificationError,
     FFprobeError,
     TimeoutError,
     handle_ffmpeg_error
 )
+from videoarchiver.utils.exceptions import VideoVerificationError
 from videoarchiver.utils.file_ops import secure_delete_file
 from videoarchiver.utils.path_manager import temp_path_context
 

@@ -13,6 +13,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import os
+import shutil
 
 from .exceptions import UpdateError
 

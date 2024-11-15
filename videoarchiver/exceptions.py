@@ -1,64 +1,26 @@
-"""Custom exceptions for the VideoArchiver cog"""
+"""Base exceptions for VideoArchiver"""
 
-class ProcessingError(Exception):
-    """Base exception for video processing errors"""
-    def __init__(self, message: str, details: str = None):
-        self.message = message
-        self.details = details
-        super().__init__(self.message)
+from .utils.exceptions import (
+    VideoArchiverError,
+    ConfigurationError,
+    VideoVerificationError,
+    QueueError,
+    FileCleanupError,
+)
 
-class DiscordAPIError(ProcessingError):
-    """Raised when Discord API operations fail"""
-    pass
+# Re-export base exceptions
+__all__ = [
+    'VideoArchiverError',
+    'ConfigurationError',
+    'VideoVerificationError',
+    'QueueError',
+    'FileCleanupError',
+    'UpdateError',
+    'ProcessingError',
+    'ConfigError',
+]
 
-class UpdateError(ProcessingError):
-    """Raised when update operations fail"""
-    pass
-
-class DownloadError(ProcessingError):
-    """Raised when video download operations fail"""
-    pass
-
-class QueueError(ProcessingError):
-    """Raised when queue operations fail"""
-    pass
-
-class ConfigError(ProcessingError):
-    """Raised when configuration operations fail"""
-    pass
-
-class FileOperationError(ProcessingError):
-    """Raised when file operations fail"""
-    pass
-
-class VideoValidationError(ProcessingError):
-    """Raised when video validation fails"""
-    pass
-
-class PermissionError(ProcessingError):
-    """Raised when permission checks fail"""
-    pass
-
-class ResourceExhaustedError(ProcessingError):
-    """Raised when system resources are exhausted"""
-    pass
-
-class NetworkError(ProcessingError):
-    """Raised when network operations fail"""
-    pass
-
-class FFmpegError(ProcessingError):
-    """Raised when FFmpeg operations fail"""
-    pass
-
-class CleanupError(ProcessingError):
-    """Raised when cleanup operations fail"""
-    pass
-
-class URLExtractionError(ProcessingError):
-    """Raised when URL extraction fails"""
-    pass
-
-class MessageFormatError(ProcessingError):
-    """Raised when message formatting fails"""
-    pass
+# Alias exceptions for backward compatibility
+ProcessingError = VideoArchiverError
+ConfigError = ConfigurationError
+UpdateError = VideoVerificationError
