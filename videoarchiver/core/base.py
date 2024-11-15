@@ -6,7 +6,8 @@ import discord
 import traceback
 from redbot.core import Config, data_manager
 from redbot.core.bot import Red
-from redbot.core.commands import GroupCog, Context, hybrid_command, hybrid_group, commands
+from redbot.core.commands import GroupCog, Context, hybrid_command, hybrid_group
+from redbot.core.commands.commands import guild_only
 from redbot.core import checks
 from discord import app_commands
 import logging
@@ -74,14 +75,14 @@ class VideoArchiver(GroupCog):
         setup_events(self)
 
     @hybrid_group(name="archivedb", fallback="help")
-    @commands.guild_only()
+    @guild_only()
     async def archivedb(self, ctx: Context):
         """Manage the video archive database."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @archivedb.command(name="enable")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def enable_database(self, ctx: Context):
         """Enable the video archive database."""
@@ -107,7 +108,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while enabling the database.")
 
     @archivedb.command(name="disable")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def disable_database(self, ctx: Context):
         """Disable the video archive database."""
@@ -132,7 +133,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while disabling the database.")
 
     @hybrid_command()
-    @commands.guild_only()
+    @guild_only()
     @app_commands.describe(url="The URL of the video to check")
     async def checkarchived(self, ctx: Context, url: str):
         """Check if a video URL has been archived and get its Discord link if it exists."""
@@ -165,14 +166,14 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while checking the archive.")
 
     @hybrid_group(name="archiver", fallback="help")
-    @commands.guild_only()
+    @guild_only()
     async def archiver(self, ctx: Context):
         """Manage video archiver settings."""
         if ctx.invoked_subcommand is None:
             await ctx.send_help(ctx.command)
 
     @archiver.command(name="enable")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def enable_archiver(self, ctx: Context):
         """Enable video archiving in this server."""
@@ -192,7 +193,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while enabling video archiving.")
 
     @archiver.command(name="disable")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     async def disable_archiver(self, ctx: Context):
         """Disable video archiving in this server."""
@@ -212,7 +213,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while disabling video archiving.")
 
     @archiver.command(name="setchannel")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where archived videos will be stored")
     async def set_archive_channel(self, ctx: Context, channel: discord.TextChannel):
@@ -227,7 +228,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while setting the archive channel.")
 
     @archiver.command(name="setlog")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where log messages will be sent")
     async def set_log_channel(self, ctx: Context, channel: discord.TextChannel):
@@ -242,7 +243,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while setting the log channel.")
 
     @archiver.command(name="addchannel")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to monitor for videos")
     async def add_enabled_channel(self, ctx: Context, channel: discord.TextChannel):
@@ -265,7 +266,7 @@ class VideoArchiver(GroupCog):
             await ctx.send("An error occurred while adding the channel.")
 
     @archiver.command(name="removechannel")
-    @commands.guild_only()
+    @guild_only()
     @checks.admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to stop monitoring")
     async def remove_enabled_channel(self, ctx: Context, channel: discord.TextChannel):
