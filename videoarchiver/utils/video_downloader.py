@@ -5,6 +5,7 @@ import logging
 import asyncio
 import ffmpeg
 import yt_dlp
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
@@ -301,9 +302,21 @@ class VideoDownloader:
         """Check if URL is supported"""
         try:
             with yt_dlp.YoutubeDL() as ydl:
-                # Try to extract info without downloading
-                ie = ydl.extract_info(url, download=False, process=False)
-                return ie is not None
+                # Get extractors
+                extractors = ydl._ies
+                # Try each extractor
+                for extractor in extractors:
+                    if hasattr(extractor, '_VALID_URL') and extractor._VALID_URL:
+                        # Skip if site is not enabled
+                        if self.enabled_sites and not any(
+                            site.lower() in extractor.IE_NAME.lower()
+                            for site in self.enabled_sites
+                        ):
+                            continue
+                        # Try to match URL
+                        if extractor.suitable(url):
+                            return True
+                return False
         except Exception as e:
             logger.error(f"Error checking URL support: {str(e)}")
             return False
