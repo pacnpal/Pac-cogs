@@ -36,7 +36,6 @@ class VideoDownloader:
         # Ensure download path exists with proper permissions
         self.download_path = Path(download_path)
         self.download_path.mkdir(parents=True, exist_ok=True)
-        # Ensure directory has rwx permissions for user and rx for group/others
         os.chmod(str(self.download_path), 0o755)
         logger.info(f"Initialized download directory: {self.download_path}")
 
@@ -44,14 +43,10 @@ class VideoDownloader:
         self.max_quality = max_quality
         self.max_file_size = max_file_size
         self.enabled_sites = enabled_sites
-        self.url_patterns = self._get_url_patterns()
 
         # Initialize FFmpeg manager
         self.ffmpeg_mgr = FFmpegManager()
-        ffmpeg_path = self.ffmpeg_mgr.get_ffmpeg_path()
-        if not os.path.exists(ffmpeg_path):
-            raise FileNotFoundError(f"FFmpeg not found at {ffmpeg_path}")
-        logger.info(f"Using FFmpeg from: {ffmpeg_path}")
+        logger.info(f"FFmpeg path: {self.ffmpeg_mgr.get_ffmpeg_path()}")
 
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
@@ -63,7 +58,7 @@ class VideoDownloader:
         self.active_downloads: Dict[str, str] = {}
         self._downloads_lock = asyncio.Lock()
 
-        # Configure yt-dlp options with absolute FFmpeg path
+        # Configure yt-dlp options
         self.ydl_opts = {
             "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",  # More flexible format
             "outtmpl": "%(title)s.%(ext)s",  # Base filename only, path added later
@@ -79,55 +74,55 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": str(ffmpeg_path),  # Convert Path to string
-            "prefer_ffmpeg": True,  # Force use of FFmpeg
-            "hls_prefer_ffmpeg": True,  # Use FFmpeg for HLS
+            "ffmpeg_location": self.ffmpeg_mgr.get_ffmpeg_path(),
             "logger": logger,  # Use our logger
             "ignoreerrors": True,  # Don't stop on download errors
             "no_color": True,  # Disable ANSI colors in output
             "geo_bypass": True,  # Try to bypass geo-restrictions
             "socket_timeout": 30,  # Increase timeout
-            "external_downloader": {
-                "m3u8": "ffmpeg",  # Use FFmpeg for m3u8 downloads
-            },
-            "external_downloader_args": {
-                "ffmpeg": ["-v", "warning"],  # Reduce FFmpeg verbosity
-            }
         }
-        logger.info("VideoDownloader initialized successfully")
 
-    def __del__(self):
-        """Ensure thread pool is shutdown and files are cleaned up"""
+    def is_supported_url(self, url: str) -> bool:
+        """Check if URL is supported by attempting a simulated download"""
         try:
-            # Cancel all active downloads
-            for file_path in self.active_downloads.values():
+            # Configure yt-dlp for simulation
+            simulate_opts = {
+                **self.ydl_opts,
+                "simulate": True,  # Only simulate download
+                "quiet": True,  # Reduce output noise
+                "no_warnings": True,
+                "extract_flat": True,  # Don't download video info
+                "skip_download": True,  # Skip actual download
+                "format": "best",  # Don't spend time finding best format
+            }
+
+            # Create a new yt-dlp instance for simulation
+            with yt_dlp.YoutubeDL(simulate_opts) as ydl:
                 try:
-                    secure_delete_file(file_path)
+                    # Try to extract info without downloading
+                    info = ydl.extract_info(url, download=False)
+                    if info is None:
+                        logger.debug(f"URL not supported: {url}")
+                        return False
+                    
+                    # Check if site is enabled (if enabled_sites is configured)
+                    if self.enabled_sites:
+                        extractor = info.get('extractor', '').lower()
+                        if not any(site.lower() in extractor for site in self.enabled_sites):
+                            logger.info(f"Site {extractor} not in enabled sites list")
+                            return False
+                    
+                    logger.info(f"URL supported: {url} (Extractor: {info.get('extractor', 'unknown')})")
+                    return True
+                    
                 except Exception as e:
-                    logger.error(f"Error deleting file during cleanup: {str(e)}")
-            self.active_downloads.clear()
-
-            # Shutdown thread pool
-            if hasattr(self, "download_pool"):
-                self.download_pool.shutdown(wait=True)
+                    if "Unsupported URL" not in str(e):
+                        logger.error(f"Error checking URL {url}: {str(e)}")
+                    return False
+                
         except Exception as e:
-            logger.error(f"Error during VideoDownloader cleanup: {str(e)}")
-
-    def _get_url_patterns(self) -> List[Tuple[str, str]]:
-        """Get URL patterns and names for supported sites"""
-        patterns = []
-        try:
-            with yt_dlp.YoutubeDL() as ydl:
-                for ie in ydl._ies:
-                    if hasattr(ie, "_VALID_URL") and ie._VALID_URL:
-                        if not self.enabled_sites or any(
-                            site.lower() in ie.IE_NAME.lower()
-                            for site in self.enabled_sites
-                        ):
-                            patterns.append((ie._VALID_URL, ie.IE_NAME))
-        except Exception as e:
-            logger.error(f"Error getting URL patterns: {str(e)}")
-        return patterns
+            logger.error(f"Error during URL check: {str(e)}")
+            return False
 
     def _check_file_size(self, info):
         """Check if file size is within limits"""
@@ -342,16 +337,3 @@ class VideoDownloader:
                     return False
                 await asyncio.sleep(self.FILE_OP_RETRY_DELAY * (attempt + 1))
         return False
-
-    def is_supported_url(self, url: str) -> bool:
-        """Check if URL is supported using regex patterns"""
-        try:
-            # Try each pattern
-            for pattern, site_name in self.url_patterns:
-                if re.match(pattern, url):
-                    logger.debug(f"URL matched pattern for {site_name}")
-                    return True
-            return False
-        except Exception as e:
-            logger.error(f"Error checking URL support: {str(e)}")
-            return False

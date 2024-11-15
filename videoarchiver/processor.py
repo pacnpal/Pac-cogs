@@ -316,15 +316,22 @@ class VideoProcessor:
             if monitored_channels and message.channel.id not in monitored_channels:
                 return
 
-            # Find all video URLs in message with improved pattern matching
+            # Find all video URLs in message using yt-dlp simulation
             logger.info(f"Checking message {message.id} for video URLs...")
             urls = []
             if message.guild.id in self.components:
                 downloader = self.components[message.guild.id]["downloader"]
                 if downloader:
+                    # Check each word in the message
                     for word in message.content.split():
-                        if downloader.is_supported_url(word):
-                            urls.append(word)
+                        # Use yt-dlp simulation to check if URL is supported
+                        try:
+                            if downloader.is_supported_url(word):
+                                logger.info(f"Found supported URL: {word}")
+                                urls.append(word)
+                        except Exception as e:
+                            logger.error(f"Error checking URL {word}: {str(e)}")
+                            continue
 
             if urls:
                 logger.info(f"Found {len(urls)} video URLs in message {message.id}")
