@@ -33,16 +33,26 @@ class VideoDownloader:
         enabled_sites: Optional[List[str]] = None,
         concurrent_downloads: int = 3,
     ):
-        self.download_path = download_path
+        # Ensure download path exists with proper permissions
+        self.download_path = Path(download_path)
+        self.download_path.mkdir(parents=True, exist_ok=True)
+        # Ensure directory has rwx permissions for user and rx for group/others
+        os.chmod(str(self.download_path), 0o755)
+        logger.info(f"Initialized download directory: {self.download_path}")
+
         self.video_format = video_format
         self.max_quality = max_quality
         self.max_file_size = max_file_size
         self.enabled_sites = enabled_sites
         self.url_patterns = self._get_url_patterns()
-        
+
         # Initialize FFmpeg manager
         self.ffmpeg_mgr = FFmpegManager()
-        
+        ffmpeg_path = self.ffmpeg_mgr.get_ffmpeg_path()
+        if not os.path.exists(ffmpeg_path):
+            raise FileNotFoundError(f"FFmpeg not found at {ffmpeg_path}")
+        logger.info(f"Using FFmpeg from: {ffmpeg_path}")
+
         # Create thread pool for this instance
         self.download_pool = ThreadPoolExecutor(
             max_workers=max(1, min(5, concurrent_downloads)),
@@ -53,13 +63,14 @@ class VideoDownloader:
         self.active_downloads: Dict[str, str] = {}
         self._downloads_lock = asyncio.Lock()
 
-        # Configure yt-dlp options
+        # Configure yt-dlp options with absolute FFmpeg path
         self.ydl_opts = {
-            "format": f"bestvideo[height<={max_quality}]+bestaudio/best[height<={max_quality}]",
+            "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",  # More flexible format
             "outtmpl": "%(title)s.%(ext)s",  # Base filename only, path added later
             "merge_output_format": video_format,
-            "quiet": True,
-            "no_warnings": True,
+            "quiet": False,  # Enable output for debugging
+            "no_warnings": False,  # Show warnings
+            "verbose": True,  # Enable verbose output
             "extract_flat": False,
             "concurrent_fragment_downloads": concurrent_downloads,
             "retries": self.MAX_RETRIES,
@@ -68,8 +79,22 @@ class VideoDownloader:
             "extractor_retries": self.MAX_RETRIES,
             "postprocessor_hooks": [self._check_file_size],
             "progress_hooks": [self._progress_hook],
-            "ffmpeg_location": self.ffmpeg_mgr.get_ffmpeg_path(),
+            "ffmpeg_location": str(ffmpeg_path),  # Convert Path to string
+            "prefer_ffmpeg": True,  # Force use of FFmpeg
+            "hls_prefer_ffmpeg": True,  # Use FFmpeg for HLS
+            "logger": logger,  # Use our logger
+            "ignoreerrors": True,  # Don't stop on download errors
+            "no_color": True,  # Disable ANSI colors in output
+            "geo_bypass": True,  # Try to bypass geo-restrictions
+            "socket_timeout": 30,  # Increase timeout
+            "external_downloader": {
+                "m3u8": "ffmpeg",  # Use FFmpeg for m3u8 downloads
+            },
+            "external_downloader_args": {
+                "ffmpeg": ["-v", "warning"],  # Reduce FFmpeg verbosity
+            }
         }
+        logger.info("VideoDownloader initialized successfully")
 
     def __del__(self):
         """Ensure thread pool is shutdown and files are cleaned up"""
@@ -83,7 +108,7 @@ class VideoDownloader:
             self.active_downloads.clear()
 
             # Shutdown thread pool
-            if hasattr(self, 'download_pool'):
+            if hasattr(self, "download_pool"):
                 self.download_pool.shutdown(wait=True)
         except Exception as e:
             logger.error(f"Error during VideoDownloader cleanup: {str(e)}")
@@ -94,7 +119,7 @@ class VideoDownloader:
         try:
             with yt_dlp.YoutubeDL() as ydl:
                 for ie in ydl._ies:
-                    if hasattr(ie, '_VALID_URL') and ie._VALID_URL:
+                    if hasattr(ie, "_VALID_URL") and ie._VALID_URL:
                         if not self.enabled_sites or any(
                             site.lower() in ie.IE_NAME.lower()
                             for site in self.enabled_sites
@@ -120,21 +145,29 @@ class VideoDownloader:
         """Handle download progress"""
         if d["status"] == "finished":
             logger.info(f"Download completed: {d['filename']}")
+        elif d["status"] == "downloading":
+            try:
+                percent = d.get("_percent_str", "N/A")
+                speed = d.get("_speed_str", "N/A")
+                eta = d.get("_eta_str", "N/A")
+                logger.debug(f"Download progress: {percent} at {speed}, ETA: {eta}")
+            except Exception as e:
+                logger.debug(f"Error logging progress: {str(e)}")
 
     def _verify_video_file(self, file_path: str) -> bool:
         """Verify video file integrity"""
         try:
             probe = ffmpeg.probe(file_path)
             # Check if file has video stream
-            video_streams = [s for s in probe['streams'] if s['codec_type'] == 'video']
+            video_streams = [s for s in probe["streams"] if s["codec_type"] == "video"]
             if not video_streams:
                 raise VideoVerificationError("No video streams found")
             # Check if duration is valid
-            duration = float(probe['format'].get('duration', 0))
+            duration = float(probe["format"].get("duration", 0))
             if duration <= 0:
                 raise VideoVerificationError("Invalid video duration")
             # Check if file is readable
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 f.seek(0, 2)  # Seek to end
                 if f.tell() == 0:
                     raise VideoVerificationError("Empty file")
@@ -148,12 +181,11 @@ class VideoDownloader:
         for attempt in range(self.MAX_RETRIES):
             try:
                 ydl_opts = self.ydl_opts.copy()
-                ydl_opts['outtmpl'] = os.path.join(temp_dir, ydl_opts['outtmpl'])
+                ydl_opts["outtmpl"] = os.path.join(temp_dir, ydl_opts["outtmpl"])
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = await asyncio.get_event_loop().run_in_executor(
-                        self.download_pool,
-                        lambda: ydl.extract_info(url, download=True)
+                        self.download_pool, lambda: ydl.extract_info(url, download=True)
                     )
 
                 if info is None:
@@ -171,7 +203,9 @@ class VideoDownloader:
             except Exception as e:
                 logger.error(f"Download attempt {attempt + 1} failed: {str(e)}")
                 if attempt < self.MAX_RETRIES - 1:
-                    await asyncio.sleep(self.RETRY_DELAY * (attempt + 1))  # Exponential backoff
+                    await asyncio.sleep(
+                        self.RETRY_DELAY * (attempt + 1)
+                    )  # Exponential backoff
                 else:
                     return False, "", f"All download attempts failed: {str(e)}"
 
@@ -206,7 +240,7 @@ class VideoDownloader:
                         )
                         compressed_file = os.path.join(
                             self.download_path,
-                            f"compressed_{os.path.basename(original_file)}"
+                            f"compressed_{os.path.basename(original_file)}",
                         )
 
                         # Configure ffmpeg with optimal parameters
@@ -225,11 +259,15 @@ class VideoDownloader:
                         )
 
                         if not os.path.exists(compressed_file):
-                            raise FileNotFoundError("Compression completed but file not found")
+                            raise FileNotFoundError(
+                                "Compression completed but file not found"
+                            )
 
                         # Verify compressed file
                         if not self._verify_video_file(compressed_file):
-                            raise VideoVerificationError("Compressed file is not a valid video")
+                            raise VideoVerificationError(
+                                "Compressed file is not a valid video"
+                            )
 
                         compressed_size = os.path.getsize(compressed_file)
                         if compressed_size <= (self.max_file_size * 1024 * 1024):
@@ -245,7 +283,9 @@ class VideoDownloader:
                         return False, "", f"Compression error: {str(e)}"
                 else:
                     # Move file to final location
-                    final_path = os.path.join(self.download_path, os.path.basename(original_file))
+                    final_path = os.path.join(
+                        self.download_path, os.path.basename(original_file)
+                    )
                     # Use safe move with retries
                     success = await self._safe_move_file(original_file, final_path)
                     if not success:
@@ -264,7 +304,11 @@ class VideoDownloader:
             try:
                 if original_file and os.path.exists(original_file):
                     await self._safe_delete_file(original_file)
-                if compressed_file and os.path.exists(compressed_file) and not compressed_file.startswith(self.download_path):
+                if (
+                    compressed_file
+                    and os.path.exists(compressed_file)
+                    and not compressed_file.startswith(self.download_path)
+                ):
                     await self._safe_delete_file(compressed_file)
             except Exception as e:
                 logger.error(f"Error during file cleanup: {str(e)}")

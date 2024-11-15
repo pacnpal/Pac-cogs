@@ -2,11 +2,12 @@
 
 import discord
 import logging
+import asyncio
+import ffmpeg
 import yt_dlp
 import re
 import os
-from typing import List, Optional, Tuple, Callable, Any
-import asyncio
+from typing import Dict, List, Optional, Tuple, Callable, Any
 import traceback
 from datetime import datetime
 from pathlib import Path
@@ -18,27 +19,38 @@ from videoarchiver.enhanced_queue import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 
-
 class VideoProcessor:
     """Handles video processing operations"""
 
-    def __init__(self, bot, config_manager, components):
+    def __init__(
+        self,
+        bot,
+        config_manager,
+        components,
+        queue_manager=None
+    ):
         self.bot = bot
         self.config = config_manager
         self.components = components
 
-        # Initialize enhanced queue manager with persistence and error recovery
-        data_dir = Path(os.path.dirname(__file__)) / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-        queue_path = data_dir / "queue_state.json"
-        self.queue_manager = EnhancedVideoQueueManager(
-            max_retries=3,
-            retry_delay=5,
-            max_queue_size=1000,
-            cleanup_interval=1800,  # 30 minutes (reduced from 1 hour for more frequent cleanup)
-            max_history_age=86400,  # 24 hours
-            persistence_path=str(queue_path)
-        )
+        # Use provided queue manager or create new one
+        if queue_manager:
+            self.queue_manager = queue_manager
+            logger.info("Using provided queue manager")
+        else:
+            # Initialize enhanced queue manager with persistence and error recovery
+            data_dir = Path(os.path.dirname(__file__)) / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
+            queue_path = data_dir / "queue_state.json"
+            self.queue_manager = EnhancedVideoQueueManager(
+                max_retries=3,
+                retry_delay=5,
+                max_queue_size=1000,
+                cleanup_interval=1800,  # 30 minutes
+                max_history_age=86400,  # 24 hours
+                persistence_path=str(queue_path)
+            )
+            logger.info("Created new queue manager")
 
         # Track failed downloads for cleanup
         self._failed_downloads = set()
@@ -75,12 +87,20 @@ class VideoProcessor:
 
             try:
                 settings = await self.config.get_guild_settings(guild_id)
+                logger.info(f"Got settings for guild {guild_id}: {settings}")
 
                 # Download video with enhanced error handling
                 try:
-                    success, file_path, error = await self.components[guild_id][
-                        "downloader"
-                    ].download_video(item.url)
+                    if guild_id not in self.components:
+                        return False, f"Components not initialized for guild {guild_id}"
+                    
+                    downloader = self.components[guild_id]["downloader"]
+                    if not downloader:
+                        return False, "Downloader not initialized"
+
+                    logger.info(f"Starting download for URL: {item.url}")
+                    success, file_path, error = await downloader.download_video(item.url)
+                    logger.info(f"Download result: success={success}, file_path={file_path}, error={error}")
                 except Exception as e:
                     logger.error(f"Download error: {traceback.format_exc()}")
                     success, file_path, error = False, None, str(e)
@@ -120,6 +140,7 @@ class VideoProcessor:
 
                 try:
                     # Upload to archive channel with original message link
+                    logger.info(f"Uploading file to archive channel: {file_path}")
                     file = discord.File(file_path)
                     archive_message = await archive_channel.send(
                         f"Original: {message.jump_url}", file=file
@@ -296,41 +317,31 @@ class VideoProcessor:
                 return
 
             # Find all video URLs in message with improved pattern matching
-            urls = self._extract_urls(message.content)
+            logger.info(f"Checking message {message.id} for video URLs...")
+            urls = []
+            if message.guild.id in self.components:
+                downloader = self.components[message.guild.id]["downloader"]
+                if downloader:
+                    for word in message.content.split():
+                        if downloader.is_supported_url(word):
+                            urls.append(word)
 
             if urls:
+                logger.info(f"Found {len(urls)} video URLs in message {message.id}")
                 # Process each URL with priority based on position
                 for i, url in enumerate(urls):
                     # First URL gets highest priority
                     priority = len(urls) - i
+                    logger.info(f"Processing URL {url} with priority {priority}")
                     await self.process_video_url(url, message, priority)
+            else:
+                logger.info(f"No video URLs found in message {message.id}")
 
         except Exception as e:
             logger.error(f"Error processing message: {traceback.format_exc()}")
             await self._log_message(
                 message.guild, f"Error processing message: {str(e)}", "error"
             )
-
-    def _extract_urls(self, content: str) -> List[str]:
-        """Extract video URLs from message content with improved pattern matching"""
-        urls = []
-        try:
-            # Create a YoutubeDL instance to get extractors
-            with yt_dlp.YoutubeDL() as ydl:
-                # Split content into words and check each for URLs
-                words = content.split()
-                for word in words:
-                    # Try each extractor
-                    for ie in ydl._ies:
-                        if hasattr(ie, '_VALID_URL') and ie._VALID_URL:
-                            # Use regex pattern matching instead of suitable()
-                            if re.match(ie._VALID_URL, word):
-                                logger.info(f"Found supported URL: {word} (Extractor: {ie.IE_NAME})")
-                                urls.append(word)
-                                break  # Stop once we find a matching pattern
-        except Exception as e:
-            logger.error(f"URL extraction error: {str(e)}")
-        return list(set(urls))  # Remove duplicates
 
     async def _log_message(
         self, guild: discord.Guild, message: str, level: str = "info"

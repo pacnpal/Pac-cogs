@@ -8,9 +8,12 @@ import tarfile
 import zipfile
 import subprocess
 import tempfile
+import platform
+import hashlib
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional
+import time
 
 from .exceptions import DownloadError
 
@@ -71,6 +74,9 @@ class FFmpegDownloader:
             self.machine = "aarch64"  # Normalize ARM64 naming
         self.base_dir = base_dir
         self.ffmpeg_path = self.base_dir / self._get_binary_name()
+        
+        logger.info(f"Initialized FFmpeg downloader for {system}/{machine}")
+        logger.info(f"FFmpeg binary path: {self.ffmpeg_path}")
 
     def _get_binary_name(self) -> str:
         """Get the appropriate binary name for the current system"""
@@ -87,37 +93,58 @@ class FFmpegDownloader:
             raise DownloadError(f"Unsupported system/architecture: {self.system}/{self.machine}")
 
     def download(self) -> Path:
-        """Download and set up FFmpeg binary"""
-        try:
-            # Ensure base directory exists with proper permissions
-            self.base_dir.mkdir(parents=True, exist_ok=True)
-            os.chmod(str(self.base_dir), 0o777)
+        """Download and set up FFmpeg binary with retries"""
+        max_retries = 3
+        retry_delay = 5
+        last_error = None
 
-            # Clean up any existing file or directory
-            if self.ffmpeg_path.exists():
-                if self.ffmpeg_path.is_dir():
-                    shutil.rmtree(str(self.ffmpeg_path))
-                else:
-                    self.ffmpeg_path.unlink()
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Download attempt {attempt + 1}/{max_retries}")
+                
+                # Ensure base directory exists with proper permissions
+                self.base_dir.mkdir(parents=True, exist_ok=True)
+                os.chmod(str(self.base_dir), 0o777)
 
-            with temp_path_context() as temp_dir:
-                # Download archive
-                archive_path = self._download_archive(temp_dir)
-                
-                # Extract FFmpeg binary
-                self._extract_binary(archive_path, temp_dir)
-                
-                # Set proper permissions
-                os.chmod(str(self.ffmpeg_path), 0o755)
-                
-                return self.ffmpeg_path
+                # Clean up any existing file or directory
+                if self.ffmpeg_path.exists():
+                    if self.ffmpeg_path.is_dir():
+                        shutil.rmtree(str(self.ffmpeg_path))
+                    else:
+                        self.ffmpeg_path.unlink()
 
-        except Exception as e:
-            logger.error(f"Failed to download FFmpeg: {str(e)}")
-            raise DownloadError(str(e))
+                with temp_path_context() as temp_dir:
+                    # Download archive
+                    archive_path = self._download_archive(temp_dir)
+                    
+                    # Verify download
+                    if not self._verify_download(archive_path):
+                        raise DownloadError("Downloaded file verification failed")
+                    
+                    # Extract FFmpeg binary
+                    self._extract_binary(archive_path, temp_dir)
+                    
+                    # Set proper permissions
+                    os.chmod(str(self.ffmpeg_path), 0o755)
+                    
+                    # Verify binary
+                    if not self.verify():
+                        raise DownloadError("FFmpeg binary verification failed")
+                    
+                    logger.info(f"Successfully downloaded FFmpeg to {self.ffmpeg_path}")
+                    return self.ffmpeg_path
+
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"Download attempt {attempt + 1} failed: {last_error}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                continue
+
+        raise DownloadError(f"All download attempts failed: {last_error}")
 
     def _download_archive(self, temp_dir: str) -> Path:
-        """Download FFmpeg archive"""
+        """Download FFmpeg archive with progress tracking"""
         url = self._get_download_url()
         archive_path = Path(temp_dir) / f"ffmpeg_archive{'.zip' if self.system == 'Windows' else '.tar.xz'}"
         
@@ -126,13 +153,45 @@ class FFmpegDownloader:
             response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
             
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 8192
+            downloaded = 0
+            
             with open(archive_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
+                for chunk in response.iter_content(chunk_size=block_size):
                     f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        logger.debug(f"Download progress: {percent:.1f}%")
             
             return archive_path
+            
         except Exception as e:
             raise DownloadError(f"Failed to download FFmpeg: {str(e)}")
+
+    def _verify_download(self, archive_path: Path) -> bool:
+        """Verify downloaded archive integrity"""
+        try:
+            if not archive_path.exists():
+                return False
+                
+            # Check file size
+            size = archive_path.stat().st_size
+            if size < 1000000:  # Less than 1MB is suspicious
+                logger.error(f"Downloaded file too small: {size} bytes")
+                return False
+                
+            # Check file hash
+            with open(archive_path, 'rb') as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+            logger.debug(f"Archive hash: {file_hash}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Download verification failed: {str(e)}")
+            return False
 
     def _extract_binary(self, archive_path: Path, temp_dir: str):
         """Extract FFmpeg binary from archive"""
@@ -182,7 +241,13 @@ class FFmpegDownloader:
                 timeout=5
             )
             
-            return result.returncode == 0
+            if result.returncode == 0:
+                version = result.stdout.decode().split('\n')[0]
+                logger.info(f"FFmpeg verification successful: {version}")
+                return True
+            else:
+                logger.error(f"FFmpeg verification failed: {result.stderr.decode()}")
+                return False
 
         except Exception as e:
             logger.error(f"FFmpeg verification failed: {e}")

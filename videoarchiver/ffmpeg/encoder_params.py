@@ -3,21 +3,87 @@
 import os
 import logging
 from typing import Dict, Any
+from .exceptions import CompressionError, QualityError, BitrateError
 
 logger = logging.getLogger("VideoArchiver")
 
 class EncoderParams:
+    """Manages FFmpeg encoding parameters based on hardware and content"""
+
+    # Quality presets based on content type
+    QUALITY_PRESETS = {
+        "gaming": {
+            "crf": "20",
+            "preset": "fast",
+            "tune": "zerolatency",
+            "x264opts": "rc-lookahead=20:me=hex:subme=6:ref=3:b-adapt=1:direct=spatial"
+        },
+        "animation": {
+            "crf": "18",
+            "preset": "slow",
+            "tune": "animation",
+            "x264opts": "rc-lookahead=60:me=umh:subme=9:ref=6:b-adapt=2:direct=auto:deblock=-1,-1"
+        },
+        "film": {
+            "crf": "22",
+            "preset": "medium",
+            "tune": "film",
+            "x264opts": "rc-lookahead=50:me=umh:subme=8:ref=4:b-adapt=2:direct=auto"
+        }
+    }
+
     def __init__(self, cpu_cores: int, gpu_info: Dict[str, bool]):
+        """Initialize encoder parameters manager
+        
+        Args:
+            cpu_cores: Number of available CPU cores
+            gpu_info: Dict containing GPU availability information
+        """
         self.cpu_cores = cpu_cores
         self.gpu_info = gpu_info
+        logger.info(f"Initialized encoder with {cpu_cores} CPU cores and GPU info: {gpu_info}")
 
     def get_params(self, video_info: Dict[str, Any], target_size_bytes: int) -> Dict[str, str]:
-        """Get optimal FFmpeg parameters based on hardware and video analysis"""
-        params = self._get_base_params()
-        params.update(self._get_content_specific_params(video_info))
-        params.update(self._get_gpu_specific_params())
-        params.update(self._get_bitrate_params(video_info, target_size_bytes))
-        return params
+        """Get optimal FFmpeg parameters based on hardware and video analysis
+        
+        Args:
+            video_info: Dict containing video analysis results
+            target_size_bytes: Target file size in bytes
+            
+        Returns:
+            Dict containing FFmpeg encoding parameters
+        """
+        try:
+            # Get base parameters
+            params = self._get_base_params()
+            logger.debug(f"Base parameters: {params}")
+
+            # Update with content-specific parameters
+            content_params = self._get_content_specific_params(video_info)
+            params.update(content_params)
+            logger.debug(f"Content-specific parameters: {content_params}")
+
+            # Update with GPU-specific parameters if available
+            gpu_params = self._get_gpu_specific_params()
+            if gpu_params:
+                params.update(gpu_params)
+                logger.debug(f"GPU-specific parameters: {gpu_params}")
+
+            # Calculate and update bitrate parameters
+            bitrate_params = self._get_bitrate_params(video_info, target_size_bytes)
+            params.update(bitrate_params)
+            logger.debug(f"Bitrate parameters: {bitrate_params}")
+
+            # Validate final parameters
+            self._validate_params(params, video_info)
+            
+            logger.info(f"Final encoding parameters: {params}")
+            return params
+
+        except Exception as e:
+            logger.error(f"Error generating encoding parameters: {str(e)}")
+            # Return safe default parameters
+            return self._get_safe_defaults()
 
     def _get_base_params(self) -> Dict[str, str]:
         """Get base encoding parameters"""
@@ -39,13 +105,19 @@ class EncoderParams:
         """Get parameters optimized for specific content types"""
         params = {}
         
-        if video_info.get("has_high_motion"):
+        # Detect content type
+        content_type = self._detect_content_type(video_info)
+        if content_type in self.QUALITY_PRESETS:
+            params.update(self.QUALITY_PRESETS[content_type])
+
+        # Additional optimizations based on content analysis
+        if video_info.get("has_high_motion", False):
             params.update({
                 "tune": "grain",
                 "x264opts": "rc-lookahead=60:me=umh:subme=7:ref=4:b-adapt=2:direct=auto:deblock=-1,-1:psy-rd=1.0:aq-strength=0.8"
             })
 
-        if video_info.get("has_dark_scenes"):
+        if video_info.get("has_dark_scenes", False):
             x264opts = params.get("x264opts", "rc-lookahead=60:me=umh:subme=7:ref=4:b-adapt=2:direct=auto")
             params.update({
                 "x264opts": x264opts + ":aq-mode=3:aq-strength=1.0:deblock=1:1",
@@ -56,7 +128,7 @@ class EncoderParams:
 
     def _get_gpu_specific_params(self) -> Dict[str, str]:
         """Get GPU-specific encoding parameters"""
-        if self.gpu_info["nvidia"]:
+        if self.gpu_info.get("nvidia", False):
             return {
                 "c:v": "h264_nvenc",
                 "preset": "p7",
@@ -70,7 +142,7 @@ class EncoderParams:
                 "max_muxing_queue_size": "1024",
                 "gpu": "any"
             }
-        elif self.gpu_info["amd"]:
+        elif self.gpu_info.get("amd", False):
             return {
                 "c:v": "h264_amf",
                 "quality": "quality",
@@ -80,7 +152,7 @@ class EncoderParams:
                 "preanalysis": "1",
                 "max_muxing_queue_size": "1024"
             }
-        elif self.gpu_info["intel"]:
+        elif self.gpu_info.get("intel", False):
             return {
                 "c:v": "h264_qsv",
                 "preset": "veryslow",
@@ -94,15 +166,16 @@ class EncoderParams:
         """Calculate and get bitrate-related parameters"""
         params = {}
         try:
-            duration = video_info.get("duration", 0)
-            input_size = video_info.get("bitrate", 0) * duration / 8  # Estimate from bitrate
+            duration = float(video_info.get("duration", 0))
+            input_size = int(video_info.get("bitrate", 0) * duration / 8)  # Convert to bytes
 
             if duration > 0 and input_size > target_size_bytes:
-                video_size_target = int(target_size_bytes * 0.95)
-                total_bitrate = (video_size_target * 8) / duration
+                # Calculate target bitrates
+                video_size_target = int(target_size_bytes * 0.95)  # Reserve 5% for container overhead
+                total_bitrate = int((video_size_target * 8) / duration)
 
-                # Audio bitrate calculation
-                audio_channels = video_info.get("audio_channels", 2)
+                # Calculate audio bitrate
+                audio_channels = int(video_info.get("audio_channels", 2))
                 min_audio_bitrate = 64000 * audio_channels
                 max_audio_bitrate = 192000 * audio_channels
                 audio_bitrate = min(
@@ -110,8 +183,10 @@ class EncoderParams:
                     max(min_audio_bitrate, int(total_bitrate * 0.15))
                 )
 
-                # Video bitrate calculation
-                video_bitrate = int((video_size_target * 8) / duration - audio_bitrate)
+                # Calculate video bitrate
+                video_bitrate = int(total_bitrate - audio_bitrate)
+                if video_bitrate <= 0:
+                    raise BitrateError("Calculated video bitrate is too low", total_bitrate, 0)
 
                 # Set bitrate constraints
                 params["maxrate"] = str(int(video_bitrate * 1.5))
@@ -120,42 +195,85 @@ class EncoderParams:
                 # Quality adjustments based on compression ratio
                 ratio = input_size / target_size_bytes
                 if ratio > 4:
-                    params["crf"] = "26" if params.get("c:v", "libx264") == "libx264" else "23"
+                    params["crf"] = "26"
                     params["preset"] = "faster"
                 elif ratio > 2:
-                    params["crf"] = "23" if params.get("c:v", "libx264") == "libx264" else "21"
+                    params["crf"] = "23"
                     params["preset"] = "medium"
                 else:
-                    params["crf"] = "20" if params.get("c:v", "libx264") == "libx264" else "19"
+                    params["crf"] = "20"
                     params["preset"] = "slow"
-
-                # Dark scene adjustments
-                if video_info.get("has_dark_scenes"):
-                    if params.get("c:v", "libx264") == "libx264":
-                        params["crf"] = str(max(18, int(params["crf"]) - 2))
-                    elif params.get("c:v") == "h264_nvenc":
-                        params["cq:v"] = str(max(15, int(params.get("cq:v", "19")) - 2))
 
                 # Audio settings
                 params.update({
                     "c:a": "aac",
                     "b:a": f"{int(audio_bitrate/1000)}k",
                     "ar": str(video_info.get("audio_sample_rate", 48000)),
-                    "ac": str(video_info.get("audio_channels", 2))
+                    "ac": str(audio_channels)
                 })
 
         except Exception as e:
             logger.error(f"Error calculating bitrates: {str(e)}")
             # Use safe default parameters
-            params.update({
-                "crf": "23",
-                "preset": "medium",
-                "maxrate": f"{2 * 1024 * 1024}",  # 2 Mbps
-                "bufsize": f"{4 * 1024 * 1024}",  # 4 Mbps buffer
-                "c:a": "aac",
-                "b:a": "128k",
-                "ar": "48000",
-                "ac": "2"
-            })
+            params.update(self._get_safe_defaults())
 
         return params
+
+    def _detect_content_type(self, video_info: Dict[str, Any]) -> str:
+        """Detect content type based on video analysis"""
+        try:
+            # Check for gaming content
+            if video_info.get("has_high_motion", False) and video_info.get("fps", 0) >= 60:
+                return "gaming"
+                
+            # Check for animation
+            if video_info.get("has_sharp_edges", False) and not video_info.get("has_film_grain", False):
+                return "animation"
+                
+            # Default to film
+            return "film"
+            
+        except Exception as e:
+            logger.error(f"Error detecting content type: {str(e)}")
+            return "film"
+
+    def _validate_params(self, params: Dict[str, str], video_info: Dict[str, Any]) -> None:
+        """Validate encoding parameters"""
+        try:
+            # Check for required parameters
+            required_params = ["c:v", "preset", "pix_fmt"]
+            missing_params = [p for p in required_params if p not in params]
+            if missing_params:
+                raise ValueError(f"Missing required parameters: {missing_params}")
+
+            # Validate video codec
+            if params["c:v"] not in ["libx264", "h264_nvenc", "h264_amf", "h264_qsv"]:
+                raise ValueError(f"Invalid video codec: {params['c:v']}")
+
+            # Validate preset
+            valid_presets = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
+            if params["preset"] not in valid_presets:
+                raise ValueError(f"Invalid preset: {params['preset']}")
+
+            # Validate pixel format
+            if params["pix_fmt"] not in ["yuv420p", "nv12", "yuv444p"]:
+                raise ValueError(f"Invalid pixel format: {params['pix_fmt']}")
+
+        except Exception as e:
+            logger.error(f"Parameter validation failed: {str(e)}")
+            raise
+
+    def _get_safe_defaults(self) -> Dict[str, str]:
+        """Get safe default encoding parameters"""
+        return {
+            "c:v": "libx264",
+            "preset": "medium",
+            "crf": "23",
+            "pix_fmt": "yuv420p",
+            "profile:v": "high",
+            "level": "4.1",
+            "c:a": "aac",
+            "b:a": "128k",
+            "ar": "48000",
+            "ac": "2"
+        }

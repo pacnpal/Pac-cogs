@@ -183,7 +183,7 @@ class EnhancedVideoQueueManager:
         channel_id: int,
         guild_id: int,
         author_id: int,
-        callback: Callable[[str, bool, str], Any],
+        callback: Optional[Callable[[str, bool, str], Any]] = None,  # Make callback optional
         priority: int = 0,
     ) -> bool:
         """Add a video to the processing queue with priority support"""
@@ -259,7 +259,9 @@ class EnhancedVideoQueueManager:
                 try:
                     # Process the item
                     start_time = time.time()
+                    logger.info(f"Calling processor for item: {item.url}")
                     success, error = await processor(item)
+                    logger.info(f"Processor result for {item.url}: success={success}, error={error}")
                     processing_time = time.time() - start_time
 
                     # Update metrics

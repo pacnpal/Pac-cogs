@@ -57,10 +57,19 @@ class VideoArchiver(commands.Cog):
             # Clean existing downloads
             cleanup_downloads(str(self.download_path))
             
-            # Initialize components dict
+            # Initialize components dict first
             self.components: Dict[int, Dict[str, Any]] = {}
             
-            # Initialize queue manager
+            # Initialize components for existing guilds
+            for guild in self.bot.guilds:
+                try:
+                    await self.initialize_guild_components(guild.id)
+                except Exception as e:
+                    logger.error(f"Failed to initialize guild {guild.id}: {str(e)}")
+                    # Continue initialization even if one guild fails
+                    continue
+            
+            # Initialize queue manager after components are ready
             queue_path = self.data_path / "queue_state.json"
             queue_path.parent.mkdir(parents=True, exist_ok=True)
             self.queue_manager = EnhancedVideoQueueManager(
@@ -72,18 +81,16 @@ class VideoArchiver(commands.Cog):
                 persistence_path=str(queue_path)
             )
             
-            # Initialize other managers in correct order
+            # Initialize update checker
             self.update_checker = UpdateChecker(self.bot, self.config_manager)
-            self.processor = VideoProcessor(self.bot, self.config_manager, self.components)
             
-            # Initialize components for existing guilds
-            for guild in self.bot.guilds:
-                try:
-                    await self.initialize_guild_components(guild.id)
-                except Exception as e:
-                    logger.error(f"Failed to initialize guild {guild.id}: {str(e)}")
-                    # Continue initialization even if one guild fails
-                    continue
+            # Initialize processor with queue manager
+            self.processor = VideoProcessor(
+                self.bot,
+                self.config_manager,
+                self.components,
+                queue_manager=self.queue_manager
+            )
             
             # Start update checker
             await self.update_checker.start()
