@@ -7,7 +7,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Callable, Set
 import traceback
 from datetime import datetime
 
@@ -19,6 +19,7 @@ from videoarchiver.utils.exceptions import (
     QueueError,
     FileOperationError
 )
+from videoarchiver.utils.video_downloader import is_video_url_pattern
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -211,8 +212,8 @@ class VideoProcessor:
                 for word in message.content.split():
                     # Log each word being checked
                     logger.debug(f"Checking word: {word}")
-                    # Basic URL validation - must start with http/https or contain a dot
-                    if word.startswith(('http://', 'https://')) or '.' in word:
+                    # Use proper video URL validation
+                    if is_video_url_pattern(word):
                         # If no sites are enabled, accept all URLs
                         # Otherwise, check if URL contains any enabled site
                         if not enabled_sites or any(site in word.lower() for site in enabled_sites):
@@ -221,7 +222,7 @@ class VideoProcessor:
                         else:
                             logger.debug(f"URL {word} doesn't match any enabled sites")
                     else:
-                        logger.debug(f"Word {word} is not a valid URL")
+                        logger.debug(f"Word {word} is not a valid video URL")
 
             # Add attachment URLs
             for attachment in message.attachments:
