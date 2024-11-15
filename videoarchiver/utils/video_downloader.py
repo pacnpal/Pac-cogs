@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable
 from pathlib import Path
 
 from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
@@ -169,7 +169,11 @@ class VideoDownloader:
             logger.error(f"Error during URL check: {str(e)}")
             return False
 
-    async def download_video(self, url: str) -> Tuple[bool, str, str]:
+    async def download_video(
+        self, 
+        url: str,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> Tuple[bool, str, str]:
         """Download and process a video with improved error handling and retry logic"""
         original_file = None
         compressed_file = None
@@ -180,7 +184,7 @@ class VideoDownloader:
         try:
             with temp_path_context() as temp_dir:
                 # Download the video
-                success, file_path, error = await self._safe_download(url, temp_dir)
+                success, file_path, error = await self._safe_download(url, temp_dir, progress_callback)
                 if not success:
                     return False, "", error
 
@@ -208,6 +212,7 @@ class VideoDownloader:
                             original_file,
                             compressed_file,
                             compression_params,
+                            progress_callback,
                             use_hardware=True
                         )
 
@@ -219,6 +224,7 @@ class VideoDownloader:
                                 original_file,
                                 compressed_file,
                                 compression_params,
+                                progress_callback,
                                 use_hardware=False
                             )
 
@@ -289,6 +295,7 @@ class VideoDownloader:
         input_file: str,
         output_file: str,
         params: Dict[str, str],
+        progress_callback: Optional[Callable[[float], None]] = None,
         use_hardware: bool = True
     ) -> bool:
         """Attempt video compression with given parameters"""
@@ -296,6 +303,9 @@ class VideoDownloader:
             # Build FFmpeg command
             ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
             cmd = [ffmpeg_path, "-y", "-i", input_file]
+
+            # Add progress monitoring
+            cmd.extend(["-progress", "pipe:1"])
 
             # Modify parameters based on hardware acceleration preference
             if use_hardware:
@@ -316,18 +326,32 @@ class VideoDownloader:
             # Add output file
             cmd.append(output_file)
 
-            # Run compression
-            logger.debug(f"Running FFmpeg command: {' '.join(cmd)}")
-            result = await asyncio.get_event_loop().run_in_executor(
-                self.download_pool,
-                lambda: subprocess.run(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                ),
+            # Get video duration for progress calculation
+            duration = self._get_video_duration(input_file)
+
+            # Run compression with progress monitoring
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
 
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                
+                try:
+                    line = line.decode().strip()
+                    if line.startswith("out_time_ms="):
+                        current_time = int(line.split("=")[1]) / 1000000  # Convert microseconds to seconds
+                        if duration > 0 and progress_callback:
+                            progress = min(100, (current_time / duration) * 100)
+                            await progress_callback(progress)
+                except Exception as e:
+                    logger.error(f"Error parsing FFmpeg progress: {e}")
+
+            await process.wait()
             return os.path.exists(output_file)
 
         except subprocess.CalledProcessError as e:
@@ -336,6 +360,24 @@ class VideoDownloader:
         except Exception as e:
             logger.error(f"Compression attempt failed: {str(e)}")
             return False
+
+    def _get_video_duration(self, file_path: str) -> float:
+        """Get video duration in seconds"""
+        try:
+            ffprobe_path = str(self.ffmpeg_mgr.get_ffprobe_path())
+            cmd = [
+                ffprobe_path,
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                file_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            data = json.loads(result.stdout)
+            return float(data["format"]["duration"])
+        except Exception as e:
+            logger.error(f"Error getting video duration: {e}")
+            return 0
 
     def _check_file_size(self, info):
         """Check if file size is within limits"""
@@ -355,10 +397,10 @@ class VideoDownloader:
             logger.info(f"Download completed: {d['filename']}")
         elif d["status"] == "downloading":
             try:
-                percent = d.get("_percent_str", "N/A")
+                percent = float(d.get("_percent_str", "0").replace('%', ''))
                 speed = d.get("_speed_str", "N/A")
                 eta = d.get("_eta_str", "N/A")
-                logger.debug(f"Download progress: {percent} at {speed}, ETA: {eta}")
+                logger.debug(f"Download progress: {percent}% at {speed}, ETA: {eta}")
             except Exception as e:
                 logger.debug(f"Error logging progress: {str(e)}")
 
@@ -412,12 +454,30 @@ class VideoDownloader:
             logger.error(f"Error verifying video file {file_path}: {e}")
             return False
 
-    async def _safe_download(self, url: str, temp_dir: str) -> Tuple[bool, str, str]:
+    async def _safe_download(
+        self, 
+        url: str, 
+        temp_dir: str,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> Tuple[bool, str, str]:
         """Safely download video with retries"""
         for attempt in range(self.MAX_RETRIES):
             try:
                 ydl_opts = self.ydl_opts.copy()
                 ydl_opts["outtmpl"] = os.path.join(temp_dir, ydl_opts["outtmpl"])
+                
+                # Add progress callback
+                if progress_callback:
+                    original_progress_hook = ydl_opts["progress_hooks"][0]
+                    def combined_progress_hook(d):
+                        original_progress_hook(d)
+                        if d["status"] == "downloading":
+                            try:
+                                percent = float(d.get("_percent_str", "0").replace('%', ''))
+                                asyncio.create_task(progress_callback(percent))
+                            except Exception as e:
+                                logger.error(f"Error in progress callback: {e}")
+                    ydl_opts["progress_hooks"] = [combined_progress_hook]
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = await asyncio.get_event_loop().run_in_executor(

@@ -19,6 +19,17 @@ from videoarchiver.utils.exceptions import (
 
 logger = logging.getLogger("VideoArchiver")
 
+# Reaction emojis
+REACTIONS = {
+    'queued': '📹',
+    'processing': '⚙️',
+    'success': '✅',
+    'error': '❌',
+    'numbers': ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'],  # Queue position indicators
+    'progress': ['⬛', '🟨', '🟩'],  # Progress indicators (0%, 50%, 100%)
+    'download': ['0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟']  # Download progress (0%, 20%, 40%, 60%, 80%, 100%)
+}
+
 class VideoProcessor:
     """Handles video processing operations"""
 
@@ -63,6 +74,78 @@ class VideoProcessor:
         self._queue_task = asyncio.create_task(self.queue_manager.process_queue(self._process_video))
         logger.info("Video processing queue started successfully")
 
+    async def update_queue_position_reaction(self, message, position):
+        """Update queue position reaction"""
+        try:
+            # Remove any existing number reactions
+            for reaction in REACTIONS['numbers']:
+                try:
+                    await message.remove_reaction(reaction, self.bot.user)
+                except:
+                    pass
+            
+            # Add new position reaction if within range
+            if 0 <= position < len(REACTIONS['numbers']):
+                await message.add_reaction(REACTIONS['numbers'][position])
+                logger.info(f"Updated queue position reaction to {position + 1} for message {message.id}")
+        except Exception as e:
+            logger.error(f"Failed to update queue position reaction: {e}")
+
+    async def update_progress_reaction(self, message, progress):
+        """Update progress reaction based on FFmpeg progress"""
+        try:
+            # Remove existing progress reactions
+            for reaction in REACTIONS['progress']:
+                try:
+                    await message.remove_reaction(reaction, self.bot.user)
+                except:
+                    pass
+            
+            # Add appropriate progress reaction
+            if progress < 33:
+                await message.add_reaction(REACTIONS['progress'][0])
+                logger.info(f"FFmpeg progress 0-33% for message {message.id}")
+            elif progress < 66:
+                await message.add_reaction(REACTIONS['progress'][1])
+                logger.info(f"FFmpeg progress 33-66% for message {message.id}")
+            else:
+                await message.add_reaction(REACTIONS['progress'][2])
+                logger.info(f"FFmpeg progress 66-100% for message {message.id}")
+        except Exception as e:
+            logger.error(f"Failed to update progress reaction: {e}")
+
+    async def update_download_progress_reaction(self, message, progress):
+        """Update download progress reaction"""
+        try:
+            # Remove existing download progress reactions
+            for reaction in REACTIONS['download']:
+                try:
+                    await message.remove_reaction(reaction, self.bot.user)
+                except:
+                    pass
+            
+            # Add appropriate download progress reaction
+            if progress <= 20:
+                await message.add_reaction(REACTIONS['download'][0])
+                logger.info(f"Download progress 0-20% for message {message.id}")
+            elif progress <= 40:
+                await message.add_reaction(REACTIONS['download'][1])
+                logger.info(f"Download progress 20-40% for message {message.id}")
+            elif progress <= 60:
+                await message.add_reaction(REACTIONS['download'][2])
+                logger.info(f"Download progress 40-60% for message {message.id}")
+            elif progress <= 80:
+                await message.add_reaction(REACTIONS['download'][3])
+                logger.info(f"Download progress 60-80% for message {message.id}")
+            elif progress < 100:
+                await message.add_reaction(REACTIONS['download'][4])
+                logger.info(f"Download progress 80-100% for message {message.id}")
+            else:
+                await message.add_reaction(REACTIONS['download'][5])
+                logger.info(f"Download completed (100%) for message {message.id}")
+        except Exception as e:
+            logger.error(f"Failed to update download progress reaction: {e}")
+
     async def process_message(self, message):
         """Process a message for video content"""
         try:
@@ -80,11 +163,12 @@ class VideoProcessor:
             if not content or not downloader.is_supported_url(content):
                 return
 
-            # Add video camera reaction to indicate processing
+            # Add initial queued reaction
             try:
-                await message.add_reaction("📹")
+                await message.add_reaction(REACTIONS['queued'])
+                logger.info(f"Added queued reaction to message {message.id}")
             except Exception as e:
-                logger.error(f"Failed to add video camera reaction: {e}")
+                logger.error(f"Failed to add queued reaction: {e}")
 
             # Add to processing queue
             await self.queue_manager.add_to_queue(
@@ -94,6 +178,13 @@ class VideoProcessor:
                 guild_id=message.guild.id,
                 author_id=message.author.id
             )
+            logger.info(f"Added message {message.id} to processing queue")
+
+            # Update queue position
+            queue_status = self.queue_manager.get_queue_status(message.guild.id)
+            queue_position = queue_status['pending'] - 1  # -1 because this item was just added
+            await self.update_queue_position_reaction(message, queue_position)
+            logger.info(f"Message {message.id} is at position {queue_position + 1} in queue")
 
         except Exception as e:
             logger.error(f"Error processing message: {traceback.format_exc()}")
@@ -102,6 +193,7 @@ class VideoProcessor:
     async def _process_video(self, item) -> Tuple[bool, Optional[str]]:
         """Process a video from the queue"""
         file_path = None
+        original_message = None
         try:
             guild_id = item.guild_id
             if guild_id not in self.components:
@@ -120,6 +212,11 @@ class VideoProcessor:
                 if not channel:
                     return False, f"Channel {item.channel_id} not found"
                 original_message = await channel.fetch_message(item.message_id)
+                
+                # Update reactions to show processing
+                await original_message.remove_reaction(REACTIONS['queued'], self.bot.user)
+                await original_message.add_reaction(REACTIONS['processing'])
+                logger.info(f"Started processing message {item.message_id}")
             except discord.NotFound:
                 original_message = None
             except Exception as e:
@@ -128,10 +225,19 @@ class VideoProcessor:
 
             # Download and process video
             try:
-                success, file_path, error = await downloader.download_video(item.url)
+                success, file_path, error = await downloader.download_video(
+                    item.url,
+                    progress_callback=lambda progress: self.update_download_progress_reaction(original_message, progress) if original_message else None
+                )
                 if not success:
+                    if original_message:
+                        await original_message.add_reaction(REACTIONS['error'])
+                        logger.error(f"Download failed for message {item.message_id}: {error}")
                     return False, f"Failed to download video: {error}"
             except Exception as e:
+                if original_message:
+                    await original_message.add_reaction(REACTIONS['error'])
+                    logger.error(f"Download error for message {item.message_id}: {str(e)}")
                 return False, f"Download error: {str(e)}"
 
             # Get archive channel
@@ -163,14 +269,29 @@ class VideoProcessor:
                     content=message,
                     file=discord.File(file_path)
                 )
+                
+                # Update reactions for success
+                if original_message:
+                    await original_message.remove_reaction(REACTIONS['processing'], self.bot.user)
+                    await original_message.add_reaction(REACTIONS['success'])
+                    logger.info(f"Successfully processed message {item.message_id}")
+                
                 return True, None
 
             except discord.HTTPException as e:
+                if original_message:
+                    await original_message.add_reaction(REACTIONS['error'])
+                    logger.error(f"Failed to upload to Discord for message {item.message_id}: {str(e)}")
                 return False, f"Failed to upload to Discord: {str(e)}"
             except Exception as e:
+                if original_message:
+                    await original_message.add_reaction(REACTIONS['error'])
+                    logger.error(f"Failed to archive video for message {item.message_id}: {str(e)}")
                 return False, f"Failed to archive video: {str(e)}"
 
         except Exception as e:
+            if original_message:
+                await original_message.add_reaction(REACTIONS['error'])
             logger.error(f"Error processing video: {traceback.format_exc()}")
             return False, str(e)
 
