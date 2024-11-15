@@ -447,7 +447,7 @@ class VideoDownloader:
         """Safely delete a file with retries"""
         for attempt in range(self.FILE_OP_RETRIES):
             try:
-                if secure_delete_file(file_path):
+                if await secure_delete_file(file_path):
                     return True
                 await asyncio.sleep(self.FILE_OP_RETRY_DELAY * (attempt + 1))
             except Exception as e:

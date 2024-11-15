@@ -58,7 +58,7 @@ class VideoArchiver(commands.Cog):
             self.download_path.mkdir(parents=True, exist_ok=True)
 
             # Clean existing downloads
-            cleanup_downloads(str(self.download_path))
+            await cleanup_downloads(str(self.download_path))
 
             # Initialize shared FFmpeg manager
             self.ffmpeg_mgr = FFmpegManager()
@@ -184,7 +184,7 @@ class VideoArchiver(commands.Cog):
             # Clean up download directory
             if hasattr(self, "download_path") and self.download_path.exists():
                 try:
-                    cleanup_downloads(str(self.download_path))
+                    await cleanup_downloads(str(self.download_path))
                     self.download_path.rmdir()
                 except Exception as e:
                     logger.error(f"Error cleaning up download directory: {str(e)}")
@@ -202,7 +202,7 @@ class VideoArchiver(commands.Cog):
 
             # Ensure download directory exists and is clean
             self.download_path.mkdir(parents=True, exist_ok=True)
-            cleanup_downloads(str(self.download_path))
+            await cleanup_downloads(str(self.download_path))
 
             # Clean up old components if they exist
             if guild_id in self.components:
