@@ -18,8 +18,9 @@ logger = logging.getLogger("VideoArchiver")
 class FFmpegManager:
     def __init__(self):
         """Initialize FFmpeg manager"""
-        # Set up base directory in /tmp for Docker compatibility
-        self.base_dir = Path("/tmp/ffmpeg")
+        # Set up base directory in videoarchiver/bin
+        module_dir = Path(__file__).parent.parent
+        self.base_dir = module_dir / "bin"
         
         # Initialize downloader
         self.downloader = FFmpegDownloader(
