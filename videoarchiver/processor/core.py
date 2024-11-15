@@ -23,17 +23,23 @@ class VideoProcessor:
         config_manager,
         components,
         queue_manager=None,
-        ffmpeg_mgr=None
+        ffmpeg_mgr=None,
+        db=None
     ):
         self.bot = bot
         self.config = config_manager
         self.components = components
         self.ffmpeg_mgr = ffmpeg_mgr
+        self.db = db
 
         # Initialize handlers
         self.queue_handler = QueueHandler(bot, config_manager, components)
         self.message_handler = MessageHandler(bot, config_manager, queue_manager)
         self.progress_tracker = ProgressTracker()
+
+        # Pass db to queue handler if it exists
+        if self.db:
+            self.queue_handler.db = self.db
 
         # Start queue processing
         logger.info("Starting video processing queue...")
