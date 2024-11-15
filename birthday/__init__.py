@@ -2,6 +2,7 @@
 from redbot.core.bot import Red
 import logging
 import discord
+from discord.app_commands.errors import CommandAlreadyRegistered
 from .birthday import Birthday, birthday_context_menu
 
 logger = logging.getLogger("Birthday")
@@ -11,9 +12,11 @@ async def setup(bot: Red) -> None:
     try:
         cog = Birthday(bot)
         await bot.add_cog(cog)
-        # Add context menu command if it doesn't exist
-        if not discord.utils.get(bot.tree.get_commands(), name="Give Birthday Role"):
+        # Try to add context menu command, ignore if already registered
+        try:
             bot.tree.add_command(birthday_context_menu)
+        except CommandAlreadyRegistered:
+            pass
         # Initialize scheduled tasks
         try:
             await cog.reload_scheduled_tasks()
