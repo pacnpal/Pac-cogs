@@ -43,14 +43,10 @@ class VideoProcessor:
         if self.db:
             self.queue_handler.db = self.db
 
-        # Start queue processing
-        logger.info("Starting video processing queue...")
+        # Store queue task reference but don't start processing here
+        # Queue processing is managed by VideoArchiver class
         self._queue_task = None
-        if queue_manager:
-            self._queue_task = self.bot.loop.create_task(
-                queue_manager.process_queue(self.queue_handler.process_video)
-            )
-            logger.info("Video processing queue started successfully")
+        logger.info("VideoProcessor initialized successfully")
 
     async def process_message(self, message: discord.Message) -> None:
         """Process a message for video content"""
@@ -74,7 +70,7 @@ class VideoProcessor:
                 except Exception as e:
                     logger.error(f"Error cleaning up FFmpeg manager: {e}")
 
-            # Cancel queue processing task
+            # Cancel queue processing task if we have one
             if self._queue_task and not self._queue_task.done():
                 self._queue_task.cancel()
                 try:

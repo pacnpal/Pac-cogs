@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Dict, Optional, Set, Tuple, Callable, Any, List
 from datetime import datetime
 
@@ -28,7 +29,8 @@ class EnhancedVideoQueueManager:
         max_history_age: int = 86400,  # 24 hours
         persistence_path: Optional[str] = None,
         backup_interval: int = 300,  # 5 minutes
-        deadlock_threshold: int = 900,  # 15 minutes
+        deadlock_threshold: int = 300,  # 5 minutes
+        check_interval: int = 60,     # 1 minute
     ):
         # Configuration
         self.max_retries = max_retries
@@ -58,7 +60,8 @@ class EnhancedVideoQueueManager:
         self.persistence = QueuePersistenceManager(persistence_path) if persistence_path else None
         self.monitor = QueueMonitor(
             deadlock_threshold=deadlock_threshold,
-            max_retries=max_retries
+            max_retries=max_retries,
+            check_interval=check_interval
         )
         self.cleaner = QueueCleaner(
             cleanup_interval=cleanup_interval,
@@ -80,6 +83,7 @@ class EnhancedVideoQueueManager:
             )
         )
         self._active_tasks.add(monitor_task)
+        logger.info("Queue monitoring started")
 
         # Start cleanup
         cleanup_task = asyncio.create_task(
@@ -95,6 +99,7 @@ class EnhancedVideoQueueManager:
             )
         )
         self._active_tasks.add(cleanup_task)
+        logger.info("Queue cleanup started")
 
         # Load persisted state if available
         if self.persistence:
@@ -120,6 +125,7 @@ class EnhancedVideoQueueManager:
                 self.metrics.compression_failures = metrics_data.get("compression_failures", 0)
                 self.metrics.hardware_accel_failures = metrics_data.get("hardware_accel_failures", 0)
 
+                logger.info("Loaded persisted queue state")
         except Exception as e:
             logger.error(f"Failed to load persisted state: {e}")
 
@@ -141,8 +147,6 @@ class EnhancedVideoQueueManager:
                     if self._queue:
                         item = self._queue.pop(0)
                         self._processing[item.url] = item
-                        item.status = "processing"
-                        item.processing_time = 0.0
 
                 if not item:
                     await asyncio.sleep(1)
@@ -151,20 +155,19 @@ class EnhancedVideoQueueManager:
                 try:
                     # Process the item
                     logger.info(f"Processing queue item: {item.url}")
+                    item.start_processing()  # Start processing tracking
+                    self.metrics.last_activity_time = time.time()  # Update activity time
+                    
                     success, error = await processor(item)
                     
                     # Update metrics and status
                     async with self._processing_lock:
+                        item.finish_processing(success, error)  # Update item status
+                        
                         if success:
-                            item.status = "completed"
                             self._completed[item.url] = item
                             logger.info(f"Successfully processed: {item.url}")
                         else:
-                            item.status = "failed"
-                            item.error = error
-                            item.last_error = error
-                            item.last_error_time = datetime.utcnow()
-
                             if item.retry_count < self.max_retries:
                                 item.retry_count += 1
                                 item.status = "pending"
@@ -177,16 +180,25 @@ class EnhancedVideoQueueManager:
                                 logger.error(f"Failed after {self.max_retries} attempts: {item.url}")
 
                         self._processing.pop(item.url, None)
+                        
+                        # Update metrics
+                        self.metrics.update(
+                            processing_time=item.processing_time,
+                            success=success,
+                            error=error
+                        )
 
                 except Exception as e:
                     logger.error(f"Error processing {item.url}: {e}")
                     async with self._processing_lock:
-                        item.status = "failed"
-                        item.error = str(e)
-                        item.last_error = str(e)
-                        item.last_error_time = datetime.utcnow()
+                        item.finish_processing(False, str(e))
                         self._failed[item.url] = item
                         self._processing.pop(item.url, None)
+                        self.metrics.update(
+                            processing_time=item.processing_time,
+                            success=False,
+                            error=str(e)
+                        )
 
                 # Persist state if enabled
                 if self.persistence:
@@ -215,22 +227,7 @@ class EnhancedVideoQueueManager:
         author_id: int,
         priority: int = 0,
     ) -> bool:
-        """Add a video to the processing queue
-        
-        Args:
-            url: Video URL
-            message_id: Discord message ID
-            channel_id: Discord channel ID
-            guild_id: Discord guild ID
-            author_id: Discord author ID
-            priority: Queue priority (higher = higher priority)
-            
-        Returns:
-            True if added successfully
-            
-        Raises:
-            QueueError: If queue is full or shutting down
-        """
+        """Add a video to the processing queue"""
         if self._shutdown:
             raise QueueError("Queue manager is shutting down")
 
@@ -262,6 +259,9 @@ class EnhancedVideoQueueManager:
                 self._queue.append(item)
                 self._queue.sort(key=lambda x: (-x.priority, x.added_at))
 
+                # Update activity time
+                self.metrics.last_activity_time = time.time()
+
                 if self.persistence:
                     await self.persistence.persist_queue_state(
                         self._queue,
@@ -279,14 +279,7 @@ class EnhancedVideoQueueManager:
             raise QueueError(f"Failed to add to queue: {str(e)}")
 
     def get_queue_status(self, guild_id: int) -> dict:
-        """Get current queue status for a guild
-        
-        Args:
-            guild_id: Discord guild ID
-            
-        Returns:
-            Dict containing queue status and metrics
-        """
+        """Get current queue status for a guild"""
         try:
             pending = len([item for item in self._queue if item.guild_id == guild_id])
             processing = len([item for item in self._processing.values() if item.guild_id == guild_id])
@@ -308,6 +301,7 @@ class EnhancedVideoQueueManager:
                     "errors_by_type": self.metrics.errors_by_type,
                     "compression_failures": self.metrics.compression_failures,
                     "hardware_accel_failures": self.metrics.hardware_accel_failures,
+                    "last_activity": time.time() - self.metrics.last_activity_time,
                 },
             }
 
@@ -328,21 +322,12 @@ class EnhancedVideoQueueManager:
                     "errors_by_type": {},
                     "compression_failures": 0,
                     "hardware_accel_failures": 0,
+                    "last_activity": 0,
                 },
             }
 
     async def clear_guild_queue(self, guild_id: int) -> int:
-        """Clear all queue items for a guild
-        
-        Args:
-            guild_id: Discord guild ID
-            
-        Returns:
-            Number of items cleared
-            
-        Raises:
-            QueueError: If queue is shutting down
-        """
+        """Clear all queue items for a guild"""
         if self._shutdown:
             raise QueueError("Queue manager is shutting down")
 
@@ -377,6 +362,7 @@ class EnhancedVideoQueueManager:
         """Clean up resources and stop queue processing"""
         try:
             self._shutdown = True
+            logger.info("Starting queue manager cleanup...")
             
             # Stop monitoring and cleanup tasks
             self.monitor.stop_monitoring()
@@ -428,6 +414,7 @@ class EnhancedVideoQueueManager:
     def force_stop(self) -> None:
         """Force stop all queue operations immediately"""
         self._shutdown = True
+        logger.info("Force stopping queue manager...")
         
         # Stop monitoring and cleanup
         self.monitor.stop_monitoring()

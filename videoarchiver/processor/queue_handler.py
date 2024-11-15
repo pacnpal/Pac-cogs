@@ -35,6 +35,10 @@ class QueueHandler:
         download_task = None
 
         try:
+            # Start processing
+            item.start_processing()
+            logger.info(f"Started processing video: {item.url}")
+
             # Check if video is already archived
             if self.db and self.db.is_url_archived(item.url):
                 logger.info(f"Video already archived: {item.url}")
@@ -43,18 +47,23 @@ class QueueHandler:
                     archived_info = self.db.get_archived_video(item.url)
                     if archived_info:
                         await original_message.reply(f"This video was already archived. You can find it here: {archived_info[0]}")
+                item.finish_processing(True)
                 return True, None
 
             guild_id = item.guild_id
             if guild_id not in self.components:
-                return False, f"No components found for guild {guild_id}"
+                error = f"No components found for guild {guild_id}"
+                item.finish_processing(False, error)
+                return False, error
 
             components = self.components[guild_id]
             downloader = components.get("downloader")
             message_manager = components.get("message_manager")
 
             if not downloader or not message_manager:
-                return False, f"Missing required components for guild {guild_id}"
+                error = f"Missing required components for guild {guild_id}"
+                item.finish_processing(False, error)
+                return False, error
 
             # Get original message and update reactions
             original_message = await self._get_original_message(item)
@@ -74,19 +83,21 @@ class QueueHandler:
                 if original_message:
                     await original_message.add_reaction(REACTIONS["error"])
                     logger.error(f"Download failed for message {item.message_id}: {error}")
+                item.finish_processing(False, f"Failed to download video: {error}")
                 return False, f"Failed to download video: {error}"
 
             # Archive video
             success, error = await self._archive_video(
                 guild_id, original_message, message_manager, item.url, file_path
             )
-            if not success:
-                return False, error
-
-            return True, None
+            
+            # Finish processing
+            item.finish_processing(success, error if not success else None)
+            return success, error
 
         except Exception as e:
             logger.error(f"Error processing video: {str(e)}", exc_info=True)
+            item.finish_processing(False, str(e))
             return False, str(e)
         finally:
             # Clean up downloaded file

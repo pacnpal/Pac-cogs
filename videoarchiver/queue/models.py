@@ -1,6 +1,7 @@
 """Data models for the queue system"""
 
 import logging
+import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Dict, Optional, List, Any
@@ -22,14 +23,16 @@ class QueueItem:
     guild_id: int    # Discord ID
     added_at: datetime = field(default_factory=datetime.utcnow)
     status: str = "pending"
-    retry_count: int = 0  # Changed from retries to retry_count
-    priority: int = 0  # Added priority field with default value 0
+    retry_count: int = 0
+    priority: int = 0
     last_retry: Optional[datetime] = None
     last_error: Optional[str] = None
     last_error_time: Optional[datetime] = None
+    start_time: Optional[float] = None  # Added start_time for processing tracking
     processing_time: float = 0.0
     output_path: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    error: Optional[str] = None  # Added error field for current error
 
     def __post_init__(self):
         """Convert string dates to datetime objects after initialization"""
@@ -56,6 +59,29 @@ class QueueItem:
                 self.last_error_time = None
         elif not isinstance(self.last_error_time, datetime):
             self.last_error_time = None
+
+    def start_processing(self) -> None:
+        """Mark item as started processing"""
+        self.status = "processing"
+        self.start_time = time.time()
+        self.processing_time = 0.0
+        self.error = None
+
+    def finish_processing(self, success: bool, error: Optional[str] = None) -> None:
+        """Mark item as finished processing"""
+        end_time = time.time()
+        if self.start_time:
+            self.processing_time = end_time - self.start_time
+        
+        if success:
+            self.status = "completed"
+        else:
+            self.status = "failed"
+            self.error = error
+            self.last_error = error
+            self.last_error_time = datetime.utcnow()
+
+        self.start_time = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary with datetime handling"""
@@ -91,6 +117,7 @@ class QueueMetrics:
     processing_times: List[float] = field(default_factory=list)
     compression_failures: int = 0
     hardware_accel_failures: int = 0
+    last_activity_time: float = field(default_factory=time.time)  # Added activity tracking
 
     def __post_init__(self):
         """Convert string dates to datetime objects after initialization"""
@@ -115,6 +142,8 @@ class QueueMetrics:
     def update(self, processing_time: float, success: bool, error: str = None):
         """Update metrics with new processing information"""
         self.total_processed += 1
+        self.last_activity_time = time.time()  # Update activity timestamp
+
         if not success:
             self.total_failed += 1
             if error:

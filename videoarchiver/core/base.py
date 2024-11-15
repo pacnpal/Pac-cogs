@@ -40,11 +40,11 @@ from .events import setup_events
 
 logger = logging.getLogger("VideoArchiver")
 
-# Constants for timeouts - extremely aggressive timeouts
-UNLOAD_TIMEOUT = 2  # seconds
-CLEANUP_TIMEOUT = 1  # seconds
-INIT_TIMEOUT = 5    # seconds
-COMPONENT_INIT_TIMEOUT = 2  # seconds
+# Constants for timeouts - more reasonable timeouts
+UNLOAD_TIMEOUT = 30  # seconds
+CLEANUP_TIMEOUT = 15  # seconds
+INIT_TIMEOUT = 60    # seconds
+COMPONENT_INIT_TIMEOUT = 30  # seconds
 
 class VideoArchiver(GroupCog):
     """Archive videos from Discord channels"""
@@ -73,6 +73,9 @@ class VideoArchiver(GroupCog):
         self._cleanup_task: Optional[asyncio.Task] = None
         self._unloading = False
         self.db = None
+        self.queue_manager = None
+        self.processor = None
+        self.components = {}
 
         # Start initialization
         self._init_task = asyncio.create_task(self._initialize())
@@ -335,10 +338,12 @@ class VideoArchiver(GroupCog):
         """Handle initialization task completion"""
         try:
             task.result()
+            logger.info("Initialization completed successfully")
         except asyncio.CancelledError:
-            pass
+            logger.warning("Initialization was cancelled")
+            asyncio.create_task(self._cleanup())
         except Exception as e:
-            logger.error(f"Initialization failed: {str(e)}")
+            logger.error(f"Initialization failed: {str(e)}\n{traceback.format_exc()}")
             asyncio.create_task(self._cleanup())
 
     async def _initialize(self) -> None:
@@ -348,11 +353,13 @@ class VideoArchiver(GroupCog):
             config = Config.get_conf(self, identifier=855847, force_registration=True)
             config.register_guild(**self.default_guild_settings)
             self.config_manager = ConfigManager(config)
+            logger.info("Config manager initialized")
 
             # Set up paths
             self.data_path = Path(data_manager.cog_data_path(self))
             self.download_path = self.data_path / "downloads"
             self.download_path.mkdir(parents=True, exist_ok=True)
+            logger.info("Paths initialized")
 
             # Clean existing downloads with timeout
             try:
@@ -360,31 +367,15 @@ class VideoArchiver(GroupCog):
                     cleanup_downloads(str(self.download_path)), 
                     timeout=CLEANUP_TIMEOUT
                 )
+                logger.info("Downloads cleaned up")
             except asyncio.TimeoutError:
                 logger.warning("Download cleanup timed out, continuing initialization")
 
             # Initialize shared FFmpeg manager
             self.ffmpeg_mgr = FFmpegManager()
-            logger.info("Initialized shared FFmpeg manager")
+            logger.info("FFmpeg manager initialized")
 
-            # Initialize components dict first
-            self.components: Dict[int, Dict[str, Any]] = {}
-
-            # Initialize components for existing guilds with timeout
-            for guild in self.bot.guilds:
-                try:
-                    await asyncio.wait_for(
-                        initialize_guild_components(self, guild.id),
-                        timeout=COMPONENT_INIT_TIMEOUT
-                    )
-                except asyncio.TimeoutError:
-                    logger.error(f"Guild {guild.id} initialization timed out")
-                    continue
-                except Exception as e:
-                    logger.error(f"Failed to initialize guild {guild.id}: {str(e)}")
-                    continue
-
-            # Initialize queue manager after components are ready
+            # Initialize queue manager before components
             queue_path = self.data_path / "queue_state.json"
             queue_path.parent.mkdir(parents=True, exist_ok=True)
             self.queue_manager = EnhancedVideoQueueManager(
@@ -395,9 +386,7 @@ class VideoArchiver(GroupCog):
                 max_history_age=86400,
                 persistence_path=str(queue_path),
             )
-
-            # Initialize update checker
-            self.update_checker = UpdateChecker(self.bot, self.config_manager)
+            logger.info("Queue manager initialized")
 
             # Initialize processor with queue manager and shared FFmpeg manager
             self.processor = VideoProcessor(
@@ -408,6 +397,26 @@ class VideoArchiver(GroupCog):
                 ffmpeg_mgr=self.ffmpeg_mgr,
                 db=self.db,  # Pass database to processor (None by default)
             )
+            logger.info("Video processor initialized")
+
+            # Initialize components for existing guilds with timeout
+            for guild in self.bot.guilds:
+                try:
+                    await asyncio.wait_for(
+                        initialize_guild_components(self, guild.id),
+                        timeout=COMPONENT_INIT_TIMEOUT
+                    )
+                    logger.info(f"Guild {guild.id} components initialized")
+                except asyncio.TimeoutError:
+                    logger.error(f"Guild {guild.id} initialization timed out")
+                    continue
+                except Exception as e:
+                    logger.error(f"Failed to initialize guild {guild.id}: {str(e)}")
+                    continue
+
+            # Initialize update checker
+            self.update_checker = UpdateChecker(self.bot, self.config_manager)
+            logger.info("Update checker initialized")
 
             # Start update checker with timeout
             try:
@@ -415,15 +424,20 @@ class VideoArchiver(GroupCog):
                     self.update_checker.start(),
                     timeout=INIT_TIMEOUT
                 )
+                logger.info("Update checker started")
             except asyncio.TimeoutError:
                 logger.warning("Update checker start timed out")
+
+            # Start queue processing
+            await self.queue_manager.process_queue(self.processor.process_video)
+            logger.info("Queue processing started")
 
             # Set ready flag
             self.ready.set()
             logger.info("VideoArchiver initialization completed successfully")
 
         except Exception as e:
-            logger.error(f"Critical error during initialization: {str(e)}")
+            logger.error(f"Critical error during initialization: {str(e)}\n{traceback.format_exc()}")
             # Force cleanup on initialization error
             try:
                 await asyncio.wait_for(
@@ -435,22 +449,24 @@ class VideoArchiver(GroupCog):
             raise
 
     async def cog_load(self) -> None:
-        """Handle cog loading with aggressive timeout"""
+        """Handle cog loading with proper timeout"""
         try:
             # Create initialization task
             init_task = asyncio.create_task(self._initialize())
             try:
                 # Wait for initialization with timeout
                 await asyncio.wait_for(init_task, timeout=INIT_TIMEOUT)
+                logger.info("Initialization completed within timeout")
             except asyncio.TimeoutError:
                 logger.error("Initialization timed out, forcing cleanup")
                 init_task.cancel()
                 await force_cleanup_resources(self)
                 raise ProcessingError("Cog initialization timed out")
             
-            # Wait for ready flag with short timeout
+            # Wait for ready flag with timeout
             try:
                 await asyncio.wait_for(self.ready.wait(), timeout=INIT_TIMEOUT)
+                logger.info("Ready flag set within timeout")
             except asyncio.TimeoutError:
                 await force_cleanup_resources(self)
                 raise ProcessingError("Ready flag wait timed out")
@@ -467,34 +483,36 @@ class VideoArchiver(GroupCog):
             raise ProcessingError(f"Error during cog load: {str(e)}")
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded with extremely aggressive timeout handling"""
+        """Clean up when cog is unloaded with proper timeout handling"""
         self._unloading = True
         try:
-            # Cancel any pending tasks immediately
+            # Cancel any pending tasks
             if self._init_task and not self._init_task.done():
                 self._init_task.cancel()
             
             if self._cleanup_task and not self._cleanup_task.done():
                 self._cleanup_task.cancel()
 
-            # Try normal cleanup first with very short timeout
+            # Try normal cleanup first
             cleanup_task = asyncio.create_task(cleanup_resources(self))
             try:
-                await asyncio.wait_for(cleanup_task, timeout=CLEANUP_TIMEOUT)
+                await asyncio.wait_for(cleanup_task, timeout=UNLOAD_TIMEOUT)
+                logger.info("Normal cleanup completed")
             except (asyncio.TimeoutError, Exception) as e:
                 if isinstance(e, asyncio.TimeoutError):
                     logger.warning("Normal cleanup timed out, forcing cleanup")
                 else:
                     logger.error(f"Error during normal cleanup: {str(e)}")
                 
-                # Cancel normal cleanup and force cleanup immediately
+                # Cancel normal cleanup and force cleanup
                 cleanup_task.cancel()
                 try:
-                    # Force cleanup with very short timeout
+                    # Force cleanup with timeout
                     await asyncio.wait_for(
                         force_cleanup_resources(self),
                         timeout=CLEANUP_TIMEOUT
                     )
+                    logger.info("Force cleanup completed")
                 except asyncio.TimeoutError:
                     logger.error("Force cleanup timed out")
                 except Exception as e:
@@ -506,16 +524,14 @@ class VideoArchiver(GroupCog):
             self._unloading = False
             # Ensure ready flag is cleared
             self.ready.clear()
-            # Aggressively clear all references
+            # Clear all references
             self.bot = None
             self.processor = None
             self.queue_manager = None
             self.update_checker = None
             self.ffmpeg_mgr = None
-            if hasattr(self, 'components'):
-                self.components.clear()
+            self.components.clear()
             self.db = None
-            # Clear any other potential references
             self._init_task = None
             self._cleanup_task = None
 
@@ -526,6 +542,7 @@ class VideoArchiver(GroupCog):
                 cleanup_resources(self),
                 timeout=CLEANUP_TIMEOUT
             )
+            logger.info("Cleanup completed successfully")
         except asyncio.TimeoutError:
             logger.warning("Cleanup timed out, forcing cleanup")
             try:
@@ -533,5 +550,6 @@ class VideoArchiver(GroupCog):
                     force_cleanup_resources(self),
                     timeout=CLEANUP_TIMEOUT
                 )
+                logger.info("Force cleanup completed")
             except asyncio.TimeoutError:
                 logger.error("Force cleanup timed out")
