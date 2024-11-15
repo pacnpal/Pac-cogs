@@ -15,10 +15,11 @@ logger = logging.getLogger("VideoArchiver")
 class QueueHandler:
     """Handles queue processing and video operations"""
 
-    def __init__(self, bot, config_manager, components):
+    def __init__(self, bot, config_manager, components, db=None):
         self.bot = bot
         self.config = config_manager
         self.components = components
+        self.db = db
         self._unloading = False
         self._active_downloads: Dict[str, asyncio.Task] = {}
         self._active_downloads_lock = asyncio.Lock()
@@ -34,6 +35,16 @@ class QueueHandler:
         download_task = None
 
         try:
+            # Check if video is already archived
+            if self.db and self.db.is_url_archived(item.url):
+                logger.info(f"Video already archived: {item.url}")
+                if original_message := await self._get_original_message(item):
+                    await original_message.add_reaction(REACTIONS["success"])
+                    archived_info = self.db.get_archived_video(item.url)
+                    if archived_info:
+                        await original_message.reply(f"This video was already archived. You can find it here: {archived_info[0]}")
+                return True, None
+
             guild_id = item.guild_id
             if guild_id not in self.components:
                 return False, f"No components found for guild {guild_id}"
@@ -84,6 +95,65 @@ class QueueHandler:
                     os.unlink(file_path)
                 except Exception as e:
                     logger.error(f"Failed to clean up file {file_path}: {e}")
+
+    async def _archive_video(self, guild_id: int, original_message: Optional[discord.Message],
+                           message_manager, url: str, file_path: str) -> Tuple[bool, Optional[str]]:
+        """Archive downloaded video"""
+        try:
+            # Get archive channel
+            guild = self.bot.get_guild(guild_id)
+            if not guild:
+                return False, f"Guild {guild_id} not found"
+
+            archive_channel = await self.config.get_channel(guild, "archive")
+            if not archive_channel:
+                return False, "Archive channel not configured"
+
+            # Format message
+            try:
+                author = original_message.author if original_message else None
+                channel = original_message.channel if original_message else None
+                message = await message_manager.format_message(
+                    author=author, channel=channel, url=url
+                )
+            except Exception as e:
+                return False, f"Failed to format message: {str(e)}"
+
+            # Upload to archive channel
+            if not os.path.exists(file_path):
+                return False, "Processed file not found"
+
+            archive_message = await archive_channel.send(content=message, file=discord.File(file_path))
+
+            # Store in database if available
+            if self.db and archive_message.attachments:
+                discord_url = archive_message.attachments[0].url
+                self.db.add_archived_video(
+                    url,
+                    discord_url,
+                    archive_message.id,
+                    archive_channel.id,
+                    guild_id
+                )
+                logger.info(f"Added video to archive database: {url} -> {discord_url}")
+
+            if original_message:
+                await original_message.remove_reaction(REACTIONS["processing"], self.bot.user)
+                await original_message.add_reaction(REACTIONS["success"])
+                logger.info(f"Successfully processed message {original_message.id}")
+
+            return True, None
+
+        except discord.HTTPException as e:
+            if original_message:
+                await original_message.add_reaction(REACTIONS["error"])
+            logger.error(f"Failed to upload to Discord: {str(e)}")
+            return False, f"Failed to upload to Discord: {str(e)}"
+        except Exception as e:
+            if original_message:
+                await original_message.add_reaction(REACTIONS["error"])
+            logger.error(f"Failed to archive video: {str(e)}")
+            return False, f"Failed to archive video: {str(e)}"
 
     async def _get_original_message(self, item) -> Optional[discord.Message]:
         """Retrieve the original message"""
@@ -148,53 +218,6 @@ class QueueHandler:
         finally:
             async with self._active_downloads_lock:
                 self._active_downloads.pop(url, None)
-
-    async def _archive_video(self, guild_id: int, original_message: Optional[discord.Message],
-                           message_manager, url: str, file_path: str) -> Tuple[bool, Optional[str]]:
-        """Archive downloaded video"""
-        try:
-            # Get archive channel
-            guild = self.bot.get_guild(guild_id)
-            if not guild:
-                return False, f"Guild {guild_id} not found"
-
-            archive_channel = await self.config.get_channel(guild, "archive")
-            if not archive_channel:
-                return False, "Archive channel not configured"
-
-            # Format message
-            try:
-                author = original_message.author if original_message else None
-                channel = original_message.channel if original_message else None
-                message = await message_manager.format_message(
-                    author=author, channel=channel, url=url
-                )
-            except Exception as e:
-                return False, f"Failed to format message: {str(e)}"
-
-            # Upload to archive channel
-            if not os.path.exists(file_path):
-                return False, "Processed file not found"
-
-            await archive_channel.send(content=message, file=discord.File(file_path))
-
-            if original_message:
-                await original_message.remove_reaction(REACTIONS["processing"], self.bot.user)
-                await original_message.add_reaction(REACTIONS["success"])
-                logger.info(f"Successfully processed message {original_message.id}")
-
-            return True, None
-
-        except discord.HTTPException as e:
-            if original_message:
-                await original_message.add_reaction(REACTIONS["error"])
-            logger.error(f"Failed to upload to Discord: {str(e)}")
-            return False, f"Failed to upload to Discord: {str(e)}"
-        except Exception as e:
-            if original_message:
-                await original_message.add_reaction(REACTIONS["error"])
-            logger.error(f"Failed to archive video: {str(e)}")
-            return False, f"Failed to archive video: {str(e)}"
 
     async def cleanup(self):
         """Clean up resources and stop processing"""

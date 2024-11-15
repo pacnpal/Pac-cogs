@@ -12,10 +12,36 @@ REACTIONS = {
     'processing': '⚙️',
     'success': '✅',
     'error': '❌',
+    'archived': '🔄',  # New reaction for already archived videos
     'numbers': ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'],
     'progress': ['⬛', '🟨', '🟩'],
     'download': ['0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟']
 }
+
+async def handle_archived_reaction(message: discord.Message, user: discord.User, db) -> None:
+    """Handle reaction to archived video message"""
+    try:
+        # Check if the reaction is from a user (not the bot) and is the archived reaction
+        if user.bot or str(message.reactions[0].emoji) != REACTIONS['archived']:
+            return
+
+        # Extract URLs from the message
+        urls = []
+        if message.content:
+            for word in message.content.split():
+                if any(s in word.lower() for s in ['http://', 'https://']):
+                    urls.append(word)
+
+        # Check each URL in the database
+        for url in urls:
+            result = db.get_archived_video(url)
+            if result:
+                discord_url = result[0]
+                await message.reply(f"This video was already archived. You can find it here: {discord_url}")
+                return
+
+    except Exception as e:
+        logger.error(f"Error handling archived reaction: {e}")
 
 async def update_queue_position_reaction(message: discord.Message, position: int, bot_user) -> None:
     """Update queue position reaction"""

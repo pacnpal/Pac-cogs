@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import discord
-from redbot.core import commands, Config, data_manager
+from redbot.core import commands, Config, data_manager, checks
 from pathlib import Path
 import logging
 import asyncio
@@ -17,8 +17,10 @@ from videoarchiver.processor import VideoProcessor
 from videoarchiver.utils.video_downloader import VideoDownloader
 from videoarchiver.utils.message_manager import MessageManager
 from videoarchiver.utils.file_ops import cleanup_downloads
-from videoarchiver.queue import EnhancedVideoQueueManager  # Updated import
+from videoarchiver.queue import EnhancedVideoQueueManager
 from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.database.video_archive_db import VideoArchiveDB
+from videoarchiver.processor.reactions import REACTIONS, handle_archived_reaction
 from videoarchiver.utils.exceptions import (
     VideoArchiverError as ProcessingError,
     ConfigurationError as ConfigError,
@@ -36,6 +38,21 @@ CLEANUP_TIMEOUT = 15  # seconds
 class VideoArchiver(commands.Cog):
     """Archive videos from Discord channels"""
 
+    default_guild_settings = {
+        "enabled": False,
+        "archive_channel": None,
+        "log_channel": None,
+        "enabled_channels": [],
+        "video_format": "mp4",
+        "video_quality": "high",
+        "max_file_size": 25,  # MB
+        "message_duration": 30,  # seconds
+        "message_template": "{author} archived a video from {channel}",
+        "concurrent_downloads": 2,
+        "enabled_sites": None,  # None means all sites
+        "use_database": False,  # Database tracking is off by default
+    }
+
     def __init__(self, bot: commands.Bot) -> None:
         """Initialize the cog with proper error handling"""
         self.bot = bot
@@ -43,16 +60,28 @@ class VideoArchiver(commands.Cog):
         self._init_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._unloading = False
+        self.db = None
 
         # Start initialization
         self._init_task = asyncio.create_task(self._initialize())
         self._init_task.add_done_callback(self._init_callback)
+
+    def _init_callback(self, task: asyncio.Task) -> None:
+        """Handle initialization task completion"""
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.error(f"Initialization failed: {str(e)}")
+            asyncio.create_task(self._cleanup())
 
     async def _initialize(self) -> None:
         """Initialize all components with proper error handling"""
         try:
             # Initialize config first as other components depend on it
             config = Config.get_conf(self, identifier=855847, force_registration=True)
+            config.register_guild(**self.default_guild_settings)
             self.config_manager = ConfigManager(config)
 
             # Set up paths
@@ -100,6 +129,7 @@ class VideoArchiver(commands.Cog):
                 self.components,
                 queue_manager=self.queue_manager,
                 ffmpeg_mgr=self.ffmpeg_mgr,
+                db=self.db  # Pass database to processor (None by default)
             )
 
             # Start update checker
@@ -115,15 +145,94 @@ class VideoArchiver(commands.Cog):
             await self._cleanup()
             raise
 
-    def _init_callback(self, task: asyncio.Task) -> None:
-        """Handle initialization task completion"""
+    @commands.group(name="videoarchiver")
+    @commands.guild_only()
+    async def videoarchiver(self, ctx: commands.Context):
+        """Video archiver commands"""
+        pass
+
+    @videoarchiver.command(name="toggledb")
+    @checks.admin_or_permissions(administrator=True)
+    async def toggle_database(self, ctx: commands.Context):
+        """Toggle the video archive database on/off."""
         try:
-            task.result()
-        except asyncio.CancelledError:
-            pass
+            current_setting = await self.config_manager.get_guild_setting(ctx.guild, "use_database")
+            new_setting = not current_setting
+
+            if new_setting and self.db is None:
+                # Initialize database if it's being enabled
+                self.db = VideoArchiveDB(self.data_path)
+                # Update processor with database
+                self.processor.db = self.db
+                self.processor.queue_handler.db = self.db
+
+            elif not new_setting:
+                # Remove database if it's being disabled
+                self.db = None
+                self.processor.db = None
+                self.processor.queue_handler.db = None
+
+            await self.config_manager.set_guild_setting(ctx.guild, "use_database", new_setting)
+            status = "enabled" if new_setting else "disabled"
+            await ctx.send(f"Video archive database has been {status}.")
+
         except Exception as e:
-            logger.error(f"Initialization failed: {str(e)}")
-            asyncio.create_task(self._cleanup())
+            logger.error(f"Error toggling database: {e}")
+            await ctx.send("An error occurred while toggling the database setting.")
+
+    @commands.hybrid_command()
+    async def checkarchived(self, ctx: commands.Context, url: str):
+        """Check if a video URL has been archived and get its Discord link if it exists."""
+        try:
+            if not self.db:
+                await ctx.send("The archive database is not enabled. Ask an admin to enable it with `/videoarchiver toggledb`")
+                return
+
+            result = self.db.get_archived_video(url)
+            if result:
+                discord_url, message_id, channel_id, guild_id = result
+                embed = discord.Embed(
+                    title="Video Found in Archive",
+                    description=f"This video has been archived!\n\nOriginal URL: {url}",
+                    color=discord.Color.green()
+                )
+                embed.add_field(name="Archived Link", value=discord_url)
+                await ctx.send(embed=embed)
+            else:
+                embed = discord.Embed(
+                    title="Video Not Found",
+                    description="This video has not been archived yet.",
+                    color=discord.Color.red()
+                )
+                await ctx.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Error checking archived video: {e}")
+            await ctx.send("An error occurred while checking the archive.")
+
+    @commands.Cog.listener()
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle reactions to messages"""
+        if payload.user_id == self.bot.user.id:
+            return
+
+        try:
+            # Get the channel and message
+            channel = self.bot.get_channel(payload.channel_id)
+            if not channel:
+                return
+            message = await channel.fetch_message(payload.message_id)
+            if not message:
+                return
+
+            # Check if it's the archived reaction
+            if str(payload.emoji) == REACTIONS['archived']:
+                # Only process if database is enabled
+                if self.db:
+                    user = self.bot.get_user(payload.user_id)
+                    await handle_archived_reaction(message, user, self.db)
+
+        except Exception as e:
+            logger.error(f"Error handling reaction: {e}")
 
     async def cog_load(self) -> None:
         """Handle cog loading"""
@@ -196,21 +305,27 @@ class VideoArchiver(commands.Cog):
             # Stop update checker
             if hasattr(self, "update_checker"):
                 try:
-                    await asyncio.wait_for(self.update_checker.stop(), timeout=CLEANUP_TIMEOUT)
+                    await asyncio.wait_for(
+                        self.update_checker.stop(), timeout=CLEANUP_TIMEOUT
+                    )
                 except asyncio.TimeoutError:
                     pass
 
             # Clean up processor
             if hasattr(self, "processor"):
                 try:
-                    await asyncio.wait_for(self.processor.cleanup(), timeout=CLEANUP_TIMEOUT)
+                    await asyncio.wait_for(
+                        self.processor.cleanup(), timeout=CLEANUP_TIMEOUT
+                    )
                 except asyncio.TimeoutError:
                     await self.processor.force_cleanup()
 
             # Clean up queue manager
             if hasattr(self, "queue_manager"):
                 try:
-                    await asyncio.wait_for(self.queue_manager.cleanup(), timeout=CLEANUP_TIMEOUT)
+                    await asyncio.wait_for(
+                        self.queue_manager.cleanup(), timeout=CLEANUP_TIMEOUT
+                    )
                 except asyncio.TimeoutError:
                     self.queue_manager.force_stop()
 

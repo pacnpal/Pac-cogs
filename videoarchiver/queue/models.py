@@ -22,7 +22,7 @@ class QueueItem:
     guild_id: int    # Discord ID
     added_at: datetime = field(default_factory=datetime.utcnow)
     status: str = "pending"
-    retries: int = 0
+    retry_count: int = 0  # Changed from retries to retry_count
     priority: int = 0  # Added priority field with default value 0
     last_retry: Optional[datetime] = None
     last_error: Optional[str] = None
