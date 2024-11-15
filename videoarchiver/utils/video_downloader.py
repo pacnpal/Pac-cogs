@@ -540,6 +540,7 @@ class VideoDownloader:
                 self._active_processes.add(process)
 
             start_time = datetime.utcnow()
+            loop = asyncio.get_running_loop()
 
             try:
                 while True:
@@ -571,7 +572,9 @@ class VideoDownloader:
                                 })
                                 
                                 if progress_callback:
-                                    await progress_callback(progress)
+                                    # Call the callback directly since it now handles task creation
+                                    progress_callback(progress)
+
                     except Exception as e:
                         logger.error(f"Error parsing FFmpeg progress: {e}")
 
@@ -714,7 +717,8 @@ class VideoDownloader:
                                 percent = float(
                                     d.get("_percent_str", "0").replace("%", "")
                                 )
-                                asyncio.create_task(progress_callback(percent))
+                                # Call the callback directly since it now handles task creation
+                                progress_callback(percent)
                             except Exception as e:
                                 logger.error(f"Error in progress callback: {e}")
 
