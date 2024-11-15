@@ -1,4 +1,5 @@
 """Enhanced queue system for VideoArchiver with improved memory management and performance"""
+
 import asyncio
 import logging
 import json
@@ -20,19 +21,20 @@ from .exceptions import (
     ResourceExhaustedError,
     ProcessingError,
     CleanupError,
-    FileOperationError
+    FileOperationError,
 )
 
 # Configure logging with proper format
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger('EnhancedQueueManager')
+logger = logging.getLogger("EnhancedQueueManager")
+
 
 @dataclass
 class QueueMetrics:
     """Metrics tracking for queue performance and health"""
+
     total_processed: int = 0
     total_failed: int = 0
     avg_processing_time: float = 0.0
@@ -534,54 +536,64 @@ class EnhancedVideoQueueManager:
             logger.error(f"Error during cleanup: {str(e)}")
             raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
 
-    def get_queue_status(self, guild_id: Optional[int] = None) -> Dict[str, Any]:
-        """Get detailed queue status with metrics"""
+    async def clear_guild_queue(self, guild_id: int) -> int:
+        """Clear all queue items for a specific guild
+        
+        Args:
+            guild_id: The ID of the guild to clear items for
+            
+        Returns:
+            int: Number of items cleared
+        """
         try:
-            if guild_id is not None:
+            cleared_count = 0
+            async with self._queue_lock:
+                # Get URLs for this guild
                 guild_urls = self._guild_queues.get(guild_id, set())
-                status = {
-                    "pending": sum(1 for item in self._queue if item.url in guild_urls),
-                    "processing": sum(
-                        1 for url in self._processing if url in guild_urls
-                    ),
-                    "completed": sum(1 for url in self._completed if url in guild_urls),
-                    "failed": sum(1 for url in self._failed if url in guild_urls),
-                }
-            else:
-                status = {
-                    "pending": len(self._queue),
-                    "processing": len(self._processing),
-                    "completed": len(self._completed),
-                    "failed": len(self._failed),
-                }
-
-            # Add detailed metrics
-            status.update(
-                {
-                    "metrics": {
-                        "total_processed": self.metrics.total_processed,
-                        "total_failed": self.metrics.total_failed,
-                        "success_rate": self.metrics.success_rate,
-                        "avg_processing_time": self.metrics.avg_processing_time,
-                        "peak_memory_usage": self.metrics.peak_memory_usage,
-                        "last_cleanup": self.metrics.last_cleanup.isoformat(),
-                        "errors_by_type": self.metrics.errors_by_type,
-                        "last_error": self.metrics.last_error,
-                        "last_error_time": (
-                            self.metrics.last_error_time.isoformat()
-                            if self.metrics.last_error_time
-                            else None
-                        ),
-                        "retries": self.metrics.retries,
+                
+                # Clear from pending queue
+                self._queue = [item for item in self._queue if item.guild_id != guild_id]
+                
+                # Clear from processing
+                for url in list(self._processing.keys()):
+                    if self._processing[url].guild_id == guild_id:
+                        self._processing.pop(url)
+                        cleared_count += 1
+                
+                # Clear from completed
+                for url in list(self._completed.keys()):
+                    if self._completed[url].guild_id == guild_id:
+                        self._completed.pop(url)
+                        cleared_count += 1
+                
+                # Clear from failed
+                for url in list(self._failed.keys()):
+                    if self._failed[url].guild_id == guild_id:
+                        self._failed.pop(url)
+                        cleared_count += 1
+                
+                # Clear guild tracking
+                if guild_id in self._guild_queues:
+                    cleared_count += len(self._guild_queues[guild_id])
+                    self._guild_queues[guild_id].clear()
+                
+                # Clear channel tracking for this guild's channels
+                for channel_id in list(self._channel_queues.keys()):
+                    self._channel_queues[channel_id] = {
+                        url for url in self._channel_queues[channel_id]
+                        if url not in guild_urls
                     }
-                }
-            )
-
-            return status
-
+            
+            # Persist updated state
+            if self.persistence_path:
+                await self._persist_queue()
+            
+            logger.info(f"Cleared {cleared_count} items from guild {guild_id} queue")
+            return cleared_count
+            
         except Exception as e:
-            logger.error(f"Error getting queue status: {str(e)}")
-            raise QueueError(f"Failed to get queue status: {str(e)}")
+            logger.error(f"Error clearing guild queue: {traceback.format_exc()}")
+            raise QueueError(f"Failed to clear guild queue: {str(e)}")
 
     async def _periodic_cleanup(self):
         """Periodically clean up old completed/failed items"""
