@@ -197,7 +197,7 @@ class VideoArchiverCommands(commands.Cog):
 
         # Verify sites are valid
         with yt_dlp.YoutubeDL() as ydl:
-            valid_sites = set(ie.IE_NAME.lower() for ie in ydl._ies)
+            valid_sites = set(ie.IE_NAME.lower() for ie in ydl._ies if hasattr(ie, 'IE_NAME'))
             invalid_sites = [s for s in site_list if s not in valid_sites]
             if invalid_sites:
                 await ctx.send(
@@ -217,7 +217,8 @@ class VideoArchiverCommands(commands.Cog):
         embed = discord.Embed(title="Video Sites Configuration", color=discord.Color.blue())
 
         with yt_dlp.YoutubeDL() as ydl:
-            all_sites = sorted(ie.IE_NAME for ie in ydl._ies if ie.IE_NAME is not None)
+            # Filter out any extractors that don't have IE_NAME attribute
+            all_sites = sorted(ie.IE_NAME for ie in ydl._ies if hasattr(ie, 'IE_NAME') and ie.IE_NAME is not None)
 
         # Split sites into chunks for Discord's field value limit
         chunk_size = 20
