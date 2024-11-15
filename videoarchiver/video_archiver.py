@@ -60,6 +60,10 @@ class VideoArchiver(commands.Cog):
             # Clean existing downloads
             cleanup_downloads(str(self.download_path))
 
+            # Initialize shared FFmpeg manager
+            self.ffmpeg_mgr = FFmpegManager()
+            logger.info("Initialized shared FFmpeg manager")
+
             # Initialize components dict first
             self.components: Dict[int, Dict[str, Any]] = {}
 
@@ -87,12 +91,13 @@ class VideoArchiver(commands.Cog):
             # Initialize update checker
             self.update_checker = UpdateChecker(self.bot, self.config_manager)
 
-            # Initialize processor with queue manager
+            # Initialize processor with queue manager and shared FFmpeg manager
             self.processor = VideoProcessor(
                 self.bot,
                 self.config_manager,
                 self.components,
                 queue_manager=self.queue_manager,
+                ffmpeg_mgr=self.ffmpeg_mgr,  # Pass shared FFmpeg manager
             )
 
             # Start update checker
@@ -206,15 +211,9 @@ class VideoArchiver(commands.Cog):
                     await old_components["message_manager"].cancel_all_deletions()
                 if "downloader" in old_components:
                     old_components["downloader"] = None
-                if "ffmpeg_mgr" in old_components:
-                    old_components["ffmpeg_mgr"] = None
-
-            # Initialize FFmpeg manager first
-            ffmpeg_mgr = FFmpegManager()
 
             # Initialize new components with validated settings
             self.components[guild_id] = {
-                "ffmpeg_mgr": ffmpeg_mgr,  # Add FFmpeg manager to components
                 "downloader": VideoDownloader(
                     str(self.download_path),
                     settings["video_format"],
@@ -222,7 +221,7 @@ class VideoArchiver(commands.Cog):
                     settings["max_file_size"],
                     settings["enabled_sites"] if settings["enabled_sites"] else None,
                     settings["concurrent_downloads"],
-                    ffmpeg_mgr=ffmpeg_mgr,  # Pass FFmpeg manager to VideoDownloader
+                    ffmpeg_mgr=self.ffmpeg_mgr,  # Use shared FFmpeg manager
                 ),
                 "message_manager": MessageManager(
                     settings["message_duration"], settings["message_template"]

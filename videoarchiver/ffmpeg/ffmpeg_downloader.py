@@ -263,11 +263,18 @@ class FFmpegDownloader:
     def _extract_tar(self, archive_path: Path, temp_dir: str):
         """Extract from tar archive (Linux/macOS)"""
         try:
-            # First decompress the .xz file
+            # First decompress the .xz file in chunks to prevent blocking
             decompressed_path = archive_path.with_suffix('')
+            chunk_size = 1024 * 1024  # 1MB chunks
             with lzma.open(archive_path, 'rb') as compressed:
                 with open(decompressed_path, 'wb') as decompressed:
-                    shutil.copyfileobj(compressed, decompressed)
+                    while True:
+                        chunk = compressed.read(chunk_size)
+                        if not chunk:
+                            break
+                        decompressed.write(chunk)
+                        # Allow other tasks to run
+                        time.sleep(0)
 
             # Then extract from the tar file
             with tarfile.open(decompressed_path, "r:") as tar_ref:
@@ -285,10 +292,22 @@ class FFmpegDownloader:
                     if not binary_files:
                         raise DownloadError(f"{binary_name} not found in archive")
 
-                    tar_ref.extract(binary_files[0], temp_dir)
+                    # Extract binary with progress tracking
+                    member = tar_ref.getmember(binary_files[0])
+                    tar_ref.extract(member, temp_dir)
                     extracted_path = Path(temp_dir) / binary_files[0]
                     target_path = self.base_dir / binary_name
-                    shutil.copy2(extracted_path, target_path)
+                    
+                    # Copy file in chunks
+                    with open(extracted_path, 'rb') as src, open(target_path, 'wb') as dst:
+                        while True:
+                            chunk = src.read(chunk_size)
+                            if not chunk:
+                                break
+                            dst.write(chunk)
+                            # Allow other tasks to run
+                            time.sleep(0)
+                    
                     logger.info(f"Extracted {binary_name} to {target_path}")
 
             # Clean up decompressed file
