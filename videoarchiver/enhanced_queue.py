@@ -655,12 +655,18 @@ class EnhancedVideoQueueManager:
                     # Clean up completed items
                     for url in list(self._completed.keys()):
                         item = self._completed[url]
+                        # Ensure added_at is a datetime object
+                        if isinstance(item.added_at, str):
+                            item.added_at = datetime.fromisoformat(item.added_at)
                         if item.added_at < cleanup_cutoff:
                             self._completed.pop(url)
 
                     # Clean up failed items
                     for url in list(self._failed.keys()):
                         item = self._failed[url]
+                        # Ensure added_at is a datetime object
+                        if isinstance(item.added_at, str):
+                            item.added_at = datetime.fromisoformat(item.added_at)
                         if item.added_at < cleanup_cutoff:
                             self._failed.pop(url)
 
