@@ -13,6 +13,7 @@ class ConfigManager:
     """Manages guild configurations for VideoArchiver"""
 
     default_guild = {
+        "enabled": False,  # Added the enabled setting
         "archive_channel": None,
         "notification_channel": None,
         "log_channel": None,
@@ -87,7 +88,7 @@ class ConfigManager:
             elif setting in ["message_template"] and not isinstance(value, str):
                 raise ConfigError("Message template must be a string")
             
-            elif setting in ["delete_after_repost", "disable_update_check"] and not isinstance(value, bool):
+            elif setting in ["enabled", "delete_after_repost", "disable_update_check"] and not isinstance(value, bool):
                 raise ConfigError(f"{setting} must be a boolean")
             
         except Exception as e:
@@ -275,6 +276,11 @@ class ConfigManager:
                     allowed_roles.append(role.name)
 
             # Add fields with proper formatting
+            embed.add_field(
+                name="Enabled",
+                value=str(settings["enabled"]),
+                inline=False
+            )
             embed.add_field(
                 name="Archive Channel",
                 value=archive_channel.mention if archive_channel else "Not set",

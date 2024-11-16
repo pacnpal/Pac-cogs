@@ -13,6 +13,7 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Default maximum file size: 8MB
   - Default video format: MP4
   - Default video quality: High
+  - Support for MP4, WebM, and MKV formats
 
 - **Video Archive Database**
   - Track and store archived video information
@@ -21,6 +22,7 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Optional database functionality (disabled by default)
   - Automatic database management and cleanup
   - Persistent video history tracking
+  - URL-based video lookup
 
 - **Modular Queue System**
   - Priority-based processing with state persistence
@@ -29,8 +31,9 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Automatic cleanup and memory optimization
   - Default concurrent downloads: 2 (configurable 1-5)
   - Maximum queue size: 1000 items
-  - Automatic retry on failures (3 attempts)
+  - Automatic retry on failures (3 attempts with 5-second delay)
   - Queue state persistence across bot restarts
+  - Enhanced error recovery
 
 - **Progress Tracking**
   - Real-time download progress monitoring
@@ -40,18 +43,21 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Memory usage monitoring
   - Success rate calculations
   - Automatic cleanup of temporary files
+  - Enhanced logging capabilities
 
 - **Channel Management**
   - Flexible channel monitoring (specific channels or all)
   - Separate archive, notification, and log channels
   - Customizable message templates
-  - Configurable message duration (default: 30 seconds)
+  - Configurable message duration (0-168 hours)
+  - Enhanced error logging
 
 - **Access Control**
   - Role-based permissions
   - Site-specific enabling/disabling
   - Admin-only configuration commands
   - Per-guild settings
+  - Enhanced permission checks
 
 ## Installation
 
@@ -72,15 +78,20 @@ All commands support both prefix and slash command syntax:
 
 ### Core Video Archiver Commands (va_)
 - **`va_settings`**: Show current video archiver settings
-- **`va_format <mp4|webm>`**: Set video format
+- **`va_format <mp4|webm|mkv>`**: Set video format
 - **`va_quality <144-4320>`**: Set maximum video quality (in pixels)
 - **`va_maxsize <1-100>`**: Set maximum file size (in MB)
 - **`va_concurrent <1-5>`**: Set number of concurrent downloads
 - **`va_toggledelete`**: Toggle deletion of local files after reposting
-- **`va_duration <0-720>`**: Set message duration in hours (0 for permanent)
+- **`va_duration <0-168>`**: Set message duration in hours (0 for permanent)
 - **`va_template <template>`**: Set message template using {author}, {url}, {original_message}
 - **`va_update`**: Update yt-dlp to latest version
 - **`va_toggleupdates`**: Toggle update notifications
+
+### Database Management Commands (archivedb_)
+- **`archivedb enable`**: Enable the video archive database
+- **`archivedb disable`**: Disable the video archive database
+- **`checkarchived <url>`**: Check if a video URL has been archived
 
 ### Archiver Management Commands (archiver_)
 - **`archiver enable`**: Enable video archiving in the server
@@ -89,11 +100,7 @@ All commands support both prefix and slash command syntax:
 - **`archiver setlog <channel>`**: Set the log channel
 - **`archiver addchannel <channel>`**: Add a channel to monitor
 - **`archiver removechannel <channel>`**: Remove a channel from monitoring
-
-### Database Management Commands (archivedb_)
-- **`archivedb enable`**: Enable the video archive database
-- **`archivedb disable`**: Disable the video archive database
-- **`checkarchived <url>`**: Check if a video URL has been archived
+- **`archiver queue`**: Show current queue status
 
 ### Queue Management Commands (vaq_)
 - **`vaq_status`**: Show current queue status with basic metrics
@@ -120,18 +127,19 @@ All commands support both prefix and slash command syntax:
 
 ```python
 {
-    "enabled": False,              # Video archiving disabled by default
+    "enabled": True,               # Video archiving enabled by default
     "archive_channel": None,       # Must be set before use
     "log_channel": None,          # Optional error logging channel
-    "enabled_channels": [],       # Channels to monitor
-    "video_format": "mp4",       # Default video format
-    "video_quality": "high",     # Default video quality
-    "max_file_size": 8,         # Maximum file size in MB
-    "message_duration": 30,     # Message duration in seconds
+    "enabled_channels": [],       # Empty list means all channels
+    "allowed_roles": [],         # Empty list means all roles
+    "video_format": "mp4",      # Default video format
+    "video_quality": "high",    # Default video quality
+    "max_file_size": 8,        # Maximum file size in MB
+    "message_duration": 30,    # Message duration in hours
     "message_template": "{author} archived a video from {channel}",
-    "concurrent_downloads": 2,  # Number of concurrent downloads
-    "enabled_sites": None,     # None means all sites enabled
-    "use_database": False     # Database tracking disabled by default
+    "concurrent_downloads": 2, # Number of concurrent downloads
+    "enabled_sites": None,    # None means all sites enabled
+    "use_database": False    # Database tracking disabled by default
 }
 ```
 
@@ -167,6 +175,7 @@ The cog supports all sites compatible with yt-dlp. Use `vas_list` to see availab
 - Maximum history age: 24 hours
 - Unload timeout: 30 seconds
 - Cleanup timeout: 15 seconds
+- Queue state persistence across restarts
 
 ## Error Handling
 
@@ -178,6 +187,7 @@ The cog supports all sites compatible with yt-dlp. Use `vas_list` to see availab
 - Error type tracking and analysis
 - Automatic recovery procedures
 - Force cleanup on timeout
+- Enhanced error reporting
 
 ## Support
 

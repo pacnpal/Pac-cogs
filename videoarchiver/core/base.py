@@ -51,10 +51,11 @@ class VideoArchiver(GroupCog):
     """Archive videos from Discord channels"""
 
     default_guild_settings = {
-        "enabled": False,
+        "enabled": True,  # Changed to True to enable by default
         "archive_channel": None,
         "log_channel": None,
-        "enabled_channels": [],
+        "enabled_channels": [],  # Empty list means all channels
+        "allowed_roles": [],  # Empty list means all roles
         "video_format": "mp4",
         "video_quality": "high",
         "max_file_size": 8,  # MB
@@ -302,6 +303,126 @@ class VideoArchiver(GroupCog):
         except Exception as e:
             logger.error(f"Error removing enabled channel: {e}")
             await ctx.send("An error occurred while removing the channel.")
+
+    @archiver.command(name="setformat")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(format="The video format to use (mp4, webm, or mkv)")
+    async def set_video_format(self, ctx: Context, format: str):
+        """Set the video format for archived videos."""
+        try:
+            format = format.lower()
+            if format not in ["mp4", "webm", "mkv"]:
+                await ctx.send("Invalid format. Please use mp4, webm, or mkv.")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "video_format", format)
+            await ctx.send(f"Video format has been set to {format}.")
+        except Exception as e:
+            logger.error(f"Error setting video format: {e}")
+            await ctx.send("An error occurred while setting the video format.")
+
+    @archiver.command(name="setquality")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(quality="The video quality (144-4320)")
+    async def set_video_quality(self, ctx: Context, quality: int):
+        """Set the video quality for archived videos."""
+        try:
+            if not 144 <= quality <= 4320:
+                await ctx.send("Quality must be between 144 and 4320.")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "video_quality", quality)
+            await ctx.send(f"Video quality has been set to {quality}p.")
+        except Exception as e:
+            logger.error(f"Error setting video quality: {e}")
+            await ctx.send("An error occurred while setting the video quality.")
+
+    @archiver.command(name="setmaxsize")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(size="The maximum file size in MB (1-100)")
+    async def set_max_file_size(self, ctx: Context, size: int):
+        """Set the maximum file size for archived videos."""
+        try:
+            if not 1 <= size <= 100:
+                await ctx.send("Size must be between 1 and 100 MB.")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
+            await ctx.send(f"Maximum file size has been set to {size}MB.")
+        except Exception as e:
+            logger.error(f"Error setting max file size: {e}")
+            await ctx.send("An error occurred while setting the maximum file size.")
+
+    @archiver.command(name="setmessageduration")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(hours="How long to keep messages in hours (0-168)")
+    async def set_message_duration(self, ctx: Context, hours: int):
+        """Set how long to keep archived messages."""
+        try:
+            if not 0 <= hours <= 168:
+                await ctx.send("Duration must be between 0 and 168 hours (1 week).")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "message_duration", hours)
+            await ctx.send(f"Message duration has been set to {hours} hours.")
+        except Exception as e:
+            logger.error(f"Error setting message duration: {e}")
+            await ctx.send("An error occurred while setting the message duration.")
+
+    @archiver.command(name="settemplate")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(template="The message template to use")
+    async def set_message_template(self, ctx: Context, *, template: str):
+        """Set the template for archived messages. Use {author}, {channel}, and {original_message} as placeholders."""
+        try:
+            if not any(ph in template for ph in ["{author}", "{channel}", "{original_message}"]):
+                await ctx.send("Template must include at least one placeholder: {author}, {channel}, or {original_message}")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "message_template", template)
+            await ctx.send(f"Message template has been set to: {template}")
+        except Exception as e:
+            logger.error(f"Error setting message template: {e}")
+            await ctx.send("An error occurred while setting the message template.")
+
+    @archiver.command(name="setconcurrent")
+    @guild_only()
+    @checks.admin_or_permissions(administrator=True)
+    @app_commands.describe(count="Number of concurrent downloads (1-5)")
+    async def set_concurrent_downloads(self, ctx: Context, count: int):
+        """Set the number of concurrent downloads allowed."""
+        try:
+            if not 1 <= count <= 5:
+                await ctx.send("Concurrent downloads must be between 1 and 5.")
+                return
+
+            await self.config_manager.update_setting(ctx.guild.id, "concurrent_downloads", count)
+            await ctx.send(f"Concurrent downloads has been set to {count}.")
+        except Exception as e:
+            logger.error(f"Error setting concurrent downloads: {e}")
+            await ctx.send("An error occurred while setting concurrent downloads.")
+
+    @archiver.command(name="settings")
+    @guild_only()
+    async def show_settings(self, ctx: Context):
+        """Show current archiver settings."""
+        try:
+            embed = await self.config_manager.format_settings_embed(ctx.guild)
+            await ctx.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Error showing settings: {e}")
+            await ctx.send("An error occurred while showing settings.")
+
+    @archiver.command(name="queue")
+    @guild_only()
+    async def show_queue(self, ctx: Context):
+        """Show the current video processing queue."""
+        await self.processor.show_queue_details(ctx)
 
     async def cog_command_error(self, ctx: Context, error: Exception) -> None:
         """Handle command errors"""

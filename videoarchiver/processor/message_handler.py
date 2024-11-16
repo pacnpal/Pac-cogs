@@ -30,14 +30,27 @@ class MessageHandler:
                 logger.warning(f"No settings found for guild {message.guild.id}")
                 return
 
+            # Check if video archiving is enabled for this guild
+            if not settings.get("enabled", False):
+                logger.debug(f"Video archiving is disabled for guild {message.guild.id}")
+                return
+
             # Log settings for debugging
             logger.debug(f"Guild {message.guild.id} settings: {settings}")
 
-            # Check if channel is enabled
+            # Check if channel is enabled (empty list means all channels)
             enabled_channels = settings.get("enabled_channels", [])
             if enabled_channels and message.channel.id not in enabled_channels:
                 logger.debug(f"Channel {message.channel.id} not in enabled channels: {enabled_channels}")
                 return
+
+            # Check if user has allowed role (empty list means all roles)
+            allowed_roles = settings.get("allowed_roles", [])
+            if allowed_roles:
+                user_roles = [role.id for role in message.author.roles]
+                if not any(role_id in allowed_roles for role_id in user_roles):
+                    logger.debug(f"User {message.author.id} does not have any allowed roles")
+                    return
 
             # Extract URLs from message
             urls = await self._extract_urls(message, settings)
@@ -68,6 +81,7 @@ class MessageHandler:
             for word in message.content.split():
                 logger.debug(f"Checking word: {word}")
                 if is_video_url_pattern(word):
+                    # If enabled_sites is empty or None, allow all sites
                     if not enabled_sites or any(site in word.lower() for site in enabled_sites):
                         logger.debug(f"Found matching URL: {word}")
                         urls.append(word)

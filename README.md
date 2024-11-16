@@ -2,24 +2,24 @@
 
 Welcome to **Pac-cogs**, a collection of custom cogs for [Red](https://github.com/Cog-Creators/Red-DiscordBot). These cogs are designed to add extra functionality to your Red bot instance on Discord.
 
-## Cogs Overview
-
-| Cog Name   | Description                                      |
-|------------|--------------------------------------------------|
-| **Birthday** | Assigns a special birthday role to users and sends a celebratory message with random cake or pie emojis. Features include: automatic role removal at midnight in configurable timezone, custom announcement channels, role-based command permissions, random cake/pie emoji generation, task persistence across bot restarts, context menu support (right-click user to assign role), birthday role removal task checking, and no hierarchy requirements for role assignment. Perfect for automated birthday celebrations! |
-| **Overseerr** | Allows interaction with [Overseerr](https://overseerr.dev/) directly from Discord. Users can search for movies or TV shows, request them, and have admins approve requests. Features include: media availability checking, request status tracking, admin role configuration, direct integration with Overseerr's API, and full slash command support. Requires a running Overseerr instance and API key. |
-| **VideoArchiver** | A powerful video archiving cog that automatically downloads and reposts videos from monitored channels. Features hardware-accelerated compression (NVIDIA, AMD, Intel, ARM), multi-video processing, modular queue system with priority processing and state persistence, role-based permissions, automatic file cleanup, and support for multiple video platforms via yt-dlp. The enhanced queue system provides metrics tracking, health monitoring, and efficient resource management while maintaining quality. New features include: video archive database for tracking and retrieving archived videos, detailed queue monitoring with real-time progress tracking, and comprehensive error handling with automatic recovery. |
-
 ## Installation
 
 To install the cogs in this repository, follow these steps:
 
 1. Ensure you have [Red](https://github.com/Cog-Creators/Red-DiscordBot) set up.
 2. Add this repository to your Red instance:
-
     ```bash
     [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
     ```
+3. Install the desired cog:
+    ```bash
+    [p]cog install Pac-cogs videoarchiver
+    ```
+4. Load the installed cog:
+    ```bash
+    [p]load videoarchiver
+    ```
+
 
 3. Install the desired cog:
 
@@ -59,6 +59,27 @@ Replace `[p]` with your bot's prefix.
     [p]overseerr apikey <your-api-key>
     ```
 
-- **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation. Features a modular queue system with priority processing, performance metrics, health monitoring, and automatic cleanup. The queue system maintains state across bot restarts and provides efficient resource management.
+- **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.
 
-For more details on setting up and managing Red, visit the [Red documentation](https://docs.discord.red).
+## VideoArchiver Commands and Features
+
+The VideoArchiver cog now comes with enhanced features and a comprehensive set of slash commands for easy management.
+
+### Default Behavior
+- Video archiving is enabled by default for new servers
+- All channels are monitored by default (can be restricted using commands)
+- All users can trigger archiving by default (can be restricted using commands)
+- All video sites are supported by default (can be restricted using commands)
+
+### Core Commands
+- `/archiver settings` - View all current settings
+- `/archiver enable`, `/archiver disable` - Toggle video archiving
+- `/archiver queue` - View the current processing queue
+
+### Channel Management
+- `/archiver setchannel` - Set the archive channel
+- `/archiver setlog` - Set the log channel
+- `/archiver addchannel` - Add a channel to monitor
+- `/archiver removechannel` - Remove a channel from monitoring
+
+### Video Settings
