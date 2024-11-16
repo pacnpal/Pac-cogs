@@ -2,21 +2,24 @@
 
 import logging
 import asyncio
-from enum import Enum
-from typing import List, Optional, Dict, Any, Set
+from enum import Enum, auto
+from typing import List, Optional, Dict, Any, Set, Union, TypedDict, ClassVar
 from datetime import datetime
 import discord
 
 from ..queue.models import QueueItem
+from ..queue.manager import EnhancedVideoQueueManager
 from .constants import REACTIONS
+from .url_extractor import URLMetadata
+from ..utils.exceptions import QueueProcessingError
 
 logger = logging.getLogger("VideoArchiver")
 
 class QueuePriority(Enum):
     """Queue item priorities"""
-    HIGH = 0
-    NORMAL = 1
-    LOW = 2
+    HIGH = auto()
+    NORMAL = auto()
+    LOW = auto()
 
 class ProcessingStrategy(Enum):
     """Available processing strategies"""
@@ -24,10 +27,22 @@ class ProcessingStrategy(Enum):
     PRIORITY = "priority"  # Process by priority
     SMART = "smart"  # Smart processing based on various factors
 
+class QueueStats(TypedDict):
+    """Type definition for queue statistics"""
+    total_processed: int
+    successful: int
+    failed: int
+    success_rate: float
+    average_processing_time: float
+    error_counts: Dict[str, int]
+    last_processed: Optional[str]
+
 class QueueMetrics:
     """Tracks queue processing metrics"""
 
-    def __init__(self):
+    MAX_PROCESSING_TIME: ClassVar[float] = 3600.0  # 1 hour in seconds
+
+    def __init__(self) -> None:
         self.total_processed = 0
         self.successful = 0
         self.failed = 0
@@ -36,49 +51,67 @@ class QueueMetrics:
         self.last_processed: Optional[datetime] = None
 
     def record_success(self, processing_time: float) -> None:
-        """Record successful processing"""
+        """
+        Record successful processing.
+        
+        Args:
+            processing_time: Time taken to process in seconds
+        """
+        if processing_time > self.MAX_PROCESSING_TIME:
+            logger.warning(f"Unusually long processing time: {processing_time} seconds")
+        
         self.total_processed += 1
         self.successful += 1
         self.processing_times.append(processing_time)
         self.last_processed = datetime.utcnow()
 
     def record_failure(self, error: str) -> None:
-        """Record processing failure"""
+        """
+        Record processing failure.
+        
+        Args:
+            error: Error message describing the failure
+        """
         self.total_processed += 1
         self.failed += 1
         self.errors[error] = self.errors.get(error, 0) + 1
         self.last_processed = datetime.utcnow()
 
-    def get_stats(self) -> Dict[str, Any]:
-        """Get queue metrics"""
+    def get_stats(self) -> QueueStats:
+        """
+        Get queue metrics.
+        
+        Returns:
+            Dictionary containing queue statistics
+        """
         avg_time = (
             sum(self.processing_times) / len(self.processing_times)
             if self.processing_times
             else 0
         )
-        return {
-            "total_processed": self.total_processed,
-            "successful": self.successful,
-            "failed": self.failed,
-            "success_rate": (
+        return QueueStats(
+            total_processed=self.total_processed,
+            successful=self.successful,
+            failed=self.failed,
+            success_rate=(
                 self.successful / self.total_processed
                 if self.total_processed > 0
                 else 0
             ),
-            "average_processing_time": avg_time,
-            "error_counts": self.errors.copy(),
-            "last_processed": self.last_processed
-        }
+            average_processing_time=avg_time,
+            error_counts=self.errors.copy(),
+            last_processed=self.last_processed.isoformat() if self.last_processed else None
+        )
 
 class QueueProcessor:
     """Handles adding videos to the processing queue"""
 
     def __init__(
         self,
-        queue_manager,
+        queue_manager: EnhancedVideoQueueManager,
         strategy: ProcessingStrategy = ProcessingStrategy.SMART,
         max_retries: int = 3
-    ):
+    ) -> None:
         self.queue_manager = queue_manager
         self.strategy = strategy
         self.max_retries = max_retries
@@ -89,16 +122,34 @@ class QueueProcessor:
     async def process_urls(
         self,
         message: discord.Message,
-        urls: List[str],
+        urls: Union[List[str], Set[str], List[URLMetadata]],
         priority: QueuePriority = QueuePriority.NORMAL
     ) -> None:
-        """Process extracted URLs by adding them to the queue"""
-        for url in urls:
+        """
+        Process extracted URLs by adding them to the queue.
+        
+        Args:
+            message: Discord message containing the URLs
+            urls: List or set of URLs or URLMetadata objects to process
+            priority: Priority level for queue processing
+            
+        Raises:
+            QueueProcessingError: If there's an error adding URLs to the queue
+        """
+        processed_urls: Set[str] = set()
+        
+        for url_data in urls:
+            url = url_data.url if isinstance(url_data, URLMetadata) else url_data
+            
+            if url in processed_urls:
+                logger.debug(f"Skipping duplicate URL: {url}")
+                continue
+                
             try:
                 logger.info(f"Adding URL to queue: {url}")
                 await message.add_reaction(REACTIONS['queued'])
 
-                # Create queue item using the model from queue.models
+                # Create queue item
                 item = QueueItem(
                     url=url,
                     message_id=message.id,
@@ -111,15 +162,24 @@ class QueueProcessor:
 
                 # Add to queue with appropriate strategy
                 await self._add_to_queue(item)
+                processed_urls.add(url)
                 logger.info(f"Successfully added video to queue: {url}")
 
             except Exception as e:
-                logger.error(f"Failed to add video to queue: {str(e)}")
+                logger.error(f"Failed to add video to queue: {str(e)}", exc_info=True)
                 await message.add_reaction(REACTIONS['error'])
-                continue
+                raise QueueProcessingError(f"Failed to add URL to queue: {str(e)}")
 
     async def _add_to_queue(self, item: QueueItem) -> None:
-        """Add item to queue using current strategy"""
+        """
+        Add item to queue using current strategy.
+        
+        Args:
+            item: Queue item to add
+            
+        Raises:
+            QueueProcessingError: If there's an error adding the item
+        """
         async with self._processing_lock:
             if item.url in self._processing:
                 logger.debug(f"URL already being processed: {item.url}")
@@ -136,6 +196,9 @@ class QueueProcessor:
             else:  # FIFO
                 await self._add_fifo(item)
 
+        except Exception as e:
+            logger.error(f"Error adding item to queue: {e}", exc_info=True)
+            raise QueueProcessingError(f"Failed to add item to queue: {str(e)}")
         finally:
             async with self._processing_lock:
                 self._processing.remove(item.url)
@@ -153,7 +216,6 @@ class QueueProcessor:
 
     async def _add_with_smart_strategy(self, item: QueueItem) -> None:
         """Add item using smart processing strategy"""
-        # Calculate priority based on various factors
         priority = await self._calculate_smart_priority(item)
         
         await self.queue_manager.add_to_queue(
@@ -177,7 +239,15 @@ class QueueProcessor:
         )
 
     async def _calculate_smart_priority(self, item: QueueItem) -> int:
-        """Calculate priority using smart strategy"""
+        """
+        Calculate priority using smart strategy.
+        
+        Args:
+            item: Queue item to calculate priority for
+            
+        Returns:
+            Calculated priority value
+        """
         base_priority = item.priority
         
         # Adjust based on queue metrics
@@ -203,7 +273,17 @@ class QueueProcessor:
         channel: discord.TextChannel,
         url: str
     ) -> str:
-        """Format message for archive channel"""
+        """
+        Format message for archive channel.
+        
+        Args:
+            author: Optional message author
+            channel: Channel the message was posted in
+            url: URL being archived
+            
+        Returns:
+            Formatted message string
+        """
         author_mention = author.mention if author else "Unknown User"
         channel_mention = channel.mention if channel else "Unknown Channel"
         
@@ -213,7 +293,12 @@ class QueueProcessor:
         )
 
     def get_metrics(self) -> Dict[str, Any]:
-        """Get queue processing metrics"""
+        """
+        Get queue processing metrics.
+        
+        Returns:
+            Dictionary containing queue metrics and status
+        """
         return {
             "metrics": self.metrics.get_stats(),
             "strategy": self.strategy.value,
