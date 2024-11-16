@@ -102,9 +102,9 @@ class VideoArchiver(GroupCog):
                     if ctx.interaction.response.is_done():
                         # Use followup for deferred responses
                         if embed:
-                            await ctx.followup.send(content=content, embed=embed, wait=True)
+                            await ctx.followup.send(content=content, embed=embed)
                         else:
-                            await ctx.followup.send(content=content, wait=True)
+                            await ctx.followup.send(content=content)
                     else:
                         # Use regular response for non-deferred interactions
                         if embed:
@@ -115,9 +115,9 @@ class VideoArchiver(GroupCog):
                     # If we get here, the interaction was already responded to
                     # Use followup as a fallback
                     if embed:
-                        await ctx.followup.send(content=content, embed=embed, wait=True)
+                        await ctx.followup.send(content=content, embed=embed)
                     else:
-                        await ctx.followup.send(content=content, wait=True)
+                        await ctx.followup.send(content=content)
             else:
                 # Regular command response
                 if embed:
@@ -290,6 +290,10 @@ class VideoArchiver(GroupCog):
     async def set_archive_channel(self, ctx: Context, channel: discord.TextChannel):
         """Set the channel where archived videos will be stored."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             await self.config_manager.update_setting(
                 ctx.guild.id, "archive_channel", channel.id
             )
@@ -305,6 +309,10 @@ class VideoArchiver(GroupCog):
     async def set_log_channel(self, ctx: Context, channel: discord.TextChannel):
         """Set the channel where log messages will be sent."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             await self.config_manager.update_setting(
                 ctx.guild.id, "log_channel", channel.id
             )
@@ -320,6 +328,10 @@ class VideoArchiver(GroupCog):
     async def add_enabled_channel(self, ctx: Context, channel: discord.TextChannel):
         """Add a channel to monitor for videos."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             enabled_channels = await self.config_manager.get_setting(
                 ctx.guild.id, "enabled_channels"
             )
@@ -343,6 +355,10 @@ class VideoArchiver(GroupCog):
     async def remove_enabled_channel(self, ctx: Context, channel: discord.TextChannel):
         """Remove a channel from video monitoring."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             enabled_channels = await self.config_manager.get_setting(
                 ctx.guild.id, "enabled_channels"
             )
@@ -366,6 +382,10 @@ class VideoArchiver(GroupCog):
     async def set_video_format(self, ctx: Context, format: str):
         """Set the video format for archived videos."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             format = format.lower()
             if format not in ["mp4", "webm", "mkv"]:
                 await self._handle_response(ctx, "Invalid format. Please use mp4, webm, or mkv.")
@@ -384,6 +404,10 @@ class VideoArchiver(GroupCog):
     async def set_video_quality(self, ctx: Context, quality: int):
         """Set the video quality for archived videos."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             if not 144 <= quality <= 4320:
                 await self._handle_response(ctx, "Quality must be between 144 and 4320.")
                 return
@@ -401,6 +425,10 @@ class VideoArchiver(GroupCog):
     async def set_max_file_size(self, ctx: Context, size: int):
         """Set the maximum file size for archived videos."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             if not 1 <= size <= 100:
                 await self._handle_response(ctx, "Size must be between 1 and 100 MB.")
                 return
@@ -418,6 +446,10 @@ class VideoArchiver(GroupCog):
     async def set_message_duration(self, ctx: Context, hours: int):
         """Set how long to keep archived messages."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             if not 0 <= hours <= 168:
                 await self._handle_response(ctx, "Duration must be between 0 and 168 hours (1 week).")
                 return
@@ -435,6 +467,10 @@ class VideoArchiver(GroupCog):
     async def set_message_template(self, ctx: Context, template: str):
         """Set the template for archived messages."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             if not any(
                 ph in template for ph in ["{author}", "{channel}", "{original_message}"]
             ):
@@ -459,6 +495,10 @@ class VideoArchiver(GroupCog):
     async def set_concurrent_downloads(self, ctx: Context, count: int):
         """Set the number of concurrent downloads allowed."""
         try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+
             if not 1 <= count <= 5:
                 await self._handle_response(ctx, "Concurrent downloads must be between 1 and 5.")
                 return
@@ -476,7 +516,7 @@ class VideoArchiver(GroupCog):
     async def show_settings(self, ctx: Context):
         """Show current archiver settings."""
         try:
-            # Defer the response immediately to prevent interaction timeout
+            # Defer the response immediately for slash commands
             if hasattr(ctx, 'interaction') and ctx.interaction:
                 await ctx.defer()
             
@@ -492,6 +532,9 @@ class VideoArchiver(GroupCog):
     @guild_only()
     async def show_queue(self, ctx: Context):
         """Show the current video processing queue."""
+        # Defer the response immediately for slash commands
+        if hasattr(ctx, 'interaction') and ctx.interaction:
+            await ctx.defer()
         await self.processor.show_queue_details(ctx)
 
     async def cog_command_error(self, ctx: Context, error: Exception) -> None:
