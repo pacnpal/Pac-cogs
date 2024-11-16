@@ -1,6 +1,6 @@
 """Update checker for yt-dlp"""
 import logging
-import pkg_resources
+from importlib.metadata import version as get_package_version
 from datetime import datetime, timedelta
 import aiohttp
 from packaging import version
@@ -139,7 +139,7 @@ class UpdateChecker:
     def _get_current_version(self) -> Optional[str]:
         """Get current yt-dlp version with error handling"""
         try:
-            return pkg_resources.get_distribution('yt-dlp').version
+            return get_package_version('yt-dlp')
         except Exception as e:
             logger.error(f"Error getting current version: {str(e)}")
             return None
