@@ -13,7 +13,8 @@ from ..queue import EnhancedVideoQueueManager
 from ..processor import VideoProcessor
 from ..update_checker import UpdateChecker
 from .guild import initialize_guild_components
-from .cleanup import cleanup_downloads, cleanup_resources, force_cleanup_resources
+from .cleanup import cleanup_resources, force_cleanup_resources
+from ..utils.file_ops import cleanup_downloads
 from ..utils.exceptions import VideoArchiverError as ProcessingError
 
 logger = logging.getLogger("VideoArchiver")
