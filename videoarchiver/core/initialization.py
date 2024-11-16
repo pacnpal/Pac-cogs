@@ -12,6 +12,7 @@ from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..queue import EnhancedVideoQueueManager
 from ..processor import VideoProcessor
 from ..update_checker import UpdateChecker
+from ..database import VideoArchiveDB
 from .guild import initialize_guild_components
 from .cleanup import cleanup_resources, force_cleanup_resources
 from ..utils.file_ops import cleanup_downloads
@@ -23,7 +24,7 @@ class InitializationTracker:
     """Tracks initialization progress"""
 
     def __init__(self):
-        self.total_steps = 8  # Total number of initialization steps
+        self.total_steps = 9  # Updated total number of initialization steps
         self.current_step = 0
         self.current_component = ""
         self.errors: Dict[str, str] = {}
@@ -76,6 +77,18 @@ class ComponentInitializer:
             logger.info("Paths initialized")
         except Exception as e:
             self.tracker.record_error("Paths", str(e))
+            raise
+
+    async def init_database(self) -> None:
+        """Initialize database"""
+        self.tracker.start_step("Database")
+        try:
+            db_path = self.cog.data_path / "video_archive.db"
+            self.cog.db = VideoArchiveDB(str(db_path))
+            await self.cog.db.initialize()
+            logger.info("Database initialized")
+        except Exception as e:
+            self.tracker.record_error("Database", str(e))
             raise
 
     async def init_ffmpeg(self) -> None:
@@ -182,6 +195,7 @@ class InitializationManager:
             except Exception as e:
                 logger.warning(f"Download cleanup error: {e}")
             
+            await self.component_initializer.init_database()  # Added database initialization
             await self.component_initializer.init_ffmpeg()
             await self.component_initializer.init_queue()
             await self.component_initializer.init_processor()

@@ -166,6 +166,15 @@ class VideoArchiver(GroupCog, Settings):
                         processor_status["active"]
                     )
 
+                # Check database health
+                db = self.db
+                if db:
+                    db_status = await db.get_status()
+                    self.status.update_health_check(
+                        "database_health",
+                        db_status["connected"]
+                    )
+
             except Exception as e:
                 logger.error(f"Error monitoring system health: {e}")
             await asyncio.sleep(30)  # Check every 30 seconds
@@ -207,6 +216,11 @@ class VideoArchiver(GroupCog, Settings):
     def ffmpeg_mgr(self):
         """Get the FFmpeg manager component"""
         return self.component_accessor.get_component("ffmpeg_mgr")
+
+    @property
+    def db(self):
+        """Get the database component"""
+        return self.component_accessor.get_component("db")
 
     @property
     def data_path(self):

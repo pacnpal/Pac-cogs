@@ -1,19 +1,60 @@
-"""Utility modules for VideoArchiver"""
+"""Utility functions and classes for VideoArchiver"""
 
-from .exceptions import FileCleanupError, VideoVerificationError
-from .file_ops import secure_delete_file, cleanup_downloads
-from .path_manager import temp_path_context
-from .message_manager import MessageManager
-
-# Import VideoDownloader last to avoid circular imports
-from .video_downloader import VideoDownloader
+from .file_ops import (
+    cleanup_downloads,
+    ensure_directory,
+    get_file_size,
+    is_valid_path,
+    safe_delete
+)
+from .file_deletion import FileDeleter
+from .directory_manager import DirectoryManager
+from .permission_manager import PermissionManager
+from .download_manager import DownloadManager
+from .compression_manager import CompressionManager
+from .progress_tracker import ProgressTracker
+from .path_manager import PathManager
+from .exceptions import (
+    FileOperationError,
+    DirectoryError,
+    PermissionError,
+    DownloadError,
+    CompressionError,
+    TrackingError,
+    PathError
+)
 
 __all__ = [
-    'FileCleanupError',
-    'VideoVerificationError',
-    'secure_delete_file',
+    # File Operations
     'cleanup_downloads',
-    'temp_path_context',
-    'VideoDownloader',
-    'MessageManager',
+    'ensure_directory',
+    'get_file_size',
+    'is_valid_path',
+    'safe_delete',
+    
+    # Managers
+    'FileDeleter',
+    'DirectoryManager',
+    'PermissionManager',
+    'DownloadManager',
+    'CompressionManager',
+    'ProgressTracker',
+    'PathManager',
+    
+    # Exceptions
+    'FileOperationError',
+    'DirectoryError',
+    'PermissionError',
+    'DownloadError',
+    'CompressionError',
+    'TrackingError',
+    'PathError'
 ]
+
+# Initialize shared instances for module-level access
+directory_manager = DirectoryManager()
+permission_manager = PermissionManager()
+download_manager = DownloadManager()
+compression_manager = CompressionManager()
+progress_tracker = ProgressTracker()
+path_manager = PathManager()

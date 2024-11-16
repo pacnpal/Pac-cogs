@@ -27,3 +27,7 @@ class MigrationError(ConfigurationError):
 class SchemaError(ConfigurationError):
     """Raised when configuration schema is invalid"""
     pass
+
+class DiscordAPIError(ConfigurationError):
+    """Raised when there are Discord API related issues"""
+    pass
