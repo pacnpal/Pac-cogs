@@ -4,9 +4,9 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-from .schema_manager import SchemaManager
+from .schema_manager import DatabaseSchemaManager
 from .query_manager import DatabaseQueryManager
-from .connection_manager import ConnectionManager
+from .connection_manager import DatabaseConnectionManager
 
 logger = logging.getLogger("VideoArchiverDB")
 
@@ -25,8 +25,8 @@ class VideoArchiveDB:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Initialize managers
-        self.connection_manager = ConnectionManager(self.db_path)
-        self.schema_manager = SchemaManager(self.db_path)
+        self.connection_manager = DatabaseConnectionManager(self.db_path)
+        self.schema_manager = DatabaseSchemaManager(self.db_path)
         self.query_manager = DatabaseQueryManager(self.connection_manager)
 
         # Initialize database schema

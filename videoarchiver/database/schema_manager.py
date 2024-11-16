@@ -7,7 +7,8 @@ from typing import List
 
 logger = logging.getLogger("DBSchemaManager")
 
-class SchemaManager:
+
+class DatabaseSchemaManager:
     """Manages database schema creation and updates"""
 
     SCHEMA_VERSION = 1  # Increment when schema changes
@@ -20,11 +21,11 @@ class SchemaManager:
         try:
             self._create_schema_version_table()
             current_version = self._get_schema_version()
-            
+
             if current_version < self.SCHEMA_VERSION:
                 self._apply_migrations(current_version)
                 self._update_schema_version()
-                
+
         except sqlite3.Error as e:
             logger.error(f"Schema initialization error: {e}")
             raise
@@ -33,11 +34,13 @@ class SchemaManager:
         """Create schema version tracking table"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 CREATE TABLE IF NOT EXISTS schema_version (
                     version INTEGER PRIMARY KEY
                 )
-            """)
+            """
+            )
             # Insert initial version if table is empty
             cursor.execute("INSERT OR IGNORE INTO schema_version VALUES (0)")
             conn.commit()
@@ -55,15 +58,14 @@ class SchemaManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE schema_version SET version = ?",
-                (self.SCHEMA_VERSION,)
+                "UPDATE schema_version SET version = ?", (self.SCHEMA_VERSION,)
             )
             conn.commit()
 
     def _apply_migrations(self, current_version: int) -> None:
         """Apply necessary schema migrations"""
         migrations = self._get_migrations(current_version)
-        
+
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             for migration in migrations:
@@ -77,10 +79,11 @@ class SchemaManager:
     def _get_migrations(self, current_version: int) -> List[str]:
         """Get list of migrations to apply"""
         migrations = []
-        
+
         # Version 0 to 1: Initial schema
         if current_version < 1:
-            migrations.append("""
+            migrations.append(
+                """
                 CREATE TABLE IF NOT EXISTS archived_videos (
                     original_url TEXT PRIMARY KEY,
                     discord_url TEXT NOT NULL,
@@ -100,10 +103,11 @@ class SchemaManager:
                 
                 CREATE INDEX IF NOT EXISTS idx_archived_at 
                 ON archived_videos(archived_at);
-            """)
-        
+            """
+            )
+
         # Add more migrations here as schema evolves
         # if current_version < 2:
         #     migrations.append(...)
-        
+
         return migrations
