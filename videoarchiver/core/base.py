@@ -106,38 +106,33 @@ class VideoArchiver(GroupCog):
     async def enable_database(self, ctx: Context):
         """Enable the video archive database."""
         try:
-            # First check if database is already enabled
-            try:
-                current_setting = await self.config_manager.get_setting(
-                    ctx.guild.id, "use_database"
-                )
-                if current_setting:
-                    await ctx.send("The video archive database is already enabled.")
-                    return
-            except Exception as e:
-                logger.error(f"Failed to get setting use_database: {e}")
-                # If setting doesn't exist, we'll create it
-                await self.config_manager.update_setting(ctx.guild.id, "use_database", False)
-
-            # Initialize database if it's being enabled
-            try:
-                self.db = VideoArchiveDB(self.data_path)
-                # Update processor with database
-                if self.processor:
-                    self.processor.db = self.db
-                    if self.processor.queue_handler:
-                        self.processor.queue_handler.db = self.db
-
-                await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
-                await ctx.send("Video archive database has been enabled.")
-            except Exception as e:
-                logger.error(f"Error initializing database: {e}")
-                await ctx.send("An error occurred while initializing the database.")
+            # Check if database is already enabled
+            current_setting = await self.config_manager.get_setting(
+                ctx.guild.id, "use_database"
+            )
+            if current_setting:
+                await ctx.send("The video archive database is already enabled.")
                 return
+
+            # Initialize database
+            self.db = VideoArchiveDB(self.data_path)
+            
+            # Update processor with database
+            if self.processor:
+                self.processor.db = self.db
+                if self.processor.queue_handler:
+                    self.processor.queue_handler.db = self.db
+
+            # Update setting
+            await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
+            
+            # Send success message
+            await ctx.send("Video archive database has been enabled.")
 
         except Exception as e:
             logger.error(f"Error enabling database: {e}")
-            await ctx.send("An error occurred while enabling the database.")
+            # Send single error message
+            await ctx.send("An error occurred while enabling the database. Please check the logs for details.")
 
     @archivedb.command(name="disable")
     @guild_only()
