@@ -12,6 +12,7 @@ from redbot.core.commands import (
     hybrid_command,
     hybrid_group,
     guild_only,
+    commands,  # Added this import
 )
 from redbot.core import checks
 from discord import app_commands
@@ -51,7 +52,7 @@ class VideoArchiver(GroupCog):
     """Archive videos from Discord channels"""
 
     default_guild_settings = {
-        "enabled": True,  # Changed to True to enable by default
+        "enabled": False,  # Changed to match config_manager.py
         "archive_channel": None,
         "log_channel": None,
         "enabled_channels": [],  # Empty list means all channels
@@ -428,13 +429,13 @@ class VideoArchiver(GroupCog):
         """Handle command errors"""
         error_msg = None
         try:
-            if isinstance(error, commands.MissingPermissions):
+            if isinstance(error, redbot.core.commands.MissingPermissions):  # Fixed this line
                 error_msg = "❌ You don't have permission to use this command."
-            elif isinstance(error, commands.BotMissingPermissions):
+            elif isinstance(error, redbot.core.commands.BotMissingPermissions):  # And this line
                 error_msg = "❌ I don't have the required permissions to do that."
-            elif isinstance(error, commands.MissingRequiredArgument):
+            elif isinstance(error, redbot.core.commands.MissingRequiredArgument):  # And this line
                 error_msg = f"❌ Missing required argument: {error.param.name}"
-            elif isinstance(error, commands.BadArgument):
+            elif isinstance(error, redbot.core.commands.BadArgument):  # And this line
                 error_msg = f"❌ Invalid argument: {str(error)}"
             elif isinstance(error, ConfigError):
                 error_msg = f"❌ Configuration error: {str(error)}"
