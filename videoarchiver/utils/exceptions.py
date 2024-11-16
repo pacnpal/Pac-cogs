@@ -3,6 +3,40 @@
 from typing import Optional, Dict, Any
 from enum import Enum, auto
 
+__all__ = [
+    'ErrorSeverity',
+    'ErrorContext',
+    'VideoArchiverError',
+    'VideoDownloadError',
+    'VideoProcessingError',
+    'VideoVerificationError',
+    'VideoUploadError',
+    'VideoCleanupError',
+    'FileCleanupError',
+    'ConfigurationError',
+    'PermissionError',
+    'NetworkError',
+    'ResourceError',
+    'QueueError',
+    'ComponentError',
+    'DiscordAPIError',
+    'ResourceExhaustedError',
+    'ProcessingError',
+    'CleanupError',
+    'FileOperationError',
+    'ProcessorError',
+    'ValidationError',
+    'DisplayError',
+    'URLExtractionError',
+    'MessageHandlerError',
+    'QueueHandlerError',
+    'QueueProcessorError',
+    'FFmpegError',
+    'DatabaseError',
+    'HealthCheckError',
+    'TrackingError'
+]
+
 class ErrorSeverity(Enum):
     """Severity levels for errors"""
     LOW = auto()

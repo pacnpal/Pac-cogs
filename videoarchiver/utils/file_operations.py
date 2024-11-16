@@ -9,8 +9,8 @@ import subprocess
 from typing import Tuple
 from pathlib import Path
 
-from videoarchiver.utils.exceptions import VideoVerificationError
-from videoarchiver.utils.file_deletion import secure_delete_file
+from .exceptions import VideoVerificationError
+from .file_deletion import secure_delete_file
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -135,4 +135,8 @@ class FileOperations:
             if os.path.exists(file_path):
                 size = os.path.getsize(file_path)
                 max_size = max_size_mb * 1024 * 1024
-         
+                return size <= max_size, size
+            return False, 0
+        except Exception as e:
+            logger.error(f"Error checking file size: {e}")
+            return False, 0

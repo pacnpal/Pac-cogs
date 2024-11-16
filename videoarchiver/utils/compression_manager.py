@@ -1,16 +1,19 @@
-"""Module for managing video compression"""
+"""Manages video compression operations"""
 
 import os
-import logging
 import asyncio
-import json
+import logging
 import subprocess
 from datetime import datetime
-from typing import Dict, Optional, Tuple, Callable, Set
+from typing import Dict, Any, Optional, Callable, List, Set, Tuple
 
+from ..processor import _compression_progress
+from .compression_handler import CompressionHandler
+from .progress_handler import ProgressHandler
+from .file_operations import FileOperations
 from .exceptions import CompressionError, VideoVerificationError
 
-logger = logging.getLogger("CompressionManager")
+logger = logging.getLogger("VideoArchiver")
 
 class CompressionManager:
     """Manages video compression operations"""
@@ -26,15 +29,15 @@ class CompressionManager:
         self,
         input_file: str,
         output_file: str,
-        progress_callback: Optional[Callable[[float], None]] = None
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> Tuple[bool, str]:
         """Compress a video file
-        
+
         Args:
             input_file: Path to input video file
             output_file: Path to output video file
             progress_callback: Optional callback for compression progress
-            
+
         Returns:
             Tuple[bool, str]: (Success status, Error message if any)
         """
@@ -44,8 +47,7 @@ class CompressionManager:
         try:
             # Get optimal compression parameters
             compression_params = self.ffmpeg_mgr.get_compression_params(
-                input_file,
-                self.max_file_size // (1024 * 1024)  # Convert to MB
+                input_file, self.max_file_size // (1024 * 1024)  # Convert to MB
             )
 
             # Try hardware acceleration first
@@ -54,18 +56,20 @@ class CompressionManager:
                 output_file,
                 compression_params,
                 progress_callback,
-                use_hardware=True
+                use_hardware=True,
             )
 
             # Fall back to CPU if hardware acceleration fails
             if not success:
-                logger.warning(f"Hardware acceleration failed: {error}, falling back to CPU encoding")
+                logger.warning(
+                    f"Hardware acceleration failed: {error}, falling back to CPU encoding"
+                )
                 success, error = await self._try_compression(
                     input_file,
                     output_file,
                     compression_params,
                     progress_callback,
-                    use_hardware=False
+                    use_hardware=False,
                 )
 
             if not success:
@@ -87,7 +91,7 @@ class CompressionManager:
         output_file: str,
         params: Dict[str, str],
         progress_callback: Optional[Callable[[float], None]],
-        use_hardware: bool
+        use_hardware: bool,
     ) -> Tuple[bool, str]:
         """Attempt video compression with given parameters"""
         if self._shutting_down:
@@ -96,10 +100,7 @@ class CompressionManager:
         try:
             # Build FFmpeg command
             cmd = await self._build_ffmpeg_command(
-                input_file,
-                output_file,
-                params,
-                use_hardware
+                input_file, output_file, params, use_hardware
             )
 
             # Get video duration for progress calculation
@@ -107,17 +108,12 @@ class CompressionManager:
 
             # Initialize compression progress tracking
             await self._init_compression_progress(
-                input_file,
-                params,
-                use_hardware,
-                duration
+                input_file, params, use_hardware, duration
             )
 
             # Run compression
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             # Track the process
@@ -126,11 +122,7 @@ class CompressionManager:
 
             try:
                 success = await self._monitor_compression(
-                    process,
-                    input_file,
-                    output_file,
-                    duration,
-                    progress_callback
+                    process, input_file, output_file, duration, progress_callback
                 )
                 return success, ""
 
@@ -146,7 +138,7 @@ class CompressionManager:
         input_file: str,
         output_file: str,
         params: Dict[str, str],
-        use_hardware: bool
+        use_hardware: bool,
     ) -> List[str]:
         """Build FFmpeg command with appropriate parameters"""
         ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
@@ -177,7 +169,7 @@ class CompressionManager:
         input_file: str,
         output_file: str,
         duration: float,
-        progress_callback: Optional[Callable[[float], None]]
+        progress_callback: Optional[Callable[[float], None]],
     ) -> bool:
         """Monitor compression progress"""
         start_time = datetime.utcnow()
@@ -198,7 +190,7 @@ class CompressionManager:
                     output_file,
                     duration,
                     start_time,
-                    progress_callback
+                    progress_callback,
                 )
             except Exception as e:
                 logger.error(f"Error updating progress: {e}")
@@ -206,11 +198,7 @@ class CompressionManager:
         await process.wait()
         return os.path.exists(output_file)
 
-    async def _verify_output(
-        self,
-        input_file: str,
-        output_file: str
-    ) -> bool:
+    async def _verify_output(self, input_file: str, output_file: str) -> bool:
         """Verify compressed output file"""
         try:
             # Check file exists and is not empty
@@ -274,11 +262,9 @@ class CompressionManager:
         input_file: str,
         params: Dict[str, str],
         use_hardware: bool,
-        duration: float
+        duration: float,
     ) -> None:
         """Initialize compression progress tracking"""
-        from videoarchiver.processor import _compression_progress
-
         _compression_progress[input_file] = {
             "active": True,
             "filename": os.path.basename(input_file),
@@ -306,7 +292,7 @@ class CompressionManager:
         output_file: str,
         duration: float,
         start_time: datetime,
-        progress_callback: Optional[Callable[[float], None]]
+        progress_callback: Optional[Callable[[float], None]],
     ) -> None:
         """Update compression progress"""
         if line.startswith("out_time_ms="):
@@ -314,17 +300,23 @@ class CompressionManager:
             if duration > 0:
                 progress = min(100, (current_time / duration) * 100)
 
-                # Update compression progress
-                from videoarchiver.processor import _compression_progress
                 if input_file in _compression_progress:
                     elapsed = datetime.utcnow() - start_time
-                    _compression_progress[input_file].update({
-                        "percent": progress,
-                        "elapsed_time": str(elapsed).split(".")[0],
-                        "current_size": os.path.getsize(output_file) if os.path.exists(output_file) else 0,
-                        "current_time": current_time,
-                        "last_update": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    })
+                    _compression_progress[input_file].update(
+                        {
+                            "percent": progress,
+                            "elapsed_time": str(elapsed).split(".")[0],
+                            "current_size": (
+                                os.path.getsize(output_file)
+                                if os.path.exists(output_file)
+                                else 0
+                            ),
+                            "current_time": current_time,
+                            "last_update": datetime.utcnow().strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
+                        }
+                    )
 
                 if progress_callback:
                     progress_callback(progress)

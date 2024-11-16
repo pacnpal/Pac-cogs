@@ -7,12 +7,12 @@ import yt_dlp
 from typing import Dict, Optional, Callable, Tuple
 from pathlib import Path
 
-from videoarchiver.utils.url_validator import check_url_support
-from videoarchiver.utils.progress_handler import ProgressHandler, CancellableYTDLLogger
-from videoarchiver.utils.file_operations import FileOperations
-from videoarchiver.utils.compression_handler import CompressionHandler
-from videoarchiver.utils.process_manager import ProcessManager
-from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from .url_validator import check_url_support
+from .progress_handler import ProgressHandler, CancellableYTDLLogger
+from .file_operations import FileOperations
+from .compression_handler import CompressionHandler
+from .process_manager import ProcessManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -265,7 +265,5 @@ class DownloadCore:
     async def force_cleanup(self) -> None:
         """Force cleanup of all resources"""
         self.ytdl_logger.cancelled = True
-        await self.process_m
-        self.ytdl_logger.cancelled = True
         await self.process_manager.force_cleanup()
-        await self.compress
+        await self.compression_handler.force_cleanup()
