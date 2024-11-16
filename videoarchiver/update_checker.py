@@ -37,6 +37,7 @@ class UpdateChecker:
         self._rate_limit_reset = 0
         self._remaining_requests = 60
         self._last_version_check: Dict[int, datetime] = {}
+        self._shutdown = False
 
     async def _init_session(self) -> None:
         """Initialize aiohttp session with proper headers"""
@@ -45,25 +46,31 @@ class UpdateChecker:
                 headers={
                     'Accept': 'application/vnd.github.v3+json',
                     'User-Agent': 'VideoArchiver-Bot'
-                }
+                },
+                timeout=aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT)
             )
 
     async def start(self) -> None:
         """Start the update checker task"""
         if self._check_task is None:
             await self._init_session()
-            self._check_task = self.bot.loop.create_task(self._check_loop())
+            self._check_task = asyncio.create_task(self._check_loop())
             logger.info("Update checker task started")
 
     async def stop(self) -> None:
         """Stop the update checker task and cleanup"""
-        if self._check_task:
+        self._shutdown = True
+        if self._check_task and not self._check_task.done():
             self._check_task.cancel()
-            self._check_task = None
+            try:
+                await self._check_task
+            except asyncio.CancelledError:
+                pass
+        self._check_task = None
             
         if self._session and not self._session.closed:
             await self._session.close()
-            self._session = None
+        self._session = None
             
         logger.info("Update checker task stopped")
 
@@ -71,7 +78,7 @@ class UpdateChecker:
         """Periodic update check loop with improved error handling"""
         await self.bot.wait_until_ready()
         
-        while True:
+        while not self._shutdown:
             try:
                 for guild in self.bot.guilds:
                     try:
@@ -101,6 +108,9 @@ class UpdateChecker:
                         logger.error(f"Error checking updates for guild {guild.id}: {str(e)}")
                         continue
 
+            except asyncio.CancelledError:
+                logger.info("Update check loop cancelled")
+                break
             except Exception as e:
                 logger.error(f"Error in update check task: {str(e)}")
 
@@ -109,7 +119,7 @@ class UpdateChecker:
     async def _check_guild(self, guild: discord.Guild, settings: dict) -> None:
         """Check updates for a specific guild with improved error handling"""
         try:
-            current_version = self._get_current_version()
+            current_version = await self._get_current_version()
             if not current_version:
                 await self._log_error(
                     guild,
@@ -136,7 +146,7 @@ class UpdateChecker:
         except Exception as e:
             await self._log_error(guild, e, "checking for updates")
 
-    def _get_current_version(self) -> Optional[str]:
+    async def _get_current_version(self) -> Optional[str]:
         """Get current yt-dlp version with error handling"""
         try:
             return get_package_version('yt-dlp')
@@ -150,10 +160,7 @@ class UpdateChecker:
         
         for attempt in range(self.MAX_RETRIES):
             try:
-                async with self._session.get(
-                    self.GITHUB_API_URL,
-                    timeout=aiohttp.ClientTimeout(total=self.REQUEST_TIMEOUT)
-                ) as response:
+                async with self._session.get(self.GITHUB_API_URL) as response:
                     # Update rate limit info
                     self._remaining_requests = int(response.headers.get('X-RateLimit-Remaining', 0))
                     self._rate_limit_reset = int(response.headers.get('X-RateLimit-Reset', 0))
@@ -272,7 +279,7 @@ class UpdateChecker:
                 raise UpdateError("Update process timed out")
 
             if process.returncode == 0:
-                new_version = self._get_current_version()
+                new_version = await self._get_current_version()
                 if new_version:
                     return True, f"Successfully updated to version {new_version}"
                 return True, "Successfully updated (version unknown)"

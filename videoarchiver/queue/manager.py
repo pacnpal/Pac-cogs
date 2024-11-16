@@ -49,10 +49,8 @@ class EnhancedVideoQueueManager:
         self._channel_queues: Dict[int, Set[str]] = {}
         self._active_tasks: Set[asyncio.Task] = set()
         
-        # Locks
-        self._global_lock = asyncio.Lock()
-        self._queue_lock = asyncio.Lock()
-        self._processing_lock = asyncio.Lock()
+        # Single lock for all operations to prevent deadlocks
+        self._lock = asyncio.Lock()
         
         # State
         self._shutdown = False
@@ -81,45 +79,43 @@ class EnhancedVideoQueueManager:
         try:
             logger.info("Starting queue manager initialization...")
             
-            # Load persisted state first if available
-            if self.persistence:
-                await self._load_persisted_state()
-            
-            # Start monitoring task
-            monitor_task = asyncio.create_task(
-                self.monitor.start_monitoring(
-                    self._queue,
-                    self._processing,
-                    self.metrics,
-                    self._processing_lock
+            async with self._lock:
+                # Load persisted state first if available
+                if self.persistence:
+                    await self._load_persisted_state()
+                
+                # Start monitoring task
+                monitor_task = asyncio.create_task(
+                    self.monitor.start_monitoring(
+                        self._queue,
+                        self._processing,
+                        self.metrics,
+                        self._lock
+                    )
                 )
-            )
-            self._active_tasks.add(monitor_task)
-            logger.info("Queue monitoring started")
-
-            # Brief pause to allow monitor to initialize
-            await asyncio.sleep(0.1)
-            
-            # Start cleanup task
-            cleanup_task = asyncio.create_task(
-                self.cleaner.start_cleanup(
-                    self._queue,
-                    self._completed,
-                    self._failed,
-                    self._guild_queues,
-                    self._channel_queues,
-                    self._processing,
-                    self.metrics,
-                    self._queue_lock
+                self._active_tasks.add(monitor_task)
+                logger.info("Queue monitoring started")
+                
+                # Start cleanup task
+                cleanup_task = asyncio.create_task(
+                    self.cleaner.start_cleanup(
+                        self._queue,
+                        self._completed,
+                        self._failed,
+                        self._guild_queues,
+                        self._channel_queues,
+                        self._processing,
+                        self.metrics,
+                        self._lock
+                    )
                 )
-            )
-            self._active_tasks.add(cleanup_task)
-            logger.info("Queue cleanup started")
+                self._active_tasks.add(cleanup_task)
+                logger.info("Queue cleanup started")
 
-            # Signal initialization complete
-            self._initialized = True
-            self._init_event.set()
-            logger.info("Queue manager initialization completed")
+                # Signal initialization complete
+                self._initialized = True
+                self._init_event.set()
+                logger.info("Queue manager initialization completed")
 
         except Exception as e:
             logger.error(f"Failed to initialize queue manager: {e}")
@@ -131,13 +127,10 @@ class EnhancedVideoQueueManager:
         try:
             state = self.persistence.load_queue_state()
             if state:
-                async with self._queue_lock:
-                    self._queue = state["queue"]
-                    self._completed = state["completed"]
-                    self._failed = state["failed"]
-                
-                async with self._processing_lock:
-                    self._processing = state["processing"]
+                self._queue = state["queue"]
+                self._completed = state["completed"]
+                self._failed = state["failed"]
+                self._processing = state["processing"]
 
                 # Update metrics
                 metrics_data = state.get("metrics", {})
@@ -168,21 +161,14 @@ class EnhancedVideoQueueManager:
         while not self._shutdown:
             try:
                 items = []
-                # Use global lock for coordination
-                async with self._global_lock:
-                    # Then acquire specific locks in order
-                    async with self._queue_lock:
-                        # Get up to 5 items from queue
-                        while len(items) < 5 and self._queue:
-                            item = self._queue.pop(0)
-                            items.append(item)
-                    
-                    if items:
-                        async with self._processing_lock:
-                            for item in items:
-                                self._processing[item.url] = item
-                                # Update activity timestamp
-                                self.monitor.update_activity()
+                async with self._lock:
+                    # Get up to 5 items from queue
+                    while len(items) < 5 and self._queue:
+                        item = self._queue.pop(0)
+                        items.append(item)
+                        self._processing[item.url] = item
+                        # Update activity timestamp
+                        self.monitor.update_activity()
 
                 if not items:
                     await asyncio.sleep(0.1)
@@ -194,7 +180,13 @@ class EnhancedVideoQueueManager:
                     task = asyncio.create_task(self._process_item(processor, item))
                     tasks.append(task)
                 
-                await asyncio.gather(*tasks, return_exceptions=True)
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except asyncio.CancelledError:
+                    logger.info("Queue processing cancelled")
+                    break
+                except Exception as e:
+                    logger.error(f"Error in queue processing: {e}")
 
                 # Persist state if interval has passed
                 current_time = time.time()
@@ -202,6 +194,9 @@ class EnhancedVideoQueueManager:
                     await self._persist_state()
                     last_persist_time = current_time
 
+            except asyncio.CancelledError:
+                logger.info("Queue processing cancelled")
+                break
             except Exception as e:
                 logger.error(f"Critical error in queue processor: {e}")
                 await asyncio.sleep(0.1)
@@ -218,49 +213,46 @@ class EnhancedVideoQueueManager:
             logger.info(f"Processing queue item: {item.url}")
             item.start_processing()
             self.metrics.last_activity_time = time.time()
-            self.monitor.update_activity()  # Update activity timestamp
+            self.monitor.update_activity()
             
             success, error = await processor(item)
             
-            async with self._global_lock:
-                async with self._processing_lock:
-                    item.finish_processing(success, error)
-                    self._processing.pop(item.url, None)
-                    
-                    if success:
-                        self._completed[item.url] = item
-                        logger.info(f"Successfully processed: {item.url}")
+            async with self._lock:
+                item.finish_processing(success, error)
+                self._processing.pop(item.url, None)
+                
+                if success:
+                    self._completed[item.url] = item
+                    logger.info(f"Successfully processed: {item.url}")
+                else:
+                    if item.retry_count < self.max_retries:
+                        item.retry_count += 1
+                        item.status = "pending"
+                        item.last_retry = datetime.utcnow()
+                        item.priority = max(0, item.priority - 1)
+                        self._queue.append(item)
+                        logger.warning(f"Retrying: {item.url} (attempt {item.retry_count})")
                     else:
-                        async with self._queue_lock:
-                            if item.retry_count < self.max_retries:
-                                item.retry_count += 1
-                                item.status = "pending"
-                                item.last_retry = datetime.utcnow()
-                                item.priority = max(0, item.priority - 1)
-                                self._queue.append(item)
-                                logger.warning(f"Retrying: {item.url} (attempt {item.retry_count})")
-                            else:
-                                self._failed[item.url] = item
-                                logger.error(f"Failed after {self.max_retries} attempts: {item.url}")
-                    
-                    self.metrics.update(
-                        processing_time=item.processing_time,
-                        success=success,
-                        error=error
-                    )
+                        self._failed[item.url] = item
+                        logger.error(f"Failed after {self.max_retries} attempts: {item.url}")
+                
+                self.metrics.update(
+                    processing_time=item.processing_time,
+                    success=success,
+                    error=error
+                )
 
         except Exception as e:
             logger.error(f"Error processing {item.url}: {e}")
-            async with self._global_lock:
-                async with self._processing_lock:
-                    item.finish_processing(False, str(e))
-                    self._processing.pop(item.url, None)
-                    self._failed[item.url] = item
-                    self.metrics.update(
-                        processing_time=item.processing_time,
-                        success=False,
-                        error=str(e)
-                    )
+            async with self._lock:
+                item.finish_processing(False, str(e))
+                self._processing.pop(item.url, None)
+                self._failed[item.url] = item
+                self.metrics.update(
+                    processing_time=item.processing_time,
+                    success=False,
+                    error=str(e)
+                )
 
     async def _persist_state(self) -> None:
         """Persist current state to storage"""
@@ -268,7 +260,7 @@ class EnhancedVideoQueueManager:
             return
             
         try:
-            async with self._global_lock:
+            async with self._lock:
                 await self.persistence.persist_queue_state(
                     self._queue,
                     self._processing,
@@ -292,44 +284,43 @@ class EnhancedVideoQueueManager:
         if self._shutdown:
             raise QueueError("Queue manager is shutting down")
 
-        # Wait for initialization using the correct event
+        # Wait for initialization
         await self._init_event.wait()
 
         try:
-            async with self._global_lock:
-                async with self._queue_lock:
-                    if len(self._queue) >= self.max_queue_size:
-                        raise QueueError("Queue is full")
+            async with self._lock:
+                if len(self._queue) >= self.max_queue_size:
+                    raise QueueError("Queue is full")
 
-                    item = QueueItem(
-                        url=url,
-                        message_id=message_id,
-                        channel_id=channel_id,
-                        guild_id=guild_id,
-                        author_id=author_id,
-                        added_at=datetime.utcnow(),
-                        priority=priority,
-                    )
+                item = QueueItem(
+                    url=url,
+                    message_id=message_id,
+                    channel_id=channel_id,
+                    guild_id=guild_id,
+                    author_id=author_id,
+                    added_at=datetime.utcnow(),
+                    priority=priority,
+                )
 
-                    if guild_id not in self._guild_queues:
-                        self._guild_queues[guild_id] = set()
-                    self._guild_queues[guild_id].add(url)
+                if guild_id not in self._guild_queues:
+                    self._guild_queues[guild_id] = set()
+                self._guild_queues[guild_id].add(url)
 
-                    if channel_id not in self._channel_queues:
-                        self._channel_queues[channel_id] = set()
-                    self._channel_queues[channel_id].add(url)
+                if channel_id not in self._channel_queues:
+                    self._channel_queues[channel_id] = set()
+                self._channel_queues[channel_id].add(url)
 
-                    self._queue.append(item)
-                    self._queue.sort(key=lambda x: (-x.priority, x.added_at))
+                self._queue.append(item)
+                self._queue.sort(key=lambda x: (-x.priority, x.added_at))
 
-                    self.metrics.last_activity_time = time.time()
-                    self.monitor.update_activity()  # Update activity timestamp
+                self.metrics.last_activity_time = time.time()
+                self.monitor.update_activity()
 
-                    if self.persistence:
-                        await self._persist_state()
+                if self.persistence:
+                    await self._persist_state()
 
-                    logger.info(f"Added to queue: {url} (priority: {priority})")
-                    return True
+                logger.info(f"Added to queue: {url} (priority: {priority})")
+                return True
 
         except Exception as e:
             logger.error(f"Error adding to queue: {e}")
@@ -400,18 +391,17 @@ class EnhancedVideoQueueManager:
 
             await asyncio.gather(*self._active_tasks, return_exceptions=True)
 
-            async with self._global_lock:
+            async with self._lock:
                 # Move processing items back to queue
-                async with self._processing_lock:
-                    for url, item in self._processing.items():
-                        if item.retry_count < self.max_retries:
-                            item.status = "pending"
-                            item.retry_count += 1
-                            self._queue.append(item)
-                        else:
-                            self._failed[url] = item
+                for url, item in self._processing.items():
+                    if item.retry_count < self.max_retries:
+                        item.status = "pending"
+                        item.retry_count += 1
+                        self._queue.append(item)
+                    else:
+                        self._failed[url] = item
 
-                    self._processing.clear()
+                self._processing.clear()
 
                 # Final state persistence
                 if self.persistence:
