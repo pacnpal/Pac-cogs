@@ -1,7 +1,8 @@
 """Module for database-related commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_group, hybrid_command, guild_only, checks
+from redbot.core.commands import Context, hybrid_group, hybrid_command, guild_only
+from redbot.core.utils.mod import admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response
@@ -23,7 +24,7 @@ def setup_database_commands(cog):
 
     @archivedb.command(name="enable")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     async def enable_database(ctx: Context):
         """Enable the video archive database."""
         try:
@@ -65,7 +66,7 @@ def setup_database_commands(cog):
 
     @archivedb.command(name="disable")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     async def disable_database(ctx: Context):
         """Disable the video archive database."""
         try:

@@ -1,7 +1,8 @@
 """Module for settings-related commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_command, guild_only, checks
+from redbot.core.commands import Context, hybrid_command, guild_only
+from redbot.core.utils.mod import admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response
@@ -13,7 +14,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setchannel")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where archived videos will be stored")
     async def set_archive_channel(ctx: Context, channel: discord.TextChannel):
         """Set the channel where archived videos will be stored."""
@@ -36,7 +37,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setlog")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where log messages will be sent")
     async def set_log_channel(ctx: Context, channel: discord.TextChannel):
         """Set the channel where log messages will be sent."""
@@ -59,7 +60,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="addchannel")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to monitor for videos")
     async def add_enabled_channel(ctx: Context, channel: discord.TextChannel):
         """Add a channel to monitor for videos."""
@@ -92,7 +93,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="removechannel")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to stop monitoring")
     async def remove_enabled_channel(ctx: Context, channel: discord.TextChannel):
         """Remove a channel from video monitoring."""
@@ -125,7 +126,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setformat")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(format="The video format to use (mp4, webm, or mkv)")
     async def set_video_format(ctx: Context, format: str):
         """Set the video format for archived videos."""
@@ -153,7 +154,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setquality")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(quality="The video quality (144-4320)")
     async def set_video_quality(ctx: Context, quality: int):
         """Set the video quality for archived videos."""
@@ -182,7 +183,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setmaxsize")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(size="The maximum file size in MB (1-100)")
     async def set_max_file_size(ctx: Context, size: int):
         """Set the maximum file size for archived videos."""
@@ -209,7 +210,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setmessageduration")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(hours="How long to keep messages in hours (0-168)")
     async def set_message_duration(ctx: Context, hours: int):
         """Set how long to keep archived messages."""
@@ -238,7 +239,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="settemplate")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(
         template="The message template to use. Available placeholders: {author}, {channel}, {original_message}"
     )
@@ -272,7 +273,7 @@ def setup_settings_commands(cog):
 
     @cog.hybrid_command(name="setconcurrent")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     @app_commands.describe(count="Number of concurrent downloads (1-5)")
     async def set_concurrent_downloads(ctx: Context, count: int):
         """Set the number of concurrent downloads allowed."""

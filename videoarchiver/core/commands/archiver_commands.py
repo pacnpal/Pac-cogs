@@ -1,7 +1,8 @@
 """Module for core archiver commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_group, guild_only, checks
+from redbot.core.commands import Context, hybrid_group, guild_only
+from redbot.core.utils.mod import admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response
@@ -22,7 +23,7 @@ def setup_archiver_commands(cog):
 
     @archiver.command(name="enable")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     async def enable_archiver(ctx: Context):
         """Enable video archiving in this server."""
         try:
@@ -44,7 +45,7 @@ def setup_archiver_commands(cog):
 
     @archiver.command(name="disable")
     @guild_only()
-    @checks.admin_or_permissions(administrator=True)
+    @admin_or_permissions(administrator=True)
     async def disable_archiver(ctx: Context):
         """Disable video archiving in this server."""
         try:
