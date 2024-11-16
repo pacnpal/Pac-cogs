@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, Set, List, TypedDict, ClassVar, Type, Un
 from enum import Enum, auto
 from datetime import datetime
 from pathlib import Path
+import importlib
 
 from ..utils.exceptions import (
     ComponentError,
@@ -13,6 +14,10 @@ from ..utils.exceptions import (
     ErrorSeverity
 )
 from ..utils.path_manager import ensure_directory
+from ..config_manager import ConfigManager
+from ..processor.core import Processor
+from ..queue.manager import EnhancedVideoQueueManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -261,10 +266,10 @@ class ComponentManager:
     """Manages VideoArchiver components"""
 
     CORE_COMPONENTS: ClassVar[Dict[str, Tuple[Type[Any], Set[str]]]] = {
-        "config_manager": ("..config_manager.ConfigManager", set()),
-        "processor": ("..processor.core.Processor", {"config_manager"}),
-        "queue_manager": ("..queue.manager.EnhancedVideoQueueManager", {"config_manager"}),
-        "ffmpeg_mgr": ("..ffmpeg.ffmpeg_manager.FFmpegManager", set())
+        "config_manager": (ConfigManager, set()),
+        "processor": (Processor, {"config_manager"}),
+        "queue_manager": (EnhancedVideoQueueManager, {"config_manager"}),
+        "ffmpeg_mgr": (FFmpegManager, set())
     }
 
     def __init__(self, cog: Any) -> None:
@@ -394,11 +399,7 @@ class ComponentManager:
             ComponentError: If core component initialization fails
         """
         try:
-            for name, (component_path, deps) in self.CORE_COMPONENTS.items():
-                module_path, class_name = component_path.rsplit(".", 1)
-                module = __import__(module_path, fromlist=[class_name])
-                component_class = getattr(module, class_name)
-                
+            for name, (component_class, deps) in self.CORE_COMPONENTS.items():
                 if name == "processor":
                     component = component_class(self.cog)
                 elif name == "ffmpeg_mgr":
