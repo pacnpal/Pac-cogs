@@ -93,12 +93,42 @@ class VideoArchiver(GroupCog):
         # Set up events - non-blocking
         setup_events(self)
 
+    async def _handle_response(self, ctx: Context, content: str = None, embed: discord.Embed = None) -> None:
+        """Helper method to handle responses for both regular commands and interactions"""
+        try:
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                if not ctx.interaction.response.is_done():
+                    if embed:
+                        await ctx.interaction.response.send_message(content=content, embed=embed)
+                    else:
+                        await ctx.interaction.response.send_message(content=content)
+                else:
+                    if embed:
+                        await ctx.followup.send(content=content, embed=embed)
+                    else:
+                        await ctx.followup.send(content=content)
+            else:
+                if embed:
+                    await ctx.send(content=content, embed=embed)
+                else:
+                    await ctx.send(content=content)
+        except Exception as e:
+            logger.error(f"Error sending response: {e}")
+            # If all else fails, try to send a regular message
+            try:
+                if embed:
+                    await ctx.send(content=content, embed=embed)
+                else:
+                    await ctx.send(content=content)
+            except Exception as e2:
+                logger.error(f"Failed to send fallback message: {e2}")
+
     @hybrid_group(name="archivedb", fallback="help")
     @guild_only()
     async def archivedb(self, ctx: Context):
         """Manage the video archive database."""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
+            await self._handle_response(ctx, "Use `/help archivedb` for a list of commands.")
 
     @archivedb.command(name="enable")
     @guild_only()
@@ -111,7 +141,7 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "use_database"
             )
             if current_setting:
-                await ctx.send("The video archive database is already enabled.")
+                await self._handle_response(ctx, "The video archive database is already enabled.")
                 return
 
             # Initialize database
@@ -127,12 +157,11 @@ class VideoArchiver(GroupCog):
             await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
             
             # Send success message
-            await ctx.send("Video archive database has been enabled.")
+            await self._handle_response(ctx, "Video archive database has been enabled.")
 
         except Exception as e:
             logger.error(f"Error enabling database: {e}")
-            # Send single error message
-            await ctx.send("An error occurred while enabling the database. Please check the logs for details.")
+            await self._handle_response(ctx, "An error occurred while enabling the database. Please check the logs for details.")
 
     @archivedb.command(name="disable")
     @guild_only()
@@ -144,7 +173,7 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "use_database"
             )
             if not current_setting:
-                await ctx.send("The video archive database is already disabled.")
+                await self._handle_response(ctx, "The video archive database is already disabled.")
                 return
 
             # Remove database references
@@ -155,11 +184,11 @@ class VideoArchiver(GroupCog):
             await self.config_manager.update_setting(
                 ctx.guild.id, "use_database", False
             )
-            await ctx.send("Video archive database has been disabled.")
+            await self._handle_response(ctx, "Video archive database has been disabled.")
 
         except Exception as e:
             logger.error(f"Error disabling database: {e}")
-            await ctx.send("An error occurred while disabling the database.")
+            await self._handle_response(ctx, "An error occurred while disabling the database.")
 
     @hybrid_command()
     @guild_only()
@@ -168,7 +197,8 @@ class VideoArchiver(GroupCog):
         """Check if a video URL has been archived and get its Discord link if it exists."""
         try:
             if not self.db:
-                await ctx.send(
+                await self._handle_response(
+                    ctx, 
                     "The archive database is not enabled. Ask an admin to enable it with `/archivedb enable`"
                 )
                 return
@@ -182,24 +212,24 @@ class VideoArchiver(GroupCog):
                     color=discord.Color.green(),
                 )
                 embed.add_field(name="Archived Link", value=discord_url)
-                await ctx.send(embed=embed)
+                await self._handle_response(ctx, embed=embed)
             else:
                 embed = discord.Embed(
                     title="Video Not Found",
                     description="This video has not been archived yet.",
                     color=discord.Color.red(),
                 )
-                await ctx.send(embed=embed)
+                await self._handle_response(ctx, embed=embed)
         except Exception as e:
             logger.error(f"Error checking archived video: {e}")
-            await ctx.send("An error occurred while checking the archive.")
+            await self._handle_response(ctx, "An error occurred while checking the archive.")
 
     @hybrid_group(name="archiver", fallback="help")
     @guild_only()
     async def archiver(self, ctx: Context):
         """Manage video archiver settings."""
         if ctx.invoked_subcommand is None:
-            await ctx.send_help(ctx.command)
+            await self._handle_response(ctx, "Use `/help archiver` for a list of commands.")
 
     @archiver.command(name="enable")
     @guild_only()
@@ -211,15 +241,15 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "enabled"
             )
             if current_setting:
-                await ctx.send("Video archiving is already enabled.")
+                await self._handle_response(ctx, "Video archiving is already enabled.")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "enabled", True)
-            await ctx.send("Video archiving has been enabled.")
+            await self._handle_response(ctx, "Video archiving has been enabled.")
 
         except Exception as e:
             logger.error(f"Error enabling archiver: {e}")
-            await ctx.send("An error occurred while enabling video archiving.")
+            await self._handle_response(ctx, "An error occurred while enabling video archiving.")
 
     @archiver.command(name="disable")
     @guild_only()
@@ -231,15 +261,15 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "enabled"
             )
             if not current_setting:
-                await ctx.send("Video archiving is already disabled.")
+                await self._handle_response(ctx, "Video archiving is already disabled.")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "enabled", False)
-            await ctx.send("Video archiving has been disabled.")
+            await self._handle_response(ctx, "Video archiving has been disabled.")
 
         except Exception as e:
             logger.error(f"Error disabling archiver: {e}")
-            await ctx.send("An error occurred while disabling video archiving.")
+            await self._handle_response(ctx, "An error occurred while disabling video archiving.")
 
     @archiver.command(name="setchannel")
     @guild_only()
@@ -251,10 +281,10 @@ class VideoArchiver(GroupCog):
             await self.config_manager.update_setting(
                 ctx.guild.id, "archive_channel", channel.id
             )
-            await ctx.send(f"Archive channel has been set to {channel.mention}.")
+            await self._handle_response(ctx, f"Archive channel has been set to {channel.mention}.")
         except Exception as e:
             logger.error(f"Error setting archive channel: {e}")
-            await ctx.send("An error occurred while setting the archive channel.")
+            await self._handle_response(ctx, "An error occurred while setting the archive channel.")
 
     @archiver.command(name="setlog")
     @guild_only()
@@ -266,10 +296,10 @@ class VideoArchiver(GroupCog):
             await self.config_manager.update_setting(
                 ctx.guild.id, "log_channel", channel.id
             )
-            await ctx.send(f"Log channel has been set to {channel.mention}.")
+            await self._handle_response(ctx, f"Log channel has been set to {channel.mention}.")
         except Exception as e:
             logger.error(f"Error setting log channel: {e}")
-            await ctx.send("An error occurred while setting the log channel.")
+            await self._handle_response(ctx, "An error occurred while setting the log channel.")
 
     @archiver.command(name="addchannel")
     @guild_only()
@@ -282,17 +312,17 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "enabled_channels"
             )
             if channel.id in enabled_channels:
-                await ctx.send(f"{channel.mention} is already being monitored.")
+                await self._handle_response(ctx, f"{channel.mention} is already being monitored.")
                 return
 
             enabled_channels.append(channel.id)
             await self.config_manager.update_setting(
                 ctx.guild.id, "enabled_channels", enabled_channels
             )
-            await ctx.send(f"Now monitoring {channel.mention} for videos.")
+            await self._handle_response(ctx, f"Now monitoring {channel.mention} for videos.")
         except Exception as e:
             logger.error(f"Error adding enabled channel: {e}")
-            await ctx.send("An error occurred while adding the channel.")
+            await self._handle_response(ctx, "An error occurred while adding the channel.")
 
     @archiver.command(name="removechannel")
     @guild_only()
@@ -305,17 +335,17 @@ class VideoArchiver(GroupCog):
                 ctx.guild.id, "enabled_channels"
             )
             if channel.id not in enabled_channels:
-                await ctx.send(f"{channel.mention} is not being monitored.")
+                await self._handle_response(ctx, f"{channel.mention} is not being monitored.")
                 return
 
             enabled_channels.remove(channel.id)
             await self.config_manager.update_setting(
                 ctx.guild.id, "enabled_channels", enabled_channels
             )
-            await ctx.send(f"Stopped monitoring {channel.mention} for videos.")
+            await self._handle_response(ctx, f"Stopped monitoring {channel.mention} for videos.")
         except Exception as e:
             logger.error(f"Error removing enabled channel: {e}")
-            await ctx.send("An error occurred while removing the channel.")
+            await self._handle_response(ctx, "An error occurred while removing the channel.")
 
     @archiver.command(name="setformat")
     @guild_only()
@@ -326,14 +356,14 @@ class VideoArchiver(GroupCog):
         try:
             format = format.lower()
             if format not in ["mp4", "webm", "mkv"]:
-                await ctx.send("Invalid format. Please use mp4, webm, or mkv.")
+                await self._handle_response(ctx, "Invalid format. Please use mp4, webm, or mkv.")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "video_format", format)
-            await ctx.send(f"Video format has been set to {format}.")
+            await self._handle_response(ctx, f"Video format has been set to {format}.")
         except Exception as e:
             logger.error(f"Error setting video format: {e}")
-            await ctx.send("An error occurred while setting the video format.")
+            await self._handle_response(ctx, "An error occurred while setting the video format.")
 
     @archiver.command(name="setquality")
     @guild_only()
@@ -343,14 +373,14 @@ class VideoArchiver(GroupCog):
         """Set the video quality for archived videos."""
         try:
             if not 144 <= quality <= 4320:
-                await ctx.send("Quality must be between 144 and 4320.")
+                await self._handle_response(ctx, "Quality must be between 144 and 4320.")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "video_quality", quality)
-            await ctx.send(f"Video quality has been set to {quality}p.")
+            await self._handle_response(ctx, f"Video quality has been set to {quality}p.")
         except Exception as e:
             logger.error(f"Error setting video quality: {e}")
-            await ctx.send("An error occurred while setting the video quality.")
+            await self._handle_response(ctx, "An error occurred while setting the video quality.")
 
     @archiver.command(name="setmaxsize")
     @guild_only()
@@ -360,14 +390,14 @@ class VideoArchiver(GroupCog):
         """Set the maximum file size for archived videos."""
         try:
             if not 1 <= size <= 100:
-                await ctx.send("Size must be between 1 and 100 MB.")
+                await self._handle_response(ctx, "Size must be between 1 and 100 MB.")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
-            await ctx.send(f"Maximum file size has been set to {size}MB.")
+            await self._handle_response(ctx, f"Maximum file size has been set to {size}MB.")
         except Exception as e:
             logger.error(f"Error setting max file size: {e}")
-            await ctx.send("An error occurred while setting the maximum file size.")
+            await self._handle_response(ctx, "An error occurred while setting the maximum file size.")
 
     @archiver.command(name="setmessageduration")
     @guild_only()
@@ -377,14 +407,14 @@ class VideoArchiver(GroupCog):
         """Set how long to keep archived messages."""
         try:
             if not 0 <= hours <= 168:
-                await ctx.send("Duration must be between 0 and 168 hours (1 week).")
+                await self._handle_response(ctx, "Duration must be between 0 and 168 hours (1 week).")
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "message_duration", hours)
-            await ctx.send(f"Message duration has been set to {hours} hours.")
+            await self._handle_response(ctx, f"Message duration has been set to {hours} hours.")
         except Exception as e:
             logger.error(f"Error setting message duration: {e}")
-            await ctx.send("An error occurred while setting the message duration.")
+            await self._handle_response(ctx, "An error occurred while setting the message duration.")
 
     @archiver.command(name="settemplate")
     @guild_only()
@@ -393,15 +423,22 @@ class VideoArchiver(GroupCog):
     async def set_message_template(self, ctx: Context, *, template: str):
         """Set the template for archived messages. Use {author}, {channel}, and {original_message} as placeholders."""
         try:
-            if not any(ph in template for ph in ["{author}", "{channel}", "{original_message}"]):
-                await ctx.send("Template must include at least one placeholder: {author}, {channel}, or {original_message}")
+            if not any(
+                ph in template for ph in ["{author}", "{channel}", "{original_message}"]
+            ):
+                await self._handle_response(
+                    ctx,
+                    "Template must include at least one placeholder: {author}, {channel}, or {original_message}"
+                )
                 return
 
-            await self.config_manager.update_setting(ctx.guild.id, "message_template", template)
-            await ctx.send(f"Message template has been set to: {template}")
+            await self.config_manager.update_setting(
+                ctx.guild.id, "message_template", template
+            )
+            await self._handle_response(ctx, f"Message template has been set to: {template}")
         except Exception as e:
             logger.error(f"Error setting message template: {e}")
-            await ctx.send("An error occurred while setting the message template.")
+            await self._handle_response(ctx, "An error occurred while setting the message template.")
 
     @archiver.command(name="setconcurrent")
     @guild_only()
@@ -411,14 +448,16 @@ class VideoArchiver(GroupCog):
         """Set the number of concurrent downloads allowed."""
         try:
             if not 1 <= count <= 5:
-                await ctx.send("Concurrent downloads must be between 1 and 5.")
+                await self._handle_response(ctx, "Concurrent downloads must be between 1 and 5.")
                 return
 
-            await self.config_manager.update_setting(ctx.guild.id, "concurrent_downloads", count)
-            await ctx.send(f"Concurrent downloads has been set to {count}.")
+            await self.config_manager.update_setting(
+                ctx.guild.id, "concurrent_downloads", count
+            )
+            await self._handle_response(ctx, f"Concurrent downloads has been set to {count}.")
         except Exception as e:
             logger.error(f"Error setting concurrent downloads: {e}")
-            await ctx.send("An error occurred while setting concurrent downloads.")
+            await self._handle_response(ctx, "An error occurred while setting concurrent downloads.")
 
     @archiver.command(name="settings")
     @guild_only()
@@ -426,10 +465,10 @@ class VideoArchiver(GroupCog):
         """Show current archiver settings."""
         try:
             embed = await self.config_manager.format_settings_embed(ctx.guild)
-            await ctx.send(embed=embed)
+            await self._handle_response(ctx, embed=embed)
         except Exception as e:
             logger.error(f"Error showing settings: {e}")
-            await ctx.send("An error occurred while showing settings.")
+            await self._handle_response(ctx, "An error occurred while showing settings.")
 
     @archiver.command(name="queue")
     @guild_only()
@@ -462,12 +501,13 @@ class VideoArchiver(GroupCog):
                 )
 
             if error_msg:
-                await ctx.send(error_msg)
+                await self._handle_response(ctx, error_msg)
 
         except Exception as e:
             logger.error(f"Error handling command error: {str(e)}")
             try:
-                await ctx.send(
+                await self._handle_response(
+                    ctx,
                     "❌ An error occurred while handling another error. Please check the logs."
                 )
             except Exception:
