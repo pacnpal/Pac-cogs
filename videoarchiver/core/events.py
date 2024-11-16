@@ -43,8 +43,13 @@ def setup_events(cog: "VideoArchiver") -> None:
         if message.guild is None or message.author.bot:
             return
 
-        # Check if this is a command - if so, let it process normally
-        if message.content.startswith(await cog.bot.get_prefix(message)):
+        # Check if this is a command by checking against all possible prefixes
+        prefixes = await cog.bot.get_prefix(message)
+        if isinstance(prefixes, str):
+            prefixes = [prefixes]
+            
+        # Check if message starts with any of the prefixes
+        if any(message.content.startswith(prefix) for prefix in prefixes):
             return
 
         # Only process videos if initialization is complete
