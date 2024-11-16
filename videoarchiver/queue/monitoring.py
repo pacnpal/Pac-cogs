@@ -19,10 +19,10 @@ class QueueMonitor:
 
     def __init__(
         self,
-        deadlock_threshold: int = 300,  # 5 minutes
+        deadlock_threshold: int = 120,  # Reduced to 2 minutes
         memory_threshold: int = 512,    # 512MB
         max_retries: int = 3,
-        check_interval: int = 60        # Check every minute
+        check_interval: int = 30        # Reduced to 30 seconds
     ):
         self.deadlock_threshold = deadlock_threshold
         self.memory_threshold = memory_threshold
@@ -30,6 +30,7 @@ class QueueMonitor:
         self.check_interval = check_interval
         self._shutdown = False
         self._last_active_time = time.time()
+        self._monitoring_task = None
 
     async def start_monitoring(
         self,
@@ -46,23 +47,41 @@ class QueueMonitor:
             metrics: Reference to queue metrics
             processing_lock: Lock for processing dict
         """
+        if self._monitoring_task is not None:
+            logger.warning("Monitoring task already running")
+            return
+
         logger.info("Starting queue monitoring...")
+        self._monitoring_task = asyncio.create_task(
+            self._monitor_loop(queue, processing, metrics, processing_lock)
+        )
+
+    async def _monitor_loop(
+        self,
+        queue: List[QueueItem],
+        processing: Dict[str, QueueItem],
+        metrics: QueueMetrics,
+        processing_lock: asyncio.Lock
+    ) -> None:
+        """Main monitoring loop"""
         while not self._shutdown:
             try:
                 await self._check_health(queue, processing, metrics, processing_lock)
                 await asyncio.sleep(self.check_interval)
-
             except asyncio.CancelledError:
                 logger.info("Queue monitoring cancelled")
                 break
             except Exception as e:
                 logger.error(f"Error in health monitor: {str(e)}")
-                await asyncio.sleep(30)  # Shorter sleep on error
+                await asyncio.sleep(5)  # Short sleep on error
 
     def stop_monitoring(self) -> None:
         """Stop the monitoring process"""
         logger.info("Stopping queue monitoring...")
         self._shutdown = True
+        if self._monitoring_task:
+            self._monitoring_task.cancel()
+            self._monitoring_task = None
 
     def update_activity(self) -> None:
         """Update the last active time"""
@@ -104,7 +123,6 @@ class QueueMonitor:
 
             async with processing_lock:
                 for url, item in processing.items():
-                    # Check if item has started processing
                     if hasattr(item, 'start_time') and item.start_time:
                         processing_time = current_time - item.start_time
                         processing_times.append(processing_time)
@@ -131,22 +149,18 @@ class QueueMonitor:
                     )
                 self._last_active_time = current_time
 
-            # Calculate and log metrics
-            success_rate = metrics.success_rate
-            error_distribution = metrics.errors_by_type
-            avg_processing_time = metrics.avg_processing_time
-
-            # Update peak memory usage
+            # Update metrics
+            metrics.last_activity_time = self._last_active_time
             metrics.peak_memory_usage = max(metrics.peak_memory_usage, memory_usage)
 
             # Log detailed metrics
             logger.info(
                 f"Queue Health Metrics:\n"
-                f"- Success Rate: {success_rate:.2%}\n"
-                f"- Avg Processing Time: {avg_processing_time:.2f}s\n"
+                f"- Success Rate: {metrics.success_rate:.2%}\n"
+                f"- Avg Processing Time: {metrics.avg_processing_time:.2f}s\n"
                 f"- Memory Usage: {memory_usage:.2f}MB\n"
                 f"- Peak Memory: {metrics.peak_memory_usage:.2f}MB\n"
-                f"- Error Distribution: {error_distribution}\n"
+                f"- Error Distribution: {metrics.errors_by_type}\n"
                 f"- Queue Size: {len(queue)}\n"
                 f"- Processing Items: {len(processing)}\n"
                 f"- Last Activity: {(current_time - self._last_active_time):.1f}s ago"
@@ -202,6 +216,8 @@ class QueueMonitor:
                     except Exception as e:
                         logger.error(f"Error recovering item {url}: {str(e)}")
 
+            # Update activity timestamp after recovery
+            self.update_activity()
             logger.info(f"Recovery complete - Recovered: {recovered}, Failed: {failed}")
 
         except Exception as e:

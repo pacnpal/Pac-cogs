@@ -20,17 +20,6 @@ logger = logging.getLogger("QueueManager")
 class EnhancedVideoQueueManager:
     """Enhanced queue manager with improved memory management and performance"""
 
-    # Class-level initialization lock to prevent multiple instances
-    _instance_lock = asyncio.Lock()
-    _instance = None
-    _initialized = False
-
-    def __new__(cls, *args, **kwargs):
-        """Ensure singleton instance"""
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
     def __init__(
         self,
         max_retries: int = 3,
@@ -43,10 +32,7 @@ class EnhancedVideoQueueManager:
         deadlock_threshold: int = 300,  # 5 minutes
         check_interval: int = 60,     # 1 minute
     ):
-        """Initialize only once"""
-        if self._initialized:
-            return
-            
+        """Initialize queue manager"""
         # Configuration
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -70,7 +56,8 @@ class EnhancedVideoQueueManager:
         
         # State
         self._shutdown = False
-        self._init_event = asyncio.Event()  # Single event for initialization state
+        self._initialized = False
+        self._init_event = asyncio.Event()
         self.metrics = QueueMetrics()
 
         # Components
@@ -85,64 +72,59 @@ class EnhancedVideoQueueManager:
             max_history_age=max_history_age
         )
 
-        # Mark instance as initialized
-        self._initialized = True
-
     async def initialize(self) -> None:
         """Initialize the queue manager components sequentially"""
-        # Use class-level lock to prevent multiple initializations
-        async with self._instance_lock:
-            # Check if already initialized
-            if self._init_event.is_set():
-                logger.info("Queue manager already initialized")
-                return
+        if self._initialized:
+            logger.info("Queue manager already initialized")
+            return
 
-            try:
-                logger.info("Starting queue manager initialization...")
-                
-                # Load persisted state first if available
-                if self.persistence:
-                    await self._load_persisted_state()
-                
-                # Start monitoring task
-                monitor_task = asyncio.create_task(
-                    self.monitor.start_monitoring(
-                        self._queue,
-                        self._processing,
-                        self.metrics,
-                        self._processing_lock
-                    )
+        try:
+            logger.info("Starting queue manager initialization...")
+            
+            # Load persisted state first if available
+            if self.persistence:
+                await self._load_persisted_state()
+            
+            # Start monitoring task
+            monitor_task = asyncio.create_task(
+                self.monitor.start_monitoring(
+                    self._queue,
+                    self._processing,
+                    self.metrics,
+                    self._processing_lock
                 )
-                self._active_tasks.add(monitor_task)
-                logger.info("Queue monitoring started")
+            )
+            self._active_tasks.add(monitor_task)
+            logger.info("Queue monitoring started")
 
-                # Brief pause to allow monitor to initialize
-                await asyncio.sleep(0.1)
-                
-                # Start cleanup task
-                cleanup_task = asyncio.create_task(
-                    self.cleaner.start_cleanup(
-                        self._queue,
-                        self._completed,
-                        self._failed,
-                        self._guild_queues,
-                        self._channel_queues,
-                        self._processing,
-                        self.metrics,
-                        self._queue_lock
-                    )
+            # Brief pause to allow monitor to initialize
+            await asyncio.sleep(0.1)
+            
+            # Start cleanup task
+            cleanup_task = asyncio.create_task(
+                self.cleaner.start_cleanup(
+                    self._queue,
+                    self._completed,
+                    self._failed,
+                    self._guild_queues,
+                    self._channel_queues,
+                    self._processing,
+                    self.metrics,
+                    self._queue_lock
                 )
-                self._active_tasks.add(cleanup_task)
-                logger.info("Queue cleanup started")
+            )
+            self._active_tasks.add(cleanup_task)
+            logger.info("Queue cleanup started")
 
-                # Signal initialization complete
-                self._init_event.set()
-                logger.info("Queue manager initialization completed")
+            # Signal initialization complete
+            self._initialized = True
+            self._init_event.set()
+            logger.info("Queue manager initialization completed")
 
-            except Exception as e:
-                logger.error(f"Failed to initialize queue manager: {e}")
-                self._shutdown = True
-                raise
+        except Exception as e:
+            logger.error(f"Failed to initialize queue manager: {e}")
+            self._shutdown = True
+            raise
 
     async def _load_persisted_state(self) -> None:
         """Load persisted queue state"""
@@ -199,6 +181,8 @@ class EnhancedVideoQueueManager:
                         async with self._processing_lock:
                             for item in items:
                                 self._processing[item.url] = item
+                                # Update activity timestamp
+                                self.monitor.update_activity()
 
                 if not items:
                     await asyncio.sleep(0.1)
@@ -234,6 +218,7 @@ class EnhancedVideoQueueManager:
             logger.info(f"Processing queue item: {item.url}")
             item.start_processing()
             self.metrics.last_activity_time = time.time()
+            self.monitor.update_activity()  # Update activity timestamp
             
             success, error = await processor(item)
             
@@ -338,6 +323,7 @@ class EnhancedVideoQueueManager:
                     self._queue.sort(key=lambda x: (-x.priority, x.added_at))
 
                     self.metrics.last_activity_time = time.time()
+                    self.monitor.update_activity()  # Update activity timestamp
 
                     if self.persistence:
                         await self._persist_state()
@@ -439,6 +425,9 @@ class EnhancedVideoQueueManager:
                 self._channel_queues.clear()
                 self._active_tasks.clear()
 
+            # Reset initialization state
+            self._initialized = False
+            self._init_event.clear()
             logger.info("Queue manager cleanup completed")
 
         except Exception as e:
@@ -470,5 +459,8 @@ class EnhancedVideoQueueManager:
 
         self._processing.clear()
         self._active_tasks.clear()
-
+        
+        # Reset initialization state
+        self._initialized = False
+        self._init_event.clear()
         logger.info("Queue manager force stopped")
