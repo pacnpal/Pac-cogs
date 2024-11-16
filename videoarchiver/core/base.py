@@ -97,17 +97,29 @@ class VideoArchiver(GroupCog):
         """Helper method to handle responses for both regular commands and interactions"""
         try:
             if hasattr(ctx, 'interaction') and ctx.interaction:
-                if not ctx.interaction.response.is_done():
-                    if embed:
-                        await ctx.interaction.response.send_message(content=content, embed=embed)
+                try:
+                    # Check if this is a deferred interaction
+                    if ctx.interaction.response.is_done():
+                        # Use followup for deferred responses
+                        if embed:
+                            await ctx.followup.send(content=content, embed=embed, wait=True)
+                        else:
+                            await ctx.followup.send(content=content, wait=True)
                     else:
-                        await ctx.interaction.response.send_message(content=content)
-                else:
+                        # Use regular response for non-deferred interactions
+                        if embed:
+                            await ctx.interaction.response.send_message(content=content, embed=embed)
+                        else:
+                            await ctx.interaction.response.send_message(content=content)
+                except discord.errors.InteractionResponded:
+                    # If we get here, the interaction was already responded to
+                    # Use followup as a fallback
                     if embed:
-                        await ctx.followup.send(content=content, embed=embed)
+                        await ctx.followup.send(content=content, embed=embed, wait=True)
                     else:
-                        await ctx.followup.send(content=content)
+                        await ctx.followup.send(content=content, wait=True)
             else:
+                # Regular command response
                 if embed:
                     await ctx.send(content=content, embed=embed)
                 else:
@@ -419,9 +431,9 @@ class VideoArchiver(GroupCog):
     @archiver.command(name="settemplate")
     @guild_only()
     @checks.admin_or_permissions(administrator=True)
-    @app_commands.describe(template="The message template to use")
-    async def set_message_template(self, ctx: Context, *, template: str):
-        """Set the template for archived messages. Use {author}, {channel}, and {original_message} as placeholders."""
+    @app_commands.describe(template="The message template to use. Available placeholders: {author}, {channel}, {original_message}")
+    async def set_message_template(self, ctx: Context, template: str):
+        """Set the template for archived messages."""
         try:
             if not any(
                 ph in template for ph in ["{author}", "{channel}", "{original_message}"]
