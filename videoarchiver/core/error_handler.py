@@ -2,45 +2,201 @@
 
 import logging
 import traceback
-from redbot.core.commands import Context, MissingPermissions, BotMissingPermissions, MissingRequiredArgument, BadArgument
+from typing import Dict, Optional, Tuple, Type
+import discord
+from redbot.core.commands import (
+    Context,
+    MissingPermissions,
+    BotMissingPermissions,
+    MissingRequiredArgument,
+    BadArgument,
+    CommandError
+)
+
 from ..utils.exceptions import VideoArchiverError as ProcessingError, ConfigurationError as ConfigError
-from .response_handler import handle_response
+from .response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 
-async def handle_command_error(ctx: Context, error: Exception) -> None:
-    """Handle command errors"""
-    error_msg = None
-    try:
+class ErrorFormatter:
+    """Formats error messages for display"""
+
+    @staticmethod
+    def format_permission_error(error: Exception) -> str:
+        """Format permission error messages"""
         if isinstance(error, MissingPermissions):
-            error_msg = "❌ You don't have permission to use this command."
+            return "You don't have permission to use this command."
         elif isinstance(error, BotMissingPermissions):
-            error_msg = "❌ I don't have the required permissions to do that."
-        elif isinstance(error, MissingRequiredArgument):
-            error_msg = f"❌ Missing required argument: {error.param.name}"
+            return "I don't have the required permissions to do that."
+        return str(error)
+
+    @staticmethod
+    def format_argument_error(error: Exception) -> str:
+        """Format argument error messages"""
+        if isinstance(error, MissingRequiredArgument):
+            return f"Missing required argument: {error.param.name}"
         elif isinstance(error, BadArgument):
-            error_msg = f"❌ Invalid argument: {str(error)}"
-        elif isinstance(error, ConfigError):
-            error_msg = f"❌ Configuration error: {str(error)}"
-        elif isinstance(error, ProcessingError):
-            error_msg = f"❌ Processing error: {str(error)}"
-        else:
-            logger.error(
-                f"Command error in {ctx.command}: {traceback.format_exc()}"
-            )
-            error_msg = (
-                "❌ An unexpected error occurred. Check the logs for details."
-            )
+            return f"Invalid argument: {str(error)}"
+        return str(error)
 
-        if error_msg:
-            await handle_response(ctx, error_msg)
+    @staticmethod
+    def format_processing_error(error: ProcessingError) -> str:
+        """Format processing error messages"""
+        return f"Processing error: {str(error)}"
 
-    except Exception as e:
-        logger.error(f"Error handling command error: {str(e)}")
+    @staticmethod
+    def format_config_error(error: ConfigError) -> str:
+        """Format configuration error messages"""
+        return f"Configuration error: {str(error)}"
+
+    @staticmethod
+    def format_unexpected_error(error: Exception) -> str:
+        """Format unexpected error messages"""
+        return "An unexpected error occurred. Check the logs for details."
+
+class ErrorCategorizer:
+    """Categorizes errors and determines handling strategy"""
+
+    ERROR_TYPES = {
+        MissingPermissions: ("permission", "error"),
+        BotMissingPermissions: ("permission", "error"),
+        MissingRequiredArgument: ("argument", "warning"),
+        BadArgument: ("argument", "warning"),
+        ConfigError: ("configuration", "error"),
+        ProcessingError: ("processing", "error"),
+    }
+
+    @classmethod
+    def categorize_error(cls, error: Exception) -> Tuple[str, str]:
+        """Categorize an error and determine its severity
+        
+        Returns:
+            Tuple[str, str]: (Error category, Severity level)
+        """
+        for error_type, (category, severity) in cls.ERROR_TYPES.items():
+            if isinstance(error, error_type):
+                return category, severity
+        return "unexpected", "error"
+
+class ErrorTracker:
+    """Tracks error occurrences and patterns"""
+
+    def __init__(self):
+        self.error_counts: Dict[str, int] = {}
+        self.error_patterns: Dict[str, Dict[str, int]] = {}
+
+    def track_error(self, error: Exception, category: str) -> None:
+        """Track an error occurrence"""
+        error_type = type(error).__name__
+        self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+        
+        if category not in self.error_patterns:
+            self.error_patterns[category] = {}
+        self.error_patterns[category][error_type] = self.error_patterns[category].get(error_type, 0) + 1
+
+    def get_error_stats(self) -> Dict:
+        """Get error statistics"""
+        return {
+            "counts": self.error_counts.copy(),
+            "patterns": self.error_patterns.copy()
+        }
+
+class ErrorManager:
+    """Manages error handling and reporting"""
+
+    def __init__(self):
+        self.formatter = ErrorFormatter()
+        self.categorizer = ErrorCategorizer()
+        self.tracker = ErrorTracker()
+
+    async def handle_error(
+        self,
+        ctx: Context,
+        error: Exception
+    ) -> None:
+        """Handle a command error
+        
+        Args:
+            ctx: Command context
+            error: The error that occurred
+        """
         try:
-            await handle_response(
+            # Categorize error
+            category, severity = self.categorizer.categorize_error(error)
+            
+            # Track error
+            self.tracker.track_error(error, category)
+            
+            # Format error message
+            error_msg = await self._format_error_message(error, category)
+            
+            # Log error details
+            self._log_error(ctx, error, category, severity)
+            
+            # Send response
+            await response_manager.send_response(
                 ctx,
-                "❌ An error occurred while handling another error. Please check the logs.",
+                content=error_msg,
+                response_type=severity
             )
-        except Exception:
-            pass
+
+        except Exception as e:
+            logger.error(f"Error handling command error: {str(e)}")
+            try:
+                await response_manager.send_response(
+                    ctx,
+                    content="An error occurred while handling another error. Please check the logs.",
+                    response_type="error"
+                )
+            except Exception:
+                pass
+
+    async def _format_error_message(
+        self,
+        error: Exception,
+        category: str
+    ) -> str:
+        """Format error message based on category"""
+        try:
+            if category == "permission":
+                return self.formatter.format_permission_error(error)
+            elif category == "argument":
+                return self.formatter.format_argument_error(error)
+            elif category == "processing":
+                return self.formatter.format_processing_error(error)
+            elif category == "configuration":
+                return self.formatter.format_config_error(error)
+            else:
+                return self.formatter.format_unexpected_error(error)
+        except Exception as e:
+            logger.error(f"Error formatting error message: {e}")
+            return "An error occurred. Please check the logs."
+
+    def _log_error(
+        self,
+        ctx: Context,
+        error: Exception,
+        category: str,
+        severity: str
+    ) -> None:
+        """Log error details"""
+        try:
+            if severity == "error":
+                logger.error(
+                    f"Command error in {ctx.command} (Category: {category}):\n"
+                    f"{traceback.format_exc()}"
+                )
+            else:
+                logger.warning(
+                    f"Command warning in {ctx.command} (Category: {category}):\n"
+                    f"{str(error)}"
+                )
+        except Exception as e:
+            logger.error(f"Error logging error details: {e}")
+
+# Global error manager instance
+error_manager = ErrorManager()
+
+async def handle_command_error(ctx: Context, error: Exception) -> None:
+    """Helper function to handle command errors using the error manager"""
+    await error_manager.handle_error(ctx, error)

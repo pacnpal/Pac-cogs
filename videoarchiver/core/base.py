@@ -4,154 +4,216 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
+from typing import Dict, Any, Optional
+from datetime import datetime
 from redbot.core.bot import Red
 from redbot.core.commands import GroupCog
 
-from .initialization import initialize_cog, init_callback
-from .error_handler import handle_command_error
-from .cleanup import cleanup_resources, force_cleanup_resources
+from .settings import Settings
+from .lifecycle import LifecycleManager
+from .component_manager import ComponentManager, ComponentState
+from .error_handler import error_manager, handle_command_error
+from .response_handler import response_manager
 from .commands import setup_archiver_commands, setup_database_commands, setup_settings_commands
-from ..utils.exceptions import VideoArchiverError as ProcessingError
+from .events import setup_events
 
 logger = logging.getLogger("VideoArchiver")
 
-# Constants for timeouts
-UNLOAD_TIMEOUT = 30  # seconds
-CLEANUP_TIMEOUT = 15  # seconds
+class CogStatus:
+    """Tracks cog status and health"""
 
-class VideoArchiver(GroupCog):
+    def __init__(self):
+        self.start_time = datetime.utcnow()
+        self.last_error: Optional[str] = None
+        self.error_count = 0
+        self.command_count = 0
+        self.last_command_time: Optional[datetime] = None
+        self.health_checks: Dict[str, bool] = {}
+
+    def record_error(self, error: str) -> None:
+        """Record an error occurrence"""
+        self.last_error = error
+        self.error_count += 1
+
+    def record_command(self) -> None:
+        """Record a command execution"""
+        self.command_count += 1
+        self.last_command_time = datetime.utcnow()
+
+    def update_health_check(self, check: str, status: bool) -> None:
+        """Update health check status"""
+        self.health_checks[check] = status
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get current status"""
+        return {
+            "uptime": (datetime.utcnow() - self.start_time).total_seconds(),
+            "last_error": self.last_error,
+            "error_count": self.error_count,
+            "command_count": self.command_count,
+            "last_command": self.last_command_time.isoformat() if self.last_command_time else None,
+            "health_checks": self.health_checks.copy()
+        }
+
+class ComponentAccessor:
+    """Provides safe access to components"""
+
+    def __init__(self, component_manager: ComponentManager):
+        self._component_manager = component_manager
+
+    def get_component(self, name: str) -> Optional[Any]:
+        """Get a component with state validation"""
+        component = self._component_manager.get(name)
+        if component and component.state == ComponentState.READY:
+            return component
+        return None
+
+    def get_component_status(self, name: str) -> Dict[str, Any]:
+        """Get component status"""
+        return self._component_manager.get_component_status().get(name, {})
+
+class VideoArchiver(GroupCog, Settings):
     """Archive videos from Discord channels"""
-
-    default_guild_settings = {
-        "enabled": False,
-        "archive_channel": None,
-        "log_channel": None,
-        "enabled_channels": [],  # Empty list means all channels
-        "allowed_roles": [],  # Empty list means all roles
-        "video_format": "mp4",
-        "video_quality": "high",
-        "max_file_size": 8,  # MB
-        "message_duration": 30,  # seconds
-        "message_template": "{author} archived a video from {channel}",
-        "concurrent_downloads": 2,
-        "enabled_sites": None,  # None means all sites
-        "use_database": False,  # Database tracking is off by default
-    }
 
     def __init__(self, bot: Red) -> None:
         """Initialize the cog with minimal setup"""
         super().__init__()
         self.bot = bot
         self.ready = asyncio.Event()
-        self._init_task = None
-        self._cleanup_task = None
-        self._queue_task = None
-        self._unloading = False
-        self.db = None
-        self.queue_manager = None
-        self.processor = None
-        self.components = {}
-        self.config_manager = None
-        self.update_checker = None
-        self.ffmpeg_mgr = None
-        self.data_path = None
-        self.download_path = None
+        
+        # Initialize managers
+        self.lifecycle_manager = LifecycleManager(self)
+        self.component_manager = ComponentManager(self)
+        self.component_accessor = ComponentAccessor(self.component_manager)
+        self.status = CogStatus()
 
         # Set up commands
         setup_archiver_commands(self)
         setup_database_commands(self)
         setup_settings_commands(self)
 
-        # Set up events - non-blocking
-        from .events import setup_events
+        # Set up events
         setup_events(self)
 
+        # Register cleanup handlers
+        self.lifecycle_manager.register_cleanup_handler(self._cleanup_handler)
+
     async def cog_load(self) -> None:
-        """Handle cog loading without blocking"""
+        """Handle cog loading"""
         try:
-            # Start initialization as background task without waiting
-            self._init_task = asyncio.create_task(initialize_cog(self))
-            self._init_task.add_done_callback(lambda t: init_callback(self, t))
-            logger.info("Initialization started in background")
+            await self.lifecycle_manager.handle_load()
+            await self._start_health_monitoring()
         except Exception as e:
-            # Ensure cleanup on any error
-            try:
-                await asyncio.wait_for(
-                    force_cleanup_resources(self), timeout=CLEANUP_TIMEOUT
-                )
-            except asyncio.TimeoutError:
-                logger.error("Force cleanup during load error timed out")
-            raise ProcessingError(f"Error during cog load: {str(e)}")
+            self.status.record_error(str(e))
+            raise
 
     async def cog_unload(self) -> None:
-        """Clean up when cog is unloaded with proper timeout handling"""
-        self._unloading = True
+        """Handle cog unloading"""
         try:
-            # Cancel any pending tasks
-            if self._init_task and not self._init_task.done():
-                self._init_task.cancel()
-
-            if self._cleanup_task and not self._cleanup_task.done():
-                self._cleanup_task.cancel()
-
-            # Cancel queue processing task if it exists
-            if (
-                hasattr(self, "_queue_task")
-                and self._queue_task
-                and not self._queue_task.done()
-            ):
-                self._queue_task.cancel()
-                try:
-                    await self._queue_task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    logger.error(f"Error cancelling queue task: {e}")
-
-            # Try normal cleanup first
-            cleanup_task = asyncio.create_task(cleanup_resources(self))
-            try:
-                await asyncio.wait_for(cleanup_task, timeout=UNLOAD_TIMEOUT)
-                logger.info("Normal cleanup completed")
-            except (asyncio.TimeoutError, Exception) as e:
-                if isinstance(e, asyncio.TimeoutError):
-                    logger.warning("Normal cleanup timed out, forcing cleanup")
-                else:
-                    logger.error(f"Error during normal cleanup: {str(e)}")
-
-                # Cancel normal cleanup and force cleanup
-                cleanup_task.cancel()
-                try:
-                    # Force cleanup with timeout
-                    await asyncio.wait_for(
-                        force_cleanup_resources(self), timeout=CLEANUP_TIMEOUT
-                    )
-                    logger.info("Force cleanup completed")
-                except asyncio.TimeoutError:
-                    logger.error("Force cleanup timed out")
-                except Exception as e:
-                    logger.error(f"Error during force cleanup: {str(e)}")
-
+            await self.lifecycle_manager.handle_unload()
         except Exception as e:
-            logger.error(f"Error during cog unload: {str(e)}")
-        finally:
-            self._unloading = False
-            # Ensure ready flag is cleared
-            self.ready.clear()
-            # Clear all references
-            self.bot = None
-            self.processor = None
-            self.queue_manager = None
-            self.update_checker = None
-            self.ffmpeg_mgr = None
-            self.components.clear()
-            self.db = None
-            self._init_task = None
-            self._cleanup_task = None
-            if hasattr(self, "_queue_task"):
-                self._queue_task = None
+            self.status.record_error(str(e))
+            raise
 
     async def cog_command_error(self, ctx, error):
         """Handle command errors"""
+        self.status.record_error(str(error))
         await handle_command_error(ctx, error)
+
+    async def cog_before_invoke(self, ctx) -> bool:
+        """Pre-command hook"""
+        self.status.record_command()
+        return True
+
+    async def _start_health_monitoring(self) -> None:
+        """Start health monitoring tasks"""
+        asyncio.create_task(self._monitor_component_health())
+        asyncio.create_task(self._monitor_system_health())
+
+    async def _monitor_component_health(self) -> None:
+        """Monitor component health"""
+        while True:
+            try:
+                component_status = self.component_manager.get_component_status()
+                for name, status in component_status.items():
+                    self.status.update_health_check(
+                        f"component_{name}",
+                        status["state"] == ComponentState.READY.value
+                    )
+            except Exception as e:
+                logger.error(f"Error monitoring component health: {e}")
+            await asyncio.sleep(60)  # Check every minute
+
+    async def _monitor_system_health(self) -> None:
+        """Monitor system health metrics"""
+        while True:
+            try:
+                # Check queue health
+                queue_manager = self.queue_manager
+                if queue_manager:
+                    queue_status = await queue_manager.get_queue_status()
+                    self.status.update_health_check(
+                        "queue_health",
+                        queue_status["active"] and not queue_status["stalled"]
+                    )
+
+                # Check processor health
+                processor = self.processor
+                if processor:
+                    processor_status = await processor.get_status()
+                    self.status.update_health_check(
+                        "processor_health",
+                        processor_status["active"]
+                    )
+
+            except Exception as e:
+                logger.error(f"Error monitoring system health: {e}")
+            await asyncio.sleep(30)  # Check every 30 seconds
+
+    async def _cleanup_handler(self) -> None:
+        """Custom cleanup handler"""
+        try:
+            # Perform any custom cleanup
+            pass
+        except Exception as e:
+            logger.error(f"Error in cleanup handler: {e}")
+
+    def get_status(self) -> Dict[str, Any]:
+        """Get comprehensive cog status"""
+        return {
+            "cog": self.status.get_status(),
+            "lifecycle": self.lifecycle_manager.get_status(),
+            "components": self.component_manager.get_component_status(),
+            "errors": error_manager.tracker.get_error_stats()
+        }
+
+    # Component property accessors
+    @property
+    def processor(self):
+        """Get the processor component"""
+        return self.component_accessor.get_component("processor")
+
+    @property
+    def queue_manager(self):
+        """Get the queue manager component"""
+        return self.component_accessor.get_component("queue_manager")
+
+    @property
+    def config_manager(self):
+        """Get the config manager component"""
+        return self.component_accessor.get_component("config_manager")
+
+    @property
+    def ffmpeg_mgr(self):
+        """Get the FFmpeg manager component"""
+        return self.component_accessor.get_component("ffmpeg_mgr")
+
+    @property
+    def data_path(self):
+        """Get the data path"""
+        return self.component_accessor.get_component("data_path")
+
+    @property
+    def download_path(self):
+        """Get the download path"""
+        return self.component_accessor.get_component("download_path")

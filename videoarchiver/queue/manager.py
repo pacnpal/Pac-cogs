@@ -2,274 +2,292 @@
 
 import asyncio
 import logging
-import time
-from typing import Dict, Optional, Set, Tuple, Callable, Any, List
-from datetime import datetime
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Dict, Any, List, Set
+from datetime import datetime, timedelta
 
-from .models import QueueItem, QueueMetrics
-from .persistence import QueuePersistenceManager, QueueError
-from .monitoring import QueueMonitor, MonitoringError
-from .cleanup import QueueCleaner, CleanupError
+from .state_manager import QueueStateManager
+from .processor import QueueProcessor
+from .metrics_manager import QueueMetricsManager
+from .persistence import QueuePersistenceManager
+from .monitoring import QueueMonitor, MonitoringLevel
+from .cleanup import QueueCleaner
+from .models import QueueItem, QueueError, CleanupError
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger("QueueManager")
 
+class QueueState(Enum):
+    """Queue operational states"""
+    UNINITIALIZED = "uninitialized"
+    INITIALIZING = "initializing"
+    RUNNING = "running"
+    PAUSED = "paused"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    ERROR = "error"
+
+class QueueMode(Enum):
+    """Queue processing modes"""
+    NORMAL = "normal"      # Standard processing
+    BATCH = "batch"       # Batch processing
+    PRIORITY = "priority" # Priority-based processing
+    MAINTENANCE = "maintenance"  # Maintenance mode
+
+@dataclass
+class QueueConfig:
+    """Queue configuration settings"""
+    max_retries: int = 3
+    retry_delay: int = 5
+    max_queue_size: int = 1000
+    cleanup_interval: int = 3600  # 1 hour
+    max_history_age: int = 86400  # 24 hours
+    deadlock_threshold: int = 300  # 5 minutes
+    check_interval: int = 60      # 1 minute
+    batch_size: int = 10
+    max_concurrent: int = 3
+    persistence_enabled: bool = True
+    monitoring_level: MonitoringLevel = MonitoringLevel.NORMAL
+
+@dataclass
+class QueueStats:
+    """Queue statistics"""
+    start_time: datetime = field(default_factory=datetime.utcnow)
+    total_processed: int = 0
+    total_failed: int = 0
+    uptime: timedelta = field(default_factory=lambda: timedelta())
+    peak_queue_size: int = 0
+    peak_memory_usage: float = 0.0
+    state_changes: List[Dict[str, Any]] = field(default_factory=list)
+
+class QueueCoordinator:
+    """Coordinates queue operations"""
+
+    def __init__(self):
+        self.state = QueueState.UNINITIALIZED
+        self.mode = QueueMode.NORMAL
+        self._state_lock = asyncio.Lock()
+        self._mode_lock = asyncio.Lock()
+        self._paused = asyncio.Event()
+        self._paused.set()
+
+    async def set_state(self, state: QueueState) -> None:
+        """Set queue state"""
+        async with self._state_lock:
+            self.state = state
+
+    async def set_mode(self, mode: QueueMode) -> None:
+        """Set queue mode"""
+        async with self._mode_lock:
+            self.mode = mode
+
+    async def pause(self) -> None:
+        """Pause queue processing"""
+        self._paused.clear()
+        await self.set_state(QueueState.PAUSED)
+
+    async def resume(self) -> None:
+        """Resume queue processing"""
+        self._paused.set()
+        await self.set_state(QueueState.RUNNING)
+
+    async def wait_if_paused(self) -> None:
+        """Wait if queue is paused"""
+        await self._paused.wait()
+
 class EnhancedVideoQueueManager:
-    """Enhanced queue manager with improved memory management and performance"""
+    """Enhanced queue manager with improved organization and maintainability"""
 
-    def __init__(
-        self,
-        max_retries: int = 3,
-        retry_delay: int = 5,
-        max_queue_size: int = 1000,
-        cleanup_interval: int = 3600,  # 1 hour
-        max_history_age: int = 86400,  # 24 hours
-        persistence_path: Optional[str] = None,
-        backup_interval: int = 300,  # 5 minutes
-        deadlock_threshold: int = 300,  # 5 minutes
-        check_interval: int = 60,     # 1 minute
-    ):
-        """Initialize queue manager"""
-        # Configuration
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self.max_queue_size = max_queue_size
-        
-        # Queue storage
-        self._queue: List[QueueItem] = []
-        self._processing: Dict[str, QueueItem] = {}
-        self._completed: Dict[str, QueueItem] = {}
-        self._failed: Dict[str, QueueItem] = {}
+    def __init__(self, config: Optional[QueueConfig] = None):
+        """Initialize queue manager components"""
+        self.config = config or QueueConfig()
+        self.coordinator = QueueCoordinator()
+        self.stats = QueueStats()
 
-        # Tracking
-        self._guild_queues: Dict[int, Set[str]] = {}
-        self._channel_queues: Dict[int, Set[str]] = {}
-        self._active_tasks: Set[asyncio.Task] = set()
-        
-        # Single lock for all operations to prevent deadlocks
-        self._lock = asyncio.Lock()
-        
-        # State
-        self._shutdown = False
-        self._initialized = False
-        self._init_event = asyncio.Event()
-        self.metrics = QueueMetrics()
-
-        # Components
-        self.persistence = QueuePersistenceManager(persistence_path) if persistence_path else None
+        # Initialize managers
+        self.state_manager = QueueStateManager(self.config.max_queue_size)
+        self.metrics_manager = QueueMetricsManager()
         self.monitor = QueueMonitor(
-            deadlock_threshold=deadlock_threshold,
-            max_retries=max_retries,
-            check_interval=check_interval
+            deadlock_threshold=self.config.deadlock_threshold,
+            max_retries=self.config.max_retries,
+            check_interval=self.config.check_interval
         )
         self.cleaner = QueueCleaner(
-            cleanup_interval=cleanup_interval,
-            max_history_age=max_history_age
+            cleanup_interval=self.config.cleanup_interval,
+            max_history_age=self.config.max_history_age
+        )
+        
+        # Initialize persistence if enabled
+        self.persistence = (
+            QueuePersistenceManager()
+            if self.config.persistence_enabled
+            else None
+        )
+        
+        # Initialize processor
+        self.processor = QueueProcessor(
+            state_manager=self.state_manager,
+            monitor=self.monitor,
+            max_retries=self.config.max_retries,
+            retry_delay=self.config.retry_delay,
+            batch_size=self.config.batch_size,
+            max_concurrent=self.config.max_concurrent
         )
 
+        # Background tasks
+        self._maintenance_task: Optional[asyncio.Task] = None
+        self._stats_task: Optional[asyncio.Task] = None
+
     async def initialize(self) -> None:
-        """Initialize the queue manager components sequentially"""
-        if self._initialized:
+        """Initialize the queue manager components"""
+        if self.coordinator.state != QueueState.UNINITIALIZED:
             logger.info("Queue manager already initialized")
             return
 
         try:
+            await self.coordinator.set_state(QueueState.INITIALIZING)
             logger.info("Starting queue manager initialization...")
             
-            async with self._lock:
-                # Load persisted state first if available
-                if self.persistence:
-                    await self._load_persisted_state()
-                
-                # Start monitoring task
-                monitor_task = asyncio.create_task(
-                    self.monitor.start_monitoring(
-                        self._queue,
-                        self._processing,
-                        self.metrics,
-                        self._lock
-                    )
-                )
-                self._active_tasks.add(monitor_task)
-                logger.info("Queue monitoring started")
-                
-                # Start cleanup task
-                cleanup_task = asyncio.create_task(
-                    self.cleaner.start_cleanup(
-                        self._queue,
-                        self._completed,
-                        self._failed,
-                        self._guild_queues,
-                        self._channel_queues,
-                        self._processing,
-                        self.metrics,
-                        self._lock
-                    )
-                )
-                self._active_tasks.add(cleanup_task)
-                logger.info("Queue cleanup started")
+            # Load persisted state if available
+            if self.persistence:
+                await self._load_persisted_state()
+            
+            # Start monitoring with configured level
+            self.monitor.strategy.level = self.config.monitoring_level
+            await self.monitor.start(
+                self.state_manager,
+                self.metrics_manager
+            )
+            
+            # Start cleanup task
+            await self.cleaner.start(
+                state_manager=self.state_manager,
+                metrics_manager=self.metrics_manager
+            )
 
-                # Signal initialization complete
-                self._initialized = True
-                self._init_event.set()
-                logger.info("Queue manager initialization completed")
+            # Start background tasks
+            self._start_background_tasks()
+
+            await self.coordinator.set_state(QueueState.RUNNING)
+            logger.info("Queue manager initialization completed")
 
         except Exception as e:
+            await self.coordinator.set_state(QueueState.ERROR)
             logger.error(f"Failed to initialize queue manager: {e}")
-            self._shutdown = True
             raise
 
     async def _load_persisted_state(self) -> None:
         """Load persisted queue state"""
         try:
-            state = self.persistence.load_queue_state()
+            state = await self.persistence.load_queue_state()
             if state:
-                self._queue = state["queue"]
-                self._completed = state["completed"]
-                self._failed = state["failed"]
-                self._processing = state["processing"]
-
-                # Update metrics
-                metrics_data = state.get("metrics", {})
-                self.metrics.total_processed = metrics_data.get("total_processed", 0)
-                self.metrics.total_failed = metrics_data.get("total_failed", 0)
-                self.metrics.avg_processing_time = metrics_data.get("avg_processing_time", 0.0)
-                self.metrics.success_rate = metrics_data.get("success_rate", 0.0)
-                self.metrics.errors_by_type = metrics_data.get("errors_by_type", {})
-                self.metrics.compression_failures = metrics_data.get("compression_failures", 0)
-                self.metrics.hardware_accel_failures = metrics_data.get("hardware_accel_failures", 0)
-
+                await self.state_manager.restore_state(state)
+                self.metrics_manager.restore_metrics(state.get("metrics", {}))
                 logger.info("Loaded persisted queue state")
         except Exception as e:
             logger.error(f"Failed to load persisted state: {e}")
 
-    async def process_queue(
-        self,
-        processor: Callable[[QueueItem], Tuple[bool, Optional[str]]]
-    ) -> None:
-        """Process items in the queue"""
-        # Wait for initialization to complete
-        await self._init_event.wait()
-        
-        logger.info("Queue processor started")
-        last_persist_time = time.time()
-        persist_interval = 60  # Persist state every 60 seconds
-        
-        while not self._shutdown:
-            try:
-                items = []
-                async with self._lock:
-                    # Get up to 5 items from queue
-                    while len(items) < 5 and self._queue:
-                        item = self._queue.pop(0)
-                        items.append(item)
-                        self._processing[item.url] = item
-                        # Update activity timestamp
-                        self.monitor.update_activity()
+    def _start_background_tasks(self) -> None:
+        """Start background maintenance tasks"""
+        self._maintenance_task = asyncio.create_task(
+            self._maintenance_loop()
+        )
+        self._stats_task = asyncio.create_task(
+            self._stats_loop()
+        )
 
-                if not items:
-                    await asyncio.sleep(0.1)
+    async def _maintenance_loop(self) -> None:
+        """Background maintenance loop"""
+        while self.coordinator.state not in (QueueState.STOPPED, QueueState.ERROR):
+            try:
+                await asyncio.sleep(300)  # Every 5 minutes
+                if self.coordinator.mode == QueueMode.MAINTENANCE:
                     continue
 
-                # Process items concurrently
-                tasks = []
-                for item in items:
-                    task = asyncio.create_task(self._process_item(processor, item))
-                    tasks.append(task)
-                
-                try:
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                except asyncio.CancelledError:
-                    logger.info("Queue processing cancelled")
-                    break
-                except Exception as e:
-                    logger.error(f"Error in queue processing: {e}")
-
-                # Persist state if interval has passed
-                current_time = time.time()
-                if self.persistence and (current_time - last_persist_time) >= persist_interval:
-                    await self._persist_state()
-                    last_persist_time = current_time
+                # Perform maintenance tasks
+                await self._perform_maintenance()
 
             except asyncio.CancelledError:
-                logger.info("Queue processing cancelled")
                 break
             except Exception as e:
-                logger.error(f"Critical error in queue processor: {e}")
-                await asyncio.sleep(0.1)
+                logger.error(f"Error in maintenance loop: {e}")
 
-            await asyncio.sleep(0)
+    async def _stats_loop(self) -> None:
+        """Background statistics loop"""
+        while self.coordinator.state not in (QueueState.STOPPED, QueueState.ERROR):
+            try:
+                await asyncio.sleep(60)  # Every minute
+                await self._update_stats()
 
-    async def _process_item(
-        self,
-        processor: Callable[[QueueItem], Tuple[bool, Optional[str]]],
-        item: QueueItem
-    ) -> None:
-        """Process a single queue item"""
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in stats loop: {e}")
+
+    async def _perform_maintenance(self) -> None:
+        """Perform maintenance tasks"""
         try:
-            logger.info(f"Processing queue item: {item.url}")
-            item.start_processing()
-            self.metrics.last_activity_time = time.time()
-            self.monitor.update_activity()
-            
-            success, error = await processor(item)
-            
-            async with self._lock:
-                item.finish_processing(success, error)
-                self._processing.pop(item.url, None)
-                
-                if success:
-                    self._completed[item.url] = item
-                    logger.info(f"Successfully processed: {item.url}")
-                else:
-                    if item.retry_count < self.max_retries:
-                        item.retry_count += 1
-                        item.status = "pending"
-                        item.last_retry = datetime.utcnow()
-                        item.priority = max(0, item.priority - 1)
-                        self._queue.append(item)
-                        logger.warning(f"Retrying: {item.url} (attempt {item.retry_count})")
-                    else:
-                        self._failed[item.url] = item
-                        logger.error(f"Failed after {self.max_retries} attempts: {item.url}")
-                
-                self.metrics.update(
-                    processing_time=item.processing_time,
-                    success=success,
-                    error=error
-                )
+            # Switch to maintenance mode
+            previous_mode = self.coordinator.mode
+            await self.coordinator.set_mode(QueueMode.MAINTENANCE)
+
+            # Perform maintenance tasks
+            await self._cleanup_old_data()
+            await self._optimize_queue()
+            await self._persist_state()
+
+            # Restore previous mode
+            await self.coordinator.set_mode(previous_mode)
 
         except Exception as e:
-            logger.error(f"Error processing {item.url}: {e}")
-            async with self._lock:
-                item.finish_processing(False, str(e))
-                self._processing.pop(item.url, None)
-                self._failed[item.url] = item
-                self.metrics.update(
-                    processing_time=item.processing_time,
-                    success=False,
-                    error=str(e)
-                )
+            logger.error(f"Error during maintenance: {e}")
 
-    async def _persist_state(self) -> None:
-        """Persist current state to storage"""
-        if not self.persistence:
-            return
-            
+    async def _cleanup_old_data(self) -> None:
+        """Clean up old data"""
         try:
-            async with self._lock:
-                await self.persistence.persist_queue_state(
-                    self._queue,
-                    self._processing,
-                    self._completed,
-                    self._failed,
-                    self.metrics
-                )
+            await self.cleaner.cleanup_old_data(
+                self.state_manager,
+                self.metrics_manager
+            )
         except Exception as e:
-            logger.error(f"Failed to persist state: {e}")
+            logger.error(f"Error cleaning up old data: {e}")
+
+    async def _optimize_queue(self) -> None:
+        """Optimize queue performance"""
+        try:
+            # Reorder queue based on priorities
+            await self.state_manager.optimize_queue()
+            
+            # Update monitoring level based on queue size
+            queue_size = len(await self.state_manager.get_all_items())
+            if queue_size > self.config.max_queue_size * 0.8:
+                self.monitor.strategy.level = MonitoringLevel.INTENSIVE
+            elif queue_size < self.config.max_queue_size * 0.2:
+                self.monitor.strategy.level = self.config.monitoring_level
+
+        except Exception as e:
+            logger.error(f"Error optimizing queue: {e}")
+
+    async def _update_stats(self) -> None:
+        """Update queue statistics"""
+        try:
+            self.stats.uptime = datetime.utcnow() - self.stats.start_time
+            
+            # Update peak values
+            queue_size = len(await self.state_manager.get_all_items())
+            self.stats.peak_queue_size = max(
+                self.stats.peak_queue_size,
+                queue_size
+            )
+            
+            memory_usage = self.metrics_manager.peak_memory_usage
+            self.stats.peak_memory_usage = max(
+                self.stats.peak_memory_usage,
+                memory_usage
+            )
+
+        except Exception as e:
+            logger.error(f"Error updating stats: {e}")
 
     async def add_to_queue(
         self,
@@ -281,176 +299,169 @@ class EnhancedVideoQueueManager:
         priority: int = 0,
     ) -> bool:
         """Add a video to the processing queue"""
-        if self._shutdown:
-            raise QueueError("Queue manager is shutting down")
+        if self.coordinator.state in (QueueState.STOPPED, QueueState.ERROR):
+            raise QueueError("Queue manager is not running")
 
-        # Wait for initialization
-        await self._init_event.wait()
+        # Wait if queue is paused
+        await self.coordinator.wait_if_paused()
 
         try:
-            async with self._lock:
-                if len(self._queue) >= self.max_queue_size:
-                    raise QueueError("Queue is full")
+            item = QueueItem(
+                url=url,
+                message_id=message_id,
+                channel_id=channel_id,
+                guild_id=guild_id,
+                author_id=author_id,
+                added_at=datetime.utcnow(),
+                priority=priority,
+            )
 
-                item = QueueItem(
-                    url=url,
-                    message_id=message_id,
-                    channel_id=channel_id,
-                    guild_id=guild_id,
-                    author_id=author_id,
-                    added_at=datetime.utcnow(),
-                    priority=priority,
-                )
+            success = await self.state_manager.add_item(item)
+            if success and self.persistence:
+                await self._persist_state()
 
-                if guild_id not in self._guild_queues:
-                    self._guild_queues[guild_id] = set()
-                self._guild_queues[guild_id].add(url)
-
-                if channel_id not in self._channel_queues:
-                    self._channel_queues[channel_id] = set()
-                self._channel_queues[channel_id].add(url)
-
-                self._queue.append(item)
-                self._queue.sort(key=lambda x: (-x.priority, x.added_at))
-
-                self.metrics.last_activity_time = time.time()
-                self.monitor.update_activity()
-
-                if self.persistence:
-                    await self._persist_state()
-
-                logger.info(f"Added to queue: {url} (priority: {priority})")
-                return True
+            return success
 
         except Exception as e:
             logger.error(f"Error adding to queue: {e}")
             raise QueueError(f"Failed to add to queue: {str(e)}")
 
-    def get_queue_status(self, guild_id: int) -> dict:
+    def get_queue_status(self, guild_id: int) -> Dict[str, Any]:
         """Get current queue status for a guild"""
         try:
-            pending = len([item for item in self._queue if item.guild_id == guild_id])
-            processing = len([item for item in self._processing.values() if item.guild_id == guild_id])
-            completed = len([item for item in self._completed.values() if item.guild_id == guild_id])
-            failed = len([item for item in self._failed.values() if item.guild_id == guild_id])
-
+            status = self.state_manager.get_guild_status(guild_id)
+            metrics = self.metrics_manager.get_metrics()
+            monitor_stats = self.monitor.get_monitoring_stats()
+            
             return {
-                "pending": pending,
-                "processing": processing,
-                "completed": completed,
-                "failed": failed,
-                "metrics": {
-                    "total_processed": self.metrics.total_processed,
-                    "total_failed": self.metrics.total_failed,
-                    "success_rate": self.metrics.success_rate,
-                    "avg_processing_time": self.metrics.avg_processing_time,
-                    "peak_memory_usage": self.metrics.peak_memory_usage,
-                    "last_cleanup": self.metrics.last_cleanup.strftime("%Y-%m-%d %H:%M:%S"),
-                    "errors_by_type": self.metrics.errors_by_type,
-                    "compression_failures": self.metrics.compression_failures,
-                    "hardware_accel_failures": self.metrics.hardware_accel_failures,
-                    "last_activity": time.time() - self.metrics.last_activity_time,
-                },
+                **status,
+                "metrics": metrics,
+                "monitoring": monitor_stats,
+                "state": self.coordinator.state.value,
+                "mode": self.coordinator.mode.value,
+                "stats": {
+                    "uptime": self.stats.uptime.total_seconds(),
+                    "peak_queue_size": self.stats.peak_queue_size,
+                    "peak_memory_usage": self.stats.peak_memory_usage,
+                    "total_processed": self.stats.total_processed,
+                    "total_failed": self.stats.total_failed
+                }
             }
-
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
-            return {
-                "pending": 0,
-                "processing": 0,
-                "completed": 0,
-                "failed": 0,
-                "metrics": {
-                    "total_processed": 0,
-                    "total_failed": 0,
-                    "success_rate": 0.0,
-                    "avg_processing_time": 0.0,
-                    "peak_memory_usage": 0.0,
-                    "last_cleanup": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "errors_by_type": {},
-                    "compression_failures": 0,
-                    "hardware_accel_failures": 0,
-                    "last_activity": 0,
-                },
-            }
+            return self._get_default_status()
+
+    async def pause(self) -> None:
+        """Pause queue processing"""
+        await self.coordinator.pause()
+        logger.info("Queue processing paused")
+
+    async def resume(self) -> None:
+        """Resume queue processing"""
+        await self.coordinator.resume()
+        logger.info("Queue processing resumed")
 
     async def cleanup(self) -> None:
         """Clean up resources and stop queue processing"""
         try:
-            self._shutdown = True
+            await self.coordinator.set_state(QueueState.STOPPING)
             logger.info("Starting queue manager cleanup...")
             
-            # Stop monitoring and cleanup tasks
-            self.monitor.stop_monitoring()
-            self.cleaner.stop_cleanup()
+            # Cancel background tasks
+            if self._maintenance_task:
+                self._maintenance_task.cancel()
+            if self._stats_task:
+                self._stats_task.cancel()
+            
+            # Stop processor
+            await self.processor.stop_processing()
+            
+            # Stop monitoring and cleanup
+            await self.monitor.stop()
+            await self.cleaner.stop()
 
-            # Cancel all active tasks
-            for task in self._active_tasks:
-                if not task.done():
-                    task.cancel()
+            # Final state persistence
+            if self.persistence:
+                await self._persist_state()
 
-            await asyncio.gather(*self._active_tasks, return_exceptions=True)
+            # Clear state
+            await self.state_manager.clear_state()
 
-            async with self._lock:
-                # Move processing items back to queue
-                for url, item in self._processing.items():
-                    if item.retry_count < self.max_retries:
-                        item.status = "pending"
-                        item.retry_count += 1
-                        self._queue.append(item)
-                    else:
-                        self._failed[url] = item
-
-                self._processing.clear()
-
-                # Final state persistence
-                if self.persistence:
-                    await self._persist_state()
-
-                # Clear collections
-                self._queue.clear()
-                self._completed.clear()
-                self._failed.clear()
-                self._guild_queues.clear()
-                self._channel_queues.clear()
-                self._active_tasks.clear()
-
-            # Reset initialization state
-            self._initialized = False
-            self._init_event.clear()
+            await self.coordinator.set_state(QueueState.STOPPED)
             logger.info("Queue manager cleanup completed")
 
         except Exception as e:
+            await self.coordinator.set_state(QueueState.ERROR)
             logger.error(f"Error during cleanup: {e}")
             raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
 
-    def force_stop(self) -> None:
+    async def force_stop(self) -> None:
         """Force stop all queue operations immediately"""
-        self._shutdown = True
+        await self.coordinator.set_state(QueueState.STOPPING)
         logger.info("Force stopping queue manager...")
         
-        # Stop monitoring and cleanup
-        self.monitor.stop_monitoring()
-        self.cleaner.stop_cleanup()
+        # Cancel background tasks
+        if self._maintenance_task:
+            self._maintenance_task.cancel()
+        if self._stats_task:
+            self._stats_task.cancel()
         
-        # Cancel all active tasks
-        for task in self._active_tasks:
-            if not task.done():
-                task.cancel()
-
-        # Move processing items back to queue
-        for url, item in self._processing.items():
-            if item.retry_count < self.max_retries:
-                item.status = "pending"
-                item.retry_count += 1
-                self._queue.append(item)
-            else:
-                self._failed[url] = item
-
-        self._processing.clear()
-        self._active_tasks.clear()
+        # Force stop all components
+        await self.processor.stop_processing()
+        await self.monitor.stop()
+        await self.cleaner.stop()
         
-        # Reset initialization state
-        self._initialized = False
-        self._init_event.clear()
+        # Clear state
+        await self.state_manager.clear_state()
+        
+        await self.coordinator.set_state(QueueState.STOPPED)
         logger.info("Queue manager force stopped")
+
+    async def _persist_state(self) -> None:
+        """Persist current state to storage"""
+        if not self.persistence:
+            return
+            
+        try:
+            state = await self.state_manager.get_state_for_persistence()
+            state["metrics"] = self.metrics_manager.get_metrics()
+            state["stats"] = {
+                "uptime": self.stats.uptime.total_seconds(),
+                "peak_queue_size": self.stats.peak_queue_size,
+                "peak_memory_usage": self.stats.peak_memory_usage,
+                "total_processed": self.stats.total_processed,
+                "total_failed": self.stats.total_failed
+            }
+            await self.persistence.persist_queue_state(state)
+        except Exception as e:
+            logger.error(f"Failed to persist state: {e}")
+
+    def _get_default_status(self) -> Dict[str, Any]:
+        """Get default status when error occurs"""
+        return {
+            "pending": 0,
+            "processing": 0,
+            "completed": 0,
+            "failed": 0,
+            "metrics": {
+                "total_processed": 0,
+                "total_failed": 0,
+                "success_rate": 0.0,
+                "avg_processing_time": 0.0,
+                "peak_memory_usage": 0.0,
+                "last_cleanup": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                "errors_by_type": {},
+                "compression_failures": 0,
+                "hardware_accel_failures": 0,
+                "last_activity": 0,
+            },
+            "state": QueueState.ERROR.value,
+            "mode": QueueMode.NORMAL.value,
+            "stats": {
+                "uptime": 0,
+                "peak_queue_size": 0,
+                "peak_memory_usage": 0,
+                "total_processed": 0,
+                "total_failed": 0
+            }
+        }

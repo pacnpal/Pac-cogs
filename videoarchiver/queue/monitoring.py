@@ -2,221 +2,365 @@
 
 import asyncio
 import logging
-import psutil
 import time
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any, List, Set
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set
-from .models import QueueItem, QueueMetrics
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+from .health_checker import HealthChecker, HealthStatus, HealthCategory
+from .recovery_manager import RecoveryManager, RecoveryStrategy
+
 logger = logging.getLogger("QueueMonitoring")
+
+class MonitoringLevel(Enum):
+    """Monitoring intensity levels"""
+    LIGHT = "light"      # Basic monitoring
+    NORMAL = "normal"    # Standard monitoring
+    INTENSIVE = "intensive"  # Detailed monitoring
+    DEBUG = "debug"      # Debug-level monitoring
+
+class AlertSeverity(Enum):
+    """Alert severity levels"""
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+@dataclass
+class MonitoringEvent:
+    """Represents a monitoring event"""
+    timestamp: datetime
+    category: HealthCategory
+    severity: AlertSeverity
+    message: str
+    details: Dict[str, Any] = field(default_factory=dict)
+    resolved: bool = False
+    resolution_time: Optional[datetime] = None
+
+@dataclass
+class MonitoringThresholds:
+    """Monitoring thresholds configuration"""
+    check_interval: int = 15        # 15 seconds
+    deadlock_threshold: int = 60    # 1 minute
+    memory_threshold: int = 512     # 512MB
+    max_retries: int = 3
+    alert_threshold: int = 5        # Max alerts before escalation
+    recovery_timeout: int = 300     # 5 minutes
+    intensive_threshold: int = 0.8  # 80% resource usage triggers intensive
+
+class AlertManager:
+    """Manages monitoring alerts"""
+
+    def __init__(self, max_history: int = 1000):
+        self.max_history = max_history
+        self.active_alerts: Dict[str, MonitoringEvent] = {}
+        self.alert_history: List[MonitoringEvent] = []
+        self.alert_counts: Dict[AlertSeverity, int] = {
+            severity: 0 for severity in AlertSeverity
+        }
+
+    def create_alert(
+        self,
+        category: HealthCategory,
+        severity: AlertSeverity,
+        message: str,
+        details: Dict[str, Any] = None
+    ) -> MonitoringEvent:
+        """Create a new alert"""
+        event = MonitoringEvent(
+            timestamp=datetime.utcnow(),
+            category=category,
+            severity=severity,
+            message=message,
+            details=details or {}
+        )
+        
+        alert_id = f"{category.value}_{event.timestamp.timestamp()}"
+        self.active_alerts[alert_id] = event
+        self.alert_counts[severity] += 1
+        
+        self.alert_history.append(event)
+        if len(self.alert_history) > self.max_history:
+            self.alert_history.pop(0)
+        
+        return event
+
+    def resolve_alert(self, alert_id: str) -> None:
+        """Mark an alert as resolved"""
+        if alert_id in self.active_alerts:
+            event = self.active_alerts[alert_id]
+            event.resolved = True
+            event.resolution_time = datetime.utcnow()
+            self.active_alerts.pop(alert_id)
+
+    def get_active_alerts(self) -> List[MonitoringEvent]:
+        """Get currently active alerts"""
+        return list(self.active_alerts.values())
+
+    def get_alert_stats(self) -> Dict[str, Any]:
+        """Get alert statistics"""
+        return {
+            "active_alerts": len(self.active_alerts),
+            "total_alerts": len(self.alert_history),
+            "alert_counts": {
+                severity.value: count
+                for severity, count in self.alert_counts.items()
+            },
+            "recent_alerts": [
+                {
+                    "timestamp": event.timestamp.isoformat(),
+                    "category": event.category.value,
+                    "severity": event.severity.value,
+                    "message": event.message,
+                    "resolved": event.resolved
+                }
+                for event in self.alert_history[-10:]  # Last 10 alerts
+            ]
+        }
+
+class MonitoringStrategy:
+    """Determines monitoring behavior"""
+
+    def __init__(
+        self,
+        level: MonitoringLevel = MonitoringLevel.NORMAL,
+        thresholds: Optional[MonitoringThresholds] = None
+    ):
+        self.level = level
+        self.thresholds = thresholds or MonitoringThresholds()
+        self._last_intensive_check = datetime.utcnow()
+
+    def should_check_health(self, metrics: Dict[str, Any]) -> bool:
+        """Determine if health check should be performed"""
+        if self.level == MonitoringLevel.INTENSIVE:
+            return True
+        elif self.level == MonitoringLevel.LIGHT:
+            return metrics.get("queue_size", 0) > 0
+        else:  # NORMAL or DEBUG
+            return True
+
+    def get_check_interval(self) -> float:
+        """Get the current check interval"""
+        if self.level == MonitoringLevel.INTENSIVE:
+            return self.thresholds.check_interval / 2
+        elif self.level == MonitoringLevel.LIGHT:
+            return self.thresholds.check_interval * 2
+        else:  # NORMAL or DEBUG
+            return self.thresholds.check_interval
+
+    def should_escalate(self, alert_count: int) -> bool:
+        """Determine if monitoring should be escalated"""
+        return (
+            self.level != MonitoringLevel.INTENSIVE and
+            alert_count >= self.thresholds.alert_threshold
+        )
+
+    def should_deescalate(self, alert_count: int) -> bool:
+        """Determine if monitoring can be deescalated"""
+        return (
+            self.level == MonitoringLevel.INTENSIVE and
+            alert_count == 0 and
+            (datetime.utcnow() - self._last_intensive_check).total_seconds() > 300
+        )
 
 class QueueMonitor:
     """Monitors queue health and performance"""
 
     def __init__(
         self,
-        deadlock_threshold: int = 60,   # Reduced to 1 minute
-        memory_threshold: int = 512,    # 512MB
-        max_retries: int = 3,
-        check_interval: int = 15        # Reduced to 15 seconds
+        strategy: Optional[MonitoringStrategy] = None,
+        thresholds: Optional[MonitoringThresholds] = None
     ):
-        self.deadlock_threshold = deadlock_threshold
-        self.memory_threshold = memory_threshold
-        self.max_retries = max_retries
-        self.check_interval = check_interval
+        self.strategy = strategy or MonitoringStrategy()
+        self.thresholds = thresholds or MonitoringThresholds()
+        
+        # Initialize components
+        self.health_checker = HealthChecker(
+            memory_threshold=self.thresholds.memory_threshold,
+            deadlock_threshold=self.thresholds.deadlock_threshold
+        )
+        self.recovery_manager = RecoveryManager(max_retries=self.thresholds.max_retries)
+        self.alert_manager = AlertManager()
+        
         self._shutdown = False
         self._last_active_time = time.time()
-        self._monitoring_task = None
+        self._monitoring_task: Optional[asyncio.Task] = None
 
-    async def start_monitoring(
-        self,
-        queue: List[QueueItem],
-        processing: Dict[str, QueueItem],
-        metrics: QueueMetrics,
-        queue_lock: asyncio.Lock
-    ) -> None:
-        """Start monitoring queue health
-        
-        Args:
-            queue: Reference to the queue list
-            processing: Reference to processing dict
-            metrics: Reference to queue metrics
-            queue_lock: Lock for queue operations
-        """
+    async def start(self, state_manager, metrics_manager) -> None:
+        """Start monitoring queue health"""
         if self._monitoring_task is not None:
             logger.warning("Monitoring task already running")
             return
 
-        logger.info("Starting queue monitoring...")
+        logger.info(f"Starting queue monitoring with level: {self.strategy.level.value}")
         self._monitoring_task = asyncio.create_task(
-            self._monitor_loop(queue, processing, metrics, queue_lock)
+            self._monitor_loop(state_manager, metrics_manager)
         )
 
-    async def _monitor_loop(
-        self,
-        queue: List[QueueItem],
-        processing: Dict[str, QueueItem],
-        metrics: QueueMetrics,
-        queue_lock: asyncio.Lock
-    ) -> None:
+    async def _monitor_loop(self, state_manager, metrics_manager) -> None:
         """Main monitoring loop"""
         while not self._shutdown:
             try:
-                await self._check_health(queue, processing, metrics, queue_lock)
-                await asyncio.sleep(self.check_interval)
+                # Get current metrics
+                metrics = metrics_manager.get_metrics()
+                
+                # Check if health check should be performed
+                if self.strategy.should_check_health(metrics):
+                    await self._perform_health_check(
+                        state_manager,
+                        metrics_manager,
+                        metrics
+                    )
+
+                # Check for strategy adjustment
+                self._adjust_monitoring_strategy(metrics)
+                
+                # Wait for next check
+                await asyncio.sleep(self.strategy.get_check_interval())
+                
             except asyncio.CancelledError:
                 logger.info("Queue monitoring cancelled")
                 break
             except Exception as e:
-                logger.error(f"Error in health monitor: {str(e)}")
-                await asyncio.sleep(1)  # Reduced sleep on error
+                logger.error(f"Error in monitoring loop: {str(e)}")
+                await asyncio.sleep(1)
 
-    def stop_monitoring(self) -> None:
+    async def stop(self) -> None:
         """Stop the monitoring process"""
         logger.info("Stopping queue monitoring...")
         self._shutdown = True
         if self._monitoring_task and not self._monitoring_task.done():
             self._monitoring_task.cancel()
+            try:
+                await self._monitoring_task
+            except asyncio.CancelledError:
+                pass
         self._monitoring_task = None
 
     def update_activity(self) -> None:
         """Update the last active time"""
         self._last_active_time = time.time()
 
-    async def _check_health(
+    async def _perform_health_check(
         self,
-        queue: List[QueueItem],
-        processing: Dict[str, QueueItem],
-        metrics: QueueMetrics,
-        queue_lock: asyncio.Lock
+        state_manager,
+        metrics_manager,
+        current_metrics: Dict[str, Any]
     ) -> None:
-        """Check queue health and performance
-        
-        Args:
-            queue: Reference to the queue list
-            processing: Reference to processing dict
-            metrics: Reference to queue metrics
-            queue_lock: Lock for queue operations
-        """
+        """Perform health check and recovery if needed"""
         try:
-            current_time = time.time()
-
             # Check memory usage
-            process = psutil.Process()
-            memory_usage = process.memory_info().rss / 1024 / 1024  # MB
+            memory_usage, is_critical = await self.health_checker.check_memory_usage()
+            metrics_manager.update_memory_usage(memory_usage)
 
-            if memory_usage > self.memory_threshold:
-                logger.warning(f"High memory usage detected: {memory_usage:.2f}MB")
-                # Force garbage collection
-                import gc
-                gc.collect()
-                memory_after = process.memory_info().rss / 1024 / 1024
-                logger.info(f"Memory after GC: {memory_after:.2f}MB")
+            if is_critical:
+                self.alert_manager.create_alert(
+                    category=HealthCategory.MEMORY,
+                    severity=AlertSeverity.CRITICAL,
+                    message=f"Critical memory usage: {memory_usage:.1f}MB",
+                    details={"memory_usage": memory_usage}
+                )
 
-            # Check for potential deadlocks
+            # Get current queue state
+            queue_stats = await state_manager.get_queue_stats()
+            processing_items = await state_manager.get_all_processing_items()
+
+            # Check for stuck items
             stuck_items = []
+            for item in processing_items:
+                if self.recovery_manager.should_recover_item(item):
+                    stuck_items.append((item.url, item))
 
-            async with queue_lock:
-                # Check processing items
-                for url, item in processing.items():
-                    if hasattr(item, 'start_time') and item.start_time:
-                        processing_time = current_time - item.start_time
-                        if processing_time > self.deadlock_threshold:
-                            stuck_items.append((url, item))
-                            logger.warning(f"Item stuck in processing: {url} for {processing_time:.1f}s")
+            # Handle stuck items if found
+            if stuck_items:
+                self.alert_manager.create_alert(
+                    category=HealthCategory.DEADLOCKS,
+                    severity=AlertSeverity.WARNING,
+                    message=f"Potential deadlock: {len(stuck_items)} items stuck",
+                    details={"stuck_items": [item[0] for item in stuck_items]}
+                )
+                
+                await self.recovery_manager.recover_stuck_items(
+                    stuck_items,
+                    state_manager,
+                    metrics_manager
+                )
 
-                # Handle stuck items if found
-                if stuck_items:
-                    logger.warning(f"Potential deadlock detected: {len(stuck_items)} items stuck")
-                    await self._recover_stuck_items(stuck_items, queue, processing)
+            # Check overall queue activity
+            if processing_items and self.health_checker.check_queue_activity(
+                self._last_active_time,
+                bool(processing_items)
+            ):
+                self.alert_manager.create_alert(
+                    category=HealthCategory.ACTIVITY,
+                    severity=AlertSeverity.ERROR,
+                    message="Queue appears to be hung",
+                    details={"last_active": self._last_active_time}
+                )
+                
+                await self.recovery_manager.perform_emergency_recovery(
+                    state_manager,
+                    metrics_manager
+                )
+                self.update_activity()
 
-                # Check overall queue activity
-                if processing and current_time - self._last_active_time > self.deadlock_threshold:
-                    logger.warning("Queue appears to be hung - no activity detected")
-                    # Force recovery of all processing items
-                    all_items = list(processing.items())
-                    await self._recover_stuck_items(all_items, queue, processing)
-                    self._last_active_time = current_time
+            # Check error rates
+            error_rate = current_metrics.get("error_rate", 0)
+            if error_rate > 0.2:  # 20% error rate
+                self.alert_manager.create_alert(
+                    category=HealthCategory.ERRORS,
+                    severity=AlertSeverity.ERROR,
+                    message=f"High error rate: {error_rate:.1%}",
+                    details={"error_rate": error_rate}
+                )
 
-                # Update metrics
-                metrics.last_activity_time = self._last_active_time
-                metrics.peak_memory_usage = max(metrics.peak_memory_usage, memory_usage)
+            # Log health report
+            if self.strategy.level in (MonitoringLevel.INTENSIVE, MonitoringLevel.DEBUG):
+                health_report = self.health_checker.format_health_report(
+                    memory_usage=memory_usage,
+                    queue_size=queue_stats["queue_size"],
+                    processing_count=queue_stats["processing_count"],
+                    success_rate=metrics_manager.success_rate,
+                    avg_processing_time=metrics_manager.avg_processing_time,
+                    peak_memory=metrics_manager.peak_memory_usage,
+                    error_distribution=metrics_manager.errors_by_type,
+                    last_activity_delta=time.time() - self._last_active_time
+                )
+                logger.info(health_report)
 
-                # Calculate current metrics
-                queue_size = len(queue)
-                processing_count = len(processing)
-
-            # Log detailed metrics
-            logger.info(
-                f"Queue Health Metrics:\n"
-                f"- Success Rate: {metrics.success_rate:.2%}\n"
-                f"- Avg Processing Time: {metrics.avg_processing_time:.2f}s\n"
-                f"- Memory Usage: {memory_usage:.2f}MB\n"
-                f"- Peak Memory: {metrics.peak_memory_usage:.2f}MB\n"
-                f"- Error Distribution: {metrics.errors_by_type}\n"
-                f"- Queue Size: {queue_size}\n"
-                f"- Processing Items: {processing_count}\n"
-                f"- Last Activity: {(current_time - self._last_active_time):.1f}s ago"
+        except Exception as e:
+            logger.error(f"Error performing health check: {str(e)}")
+            self.alert_manager.create_alert(
+                category=HealthCategory.SYSTEM,
+                severity=AlertSeverity.ERROR,
+                message=f"Health check error: {str(e)}"
             )
 
-        except Exception as e:
-            logger.error(f"Error checking queue health: {str(e)}")
-            # Don't re-raise to keep monitoring alive
-
-    async def _recover_stuck_items(
-        self,
-        stuck_items: List[tuple[str, QueueItem]],
-        queue: List[QueueItem],
-        processing: Dict[str, QueueItem]
-    ) -> None:
-        """Attempt to recover stuck items
+    def _adjust_monitoring_strategy(self, metrics: Dict[str, Any]) -> None:
+        """Adjust monitoring strategy based on current state"""
+        active_alerts = self.alert_manager.get_active_alerts()
         
-        Args:
-            stuck_items: List of (url, item) tuples for stuck items
-            queue: Reference to the queue list
-            processing: Reference to processing dict
-        """
-        try:
-            recovered = 0
-            failed = 0
-            
-            for url, item in stuck_items:
-                try:
-                    # Move to failed if max retries reached
-                    if item.retry_count >= self.max_retries:
-                        logger.warning(f"Moving stuck item to failed: {url}")
-                        item.status = "failed"
-                        item.error = "Exceeded maximum retries after being stuck"
-                        item.last_error = item.error
-                        item.last_error_time = datetime.utcnow()
-                        processing.pop(url)
-                        failed += 1
-                    else:
-                        # Reset for retry
-                        logger.info(f"Recovering stuck item for retry: {url}")
-                        item.retry_count += 1
-                        item.start_time = None
-                        item.processing_time = 0
-                        item.last_retry = datetime.utcnow()
-                        item.status = "pending"
-                        item.priority = max(0, item.priority - 2)  # Lower priority
-                        queue.append(item)
-                        processing.pop(url)
-                        recovered += 1
-                except Exception as e:
-                    logger.error(f"Error recovering item {url}: {str(e)}")
+        # Check for escalation
+        if self.strategy.should_escalate(len(active_alerts)):
+            logger.warning("Escalating to intensive monitoring")
+            self.strategy.level = MonitoringLevel.INTENSIVE
+            self.strategy._last_intensive_check = datetime.utcnow()
+        
+        # Check for de-escalation
+        elif self.strategy.should_deescalate(len(active_alerts)):
+            logger.info("De-escalating to normal monitoring")
+            self.strategy.level = MonitoringLevel.NORMAL
 
-            # Update activity timestamp after recovery
-            self.update_activity()
-            logger.info(f"Recovery complete - Recovered: {recovered}, Failed: {failed}")
-
-        except Exception as e:
-            logger.error(f"Error recovering stuck items: {str(e)}")
-            # Don't re-raise to keep monitoring alive
+    def get_monitoring_stats(self) -> Dict[str, Any]:
+        """Get comprehensive monitoring statistics"""
+        return {
+            "monitoring_level": self.strategy.level.value,
+            "last_active": self._last_active_time,
+            "alerts": self.alert_manager.get_alert_stats(),
+            "recovery": self.recovery_manager.get_recovery_stats(),
+            "health": self.health_checker.get_health_stats()
+        }
 
 class MonitoringError(Exception):
     """Base exception for monitoring-related errors"""
