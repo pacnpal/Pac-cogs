@@ -4,7 +4,7 @@ import asyncio
 import logging
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Dict, Any, List, Set
+from typing import Optional, Tuple, Dict, Any, List, Set, Callable
 from datetime import datetime, timedelta
 
 from .state_manager import QueueStateManager
@@ -17,6 +17,7 @@ from .models import QueueItem, QueueError, CleanupError
 
 logger = logging.getLogger("QueueManager")
 
+
 class QueueState(Enum):
     """Queue operational states"""
     UNINITIALIZED = "uninitialized"
@@ -27,12 +28,14 @@ class QueueState(Enum):
     STOPPED = "stopped"
     ERROR = "error"
 
+
 class QueueMode(Enum):
     """Queue processing modes"""
-    NORMAL = "normal"      # Standard processing
-    BATCH = "batch"       # Batch processing
-    PRIORITY = "priority" # Priority-based processing
+    NORMAL = "normal"  # Standard processing
+    BATCH = "batch"  # Batch processing
+    PRIORITY = "priority"  # Priority-based processing
     MAINTENANCE = "maintenance"  # Maintenance mode
+
 
 @dataclass
 class QueueConfig:
@@ -43,11 +46,12 @@ class QueueConfig:
     cleanup_interval: int = 3600  # 1 hour
     max_history_age: int = 86400  # 24 hours
     deadlock_threshold: int = 300  # 5 minutes
-    check_interval: int = 60      # 1 minute
+    check_interval: int = 60  # 1 minute
     batch_size: int = 10
     max_concurrent: int = 3
     persistence_enabled: bool = True
     monitoring_level: MonitoringLevel = MonitoringLevel.NORMAL
+
 
 @dataclass
 class QueueStats:
@@ -59,6 +63,7 @@ class QueueStats:
     peak_queue_size: int = 0
     peak_memory_usage: float = 0.0
     state_changes: List[Dict[str, Any]] = field(default_factory=list)
+
 
 class QueueCoordinator:
     """Coordinates queue operations"""
@@ -95,6 +100,7 @@ class QueueCoordinator:
         """Wait if queue is paused"""
         await self._paused.wait()
 
+
 class EnhancedVideoQueueManager:
     """Enhanced queue manager with improved organization and maintainability"""
 
@@ -110,20 +116,18 @@ class EnhancedVideoQueueManager:
         self.monitor = QueueMonitor(
             deadlock_threshold=self.config.deadlock_threshold,
             max_retries=self.config.max_retries,
-            check_interval=self.config.check_interval
+            check_interval=self.config.check_interval,
         )
         self.cleaner = QueueCleaner(
             cleanup_interval=self.config.cleanup_interval,
-            max_history_age=self.config.max_history_age
+            max_history_age=self.config.max_history_age,
         )
-        
+
         # Initialize persistence if enabled
         self.persistence = (
-            QueuePersistenceManager()
-            if self.config.persistence_enabled
-            else None
+            QueuePersistenceManager() if self.config.persistence_enabled else None
         )
-        
+
         # Initialize processor
         self.processor = QueueProcessor(
             state_manager=self.state_manager,
@@ -131,12 +135,13 @@ class EnhancedVideoQueueManager:
             max_retries=self.config.max_retries,
             retry_delay=self.config.retry_delay,
             batch_size=self.config.batch_size,
-            max_concurrent=self.config.max_concurrent
+            max_concurrent=self.config.max_concurrent,
         )
 
         # Background tasks
         self._maintenance_task: Optional[asyncio.Task] = None
         self._stats_task: Optional[asyncio.Task] = None
+        self._processing_task: Optional[asyncio.Task] = None
 
     async def initialize(self) -> None:
         """Initialize the queue manager components"""
@@ -147,22 +152,18 @@ class EnhancedVideoQueueManager:
         try:
             await self.coordinator.set_state(QueueState.INITIALIZING)
             logger.info("Starting queue manager initialization...")
-            
+
             # Load persisted state if available
             if self.persistence:
                 await self._load_persisted_state()
-            
+
             # Start monitoring with configured level
             self.monitor.strategy.level = self.config.monitoring_level
-            await self.monitor.start(
-                self.state_manager,
-                self.metrics_manager
-            )
-            
+            await self.monitor.start(self.state_manager, self.metrics_manager)
+
             # Start cleanup task
             await self.cleaner.start(
-                state_manager=self.state_manager,
-                metrics_manager=self.metrics_manager
+                state_manager=self.state_manager, metrics_manager=self.metrics_manager
             )
 
             # Start background tasks
@@ -175,6 +176,25 @@ class EnhancedVideoQueueManager:
             await self.coordinator.set_state(QueueState.ERROR)
             logger.error(f"Failed to initialize queue manager: {e}")
             raise
+
+    async def process_queue(self, processor_func: Callable[[QueueItem], Tuple[bool, Optional[str]]]) -> None:
+        """Start processing the queue with the given processor function"""
+        if self._processing_task and not self._processing_task.done():
+            logger.warning("Queue processing is already running")
+            return
+
+        try:
+            self._processing_task = asyncio.create_task(
+                self.processor.start_processing(processor_func)
+            )
+            await self._processing_task
+        except asyncio.CancelledError:
+            logger.info("Queue processing cancelled")
+        except Exception as e:
+            logger.error(f"Error in queue processing: {e}")
+            raise
+        finally:
+            self._processing_task = None
 
     async def _load_persisted_state(self) -> None:
         """Load persisted queue state"""
@@ -189,12 +209,8 @@ class EnhancedVideoQueueManager:
 
     def _start_background_tasks(self) -> None:
         """Start background maintenance tasks"""
-        self._maintenance_task = asyncio.create_task(
-            self._maintenance_loop()
-        )
-        self._stats_task = asyncio.create_task(
-            self._stats_loop()
-        )
+        self._maintenance_task = asyncio.create_task(self._maintenance_loop())
+        self._stats_task = asyncio.create_task(self._stats_loop())
 
     async def _maintenance_loop(self) -> None:
         """Background maintenance loop"""
@@ -246,8 +262,7 @@ class EnhancedVideoQueueManager:
         """Clean up old data"""
         try:
             await self.cleaner.cleanup_old_data(
-                self.state_manager,
-                self.metrics_manager
+                self.state_manager, self.metrics_manager
             )
         except Exception as e:
             logger.error(f"Error cleaning up old data: {e}")
@@ -257,7 +272,7 @@ class EnhancedVideoQueueManager:
         try:
             # Reorder queue based on priorities
             await self.state_manager.optimize_queue()
-            
+
             # Update monitoring level based on queue size
             queue_size = len(await self.state_manager.get_all_items())
             if queue_size > self.config.max_queue_size * 0.8:
@@ -272,18 +287,14 @@ class EnhancedVideoQueueManager:
         """Update queue statistics"""
         try:
             self.stats.uptime = datetime.utcnow() - self.stats.start_time
-            
+
             # Update peak values
             queue_size = len(await self.state_manager.get_all_items())
-            self.stats.peak_queue_size = max(
-                self.stats.peak_queue_size,
-                queue_size
-            )
-            
+            self.stats.peak_queue_size = max(self.stats.peak_queue_size, queue_size)
+
             memory_usage = self.metrics_manager.peak_memory_usage
             self.stats.peak_memory_usage = max(
-                self.stats.peak_memory_usage,
-                memory_usage
+                self.stats.peak_memory_usage, memory_usage
             )
 
         except Exception as e:
@@ -332,20 +343,23 @@ class EnhancedVideoQueueManager:
             status = self.state_manager.get_guild_status(guild_id)
             metrics = self.metrics_manager.get_metrics()
             monitor_stats = self.monitor.get_monitoring_stats()
-            
+            processor_stats = self.processor.get_processor_stats()
+
             return {
                 **status,
                 "metrics": metrics,
                 "monitoring": monitor_stats,
                 "state": self.coordinator.state.value,
                 "mode": self.coordinator.mode.value,
+                "active": self.coordinator.state == QueueState.RUNNING and bool(processor_stats["active_tasks"]),
+                "stalled": monitor_stats.get("stalled", False),
                 "stats": {
                     "uptime": self.stats.uptime.total_seconds(),
                     "peak_queue_size": self.stats.peak_queue_size,
                     "peak_memory_usage": self.stats.peak_memory_usage,
                     "total_processed": self.stats.total_processed,
-                    "total_failed": self.stats.total_failed
-                }
+                    "total_failed": self.stats.total_failed,
+                },
             }
         except Exception as e:
             logger.error(f"Error getting queue status: {e}")
@@ -366,16 +380,22 @@ class EnhancedVideoQueueManager:
         try:
             await self.coordinator.set_state(QueueState.STOPPING)
             logger.info("Starting queue manager cleanup...")
-            
+
             # Cancel background tasks
             if self._maintenance_task:
                 self._maintenance_task.cancel()
             if self._stats_task:
                 self._stats_task.cancel()
-            
+            if self._processing_task:
+                self._processing_task.cancel()
+                try:
+                    await self._processing_task
+                except asyncio.CancelledError:
+                    pass
+
             # Stop processor
             await self.processor.stop_processing()
-            
+
             # Stop monitoring and cleanup
             await self.monitor.stop()
             await self.cleaner.stop()
@@ -399,21 +419,27 @@ class EnhancedVideoQueueManager:
         """Force stop all queue operations immediately"""
         await self.coordinator.set_state(QueueState.STOPPING)
         logger.info("Force stopping queue manager...")
-        
+
         # Cancel background tasks
         if self._maintenance_task:
             self._maintenance_task.cancel()
         if self._stats_task:
             self._stats_task.cancel()
-        
+        if self._processing_task:
+            self._processing_task.cancel()
+            try:
+                await self._processing_task
+            except asyncio.CancelledError:
+                pass
+
         # Force stop all components
         await self.processor.stop_processing()
         await self.monitor.stop()
         await self.cleaner.stop()
-        
+
         # Clear state
         await self.state_manager.clear_state()
-        
+
         await self.coordinator.set_state(QueueState.STOPPED)
         logger.info("Queue manager force stopped")
 
@@ -421,7 +447,7 @@ class EnhancedVideoQueueManager:
         """Persist current state to storage"""
         if not self.persistence:
             return
-            
+
         try:
             state = await self.state_manager.get_state_for_persistence()
             state["metrics"] = self.metrics_manager.get_metrics()
@@ -430,7 +456,7 @@ class EnhancedVideoQueueManager:
                 "peak_queue_size": self.stats.peak_queue_size,
                 "peak_memory_usage": self.stats.peak_memory_usage,
                 "total_processed": self.stats.total_processed,
-                "total_failed": self.stats.total_failed
+                "total_failed": self.stats.total_failed,
             }
             await self.persistence.persist_queue_state(state)
         except Exception as e:
@@ -443,6 +469,8 @@ class EnhancedVideoQueueManager:
             "processing": 0,
             "completed": 0,
             "failed": 0,
+            "active": False,
+            "stalled": False,
             "metrics": {
                 "total_processed": 0,
                 "total_failed": 0,
@@ -462,6 +490,6 @@ class EnhancedVideoQueueManager:
                 "peak_queue_size": 0,
                 "peak_memory_usage": 0,
                 "total_processed": 0,
-                "total_failed": 0
-            }
+                "total_failed": 0,
+            },
         }

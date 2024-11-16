@@ -3,11 +3,11 @@
 import logging
 import asyncio
 from enum import Enum
-from dataclasses import dataclass
 from typing import List, Optional, Dict, Any, Set
 from datetime import datetime
 import discord
 
+from ..queue.models import QueueItem
 from .reactions import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
@@ -17,21 +17,6 @@ class QueuePriority(Enum):
     HIGH = 0
     NORMAL = 1
     LOW = 2
-
-@dataclass
-class QueueItem:
-    """Represents an item in the processing queue"""
-    url: str
-    message_id: int
-    channel_id: int
-    guild_id: int
-    author_id: int
-    priority: QueuePriority
-    added_at: datetime
-    metadata: Optional[Dict[str, Any]] = None
-    attempts: int = 0
-    last_attempt: Optional[datetime] = None
-    error: Optional[str] = None
 
 class ProcessingStrategy(Enum):
     """Available processing strategies"""
@@ -113,14 +98,14 @@ class QueueProcessor:
                 logger.info(f"Adding URL to queue: {url}")
                 await message.add_reaction(REACTIONS['queued'])
 
-                # Create queue item
+                # Create queue item using the model from queue.models
                 item = QueueItem(
                     url=url,
                     message_id=message.id,
                     channel_id=message.channel.id,
                     guild_id=message.guild.id,
                     author_id=message.author.id,
-                    priority=priority,
+                    priority=priority.value,
                     added_at=datetime.utcnow()
                 )
 
@@ -163,7 +148,7 @@ class QueueProcessor:
             channel_id=item.channel_id,
             guild_id=item.guild_id,
             author_id=item.author_id,
-            priority=item.priority.value
+            priority=item.priority
         )
 
     async def _add_with_smart_strategy(self, item: QueueItem) -> None:
@@ -193,7 +178,7 @@ class QueueProcessor:
 
     async def _calculate_smart_priority(self, item: QueueItem) -> int:
         """Calculate priority using smart strategy"""
-        base_priority = item.priority.value
+        base_priority = item.priority
         
         # Adjust based on queue metrics
         stats = self.metrics.get_stats()
@@ -206,8 +191,8 @@ class QueueProcessor:
                 base_priority += 1
 
         # Adjust based on retries
-        if item.attempts > 0:
-            base_priority += item.attempts
+        if item.retry_count > 0:
+            base_priority += item.retry_count
 
         # Ensure priority stays in valid range
         return max(0, min(base_priority, len(QueuePriority) - 1))

@@ -1,7 +1,7 @@
 """Module for managing Discord role configurations"""
 
 import logging
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional, Any
 import discord
 
 from .exceptions import ConfigurationError as ConfigError

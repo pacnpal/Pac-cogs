@@ -188,13 +188,13 @@ class ComponentManager:
         """Initialize core system components"""
         from ..config_manager import ConfigManager
         from ..processor.core import Processor
-        from ..queue.manager import QueueManager
+        from ..queue.manager import EnhancedVideoQueueManager
         from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
         core_components = {
             "config_manager": (ConfigManager(self.cog), set()),
             "processor": (Processor(self.cog), {"config_manager"}),
-            "queue_manager": (QueueManager(self.cog), {"config_manager"}),
+            "queue_manager": (EnhancedVideoQueueManager(), {"config_manager"}),
             "ffmpeg_mgr": (FFmpegManager(self.cog), set())
         }
 

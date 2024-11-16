@@ -2,13 +2,13 @@
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any, Set
+import traceback
+from typing import Optional, Dict, Any, Set, List, Callable
 from enum import Enum
 from datetime import datetime
 
 from .cleanup import cleanup_resources, force_cleanup_resources
 from ..utils.exceptions import VideoArchiverError
-from .initialization import initialize_cog, init_callback
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -31,7 +31,7 @@ class TaskManager:
         self,
         name: str,
         coro,
-        callback=None
+        callback: Optional[Callable] = None
     ) -> asyncio.Task:
         """Create and track a task"""
         task = asyncio.create_task(coro)
@@ -52,7 +52,7 @@ class TaskManager:
         self,
         name: str,
         task: asyncio.Task,
-        callback=None
+        callback: Optional[Callable] = None
     ) -> None:
         """Handle task completion"""
         try:
@@ -132,11 +132,38 @@ class LifecycleManager:
         self.cog = cog
         self.task_manager = TaskManager()
         self.state_tracker = StateTracker()
-        self._cleanup_handlers: Set[callable] = set()
+        self._cleanup_handlers: Set[Callable] = set()
 
-    def register_cleanup_handler(self, handler: callable) -> None:
+    def register_cleanup_handler(self, handler: Callable) -> None:
         """Register a cleanup handler"""
         self._cleanup_handlers.add(handler)
+
+    async def initialize_cog(self) -> None:
+        """Initialize all components with proper error handling"""
+        try:
+            # Initialize components in sequence
+            await self.cog.component_manager.initialize_components()
+            
+            # Set ready flag
+            self.cog.ready.set()
+            logger.info("VideoArchiver initialization completed successfully")
+
+        except Exception as e:
+            logger.error(f"Error during initialization: {str(e)}")
+            await cleanup_resources(self.cog)
+            raise
+
+    def init_callback(self, task: asyncio.Task) -> None:
+        """Handle initialization task completion"""
+        try:
+            task.result()
+            logger.info("Initialization completed successfully")
+        except asyncio.CancelledError:
+            logger.warning("Initialization was cancelled")
+            asyncio.create_task(cleanup_resources(self.cog))
+        except Exception as e:
+            logger.error(f"Initialization failed: {str(e)}\n{traceback.format_exc()}")
+            asyncio.create_task(cleanup_resources(self.cog))
 
     async def handle_load(self) -> None:
         """Handle cog loading without blocking"""
@@ -146,8 +173,8 @@ class LifecycleManager:
             # Start initialization as background task
             await self.task_manager.create_task(
                 "initialization",
-                initialize_cog(self.cog),
-                lambda t: init_callback(self.cog, t)
+                self.initialize_cog(),
+                self.init_callback
             )
             logger.info("Initialization started in background")
             
