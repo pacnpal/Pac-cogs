@@ -476,7 +476,13 @@ class VideoArchiver(GroupCog):
     async def show_settings(self, ctx: Context):
         """Show current archiver settings."""
         try:
+            # Defer the response immediately to prevent interaction timeout
+            if hasattr(ctx, 'interaction') and ctx.interaction:
+                await ctx.defer()
+            
             embed = await self.config_manager.format_settings_embed(ctx.guild)
+            
+            # Use the helper method to handle the response
             await self._handle_response(ctx, embed=embed)
         except Exception as e:
             logger.error(f"Error showing settings: {e}")
