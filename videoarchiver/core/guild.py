@@ -1,9 +1,10 @@
 """Guild component management for VideoArchiver"""
 
 import logging
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict, Any, Optional
 
-from ..utils.video_downloader import VideoDownloader
+from ..utils.download_core import DownloadCore
 from ..utils.message_manager import MessageManager
 from ..utils.file_ops import cleanup_downloads
 from ..utils.exceptions import VideoArchiverError as ProcessingError
@@ -32,7 +33,7 @@ async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> No
 
         # Initialize new components with validated settings
         cog.components[guild_id] = {
-            "downloader": VideoDownloader(
+            "downloader": DownloadCore(
                 str(cog.download_path),
                 settings["video_format"],
                 settings["video_quality"],
