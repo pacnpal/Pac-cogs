@@ -1,8 +1,7 @@
 """Module for core archiver commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_group, guild_only
-from redbot.core.utils.mod import admin_or_permissions
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response

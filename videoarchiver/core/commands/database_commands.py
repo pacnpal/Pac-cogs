@@ -1,8 +1,7 @@
 """Module for database-related commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_group, hybrid_command, guild_only
-from redbot.core.utils.mod import admin_or_permissions
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response
@@ -101,7 +100,7 @@ def setup_database_commands(cog):
                 ctx, "An error occurred while disabling the database."
             )
 
-    @cog.hybrid_command()
+    @archivedb.command(name="check")
     @guild_only()
     @app_commands.describe(url="The URL of the video to check")
     async def checkarchived(ctx: Context, url: str):

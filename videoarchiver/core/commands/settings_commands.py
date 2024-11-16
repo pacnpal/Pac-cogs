@@ -1,8 +1,7 @@
 """Module for settings-related commands"""
 
 import discord
-from redbot.core.commands import Context, hybrid_command, guild_only
-from redbot.core.utils.mod import admin_or_permissions
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
 from discord import app_commands
 import logging
 from ..response_handler import handle_response
@@ -12,7 +11,24 @@ logger = logging.getLogger("VideoArchiver")
 def setup_settings_commands(cog):
     """Set up settings commands for the cog"""
 
-    @cog.hybrid_command(name="setchannel")
+    @cog.hybrid_group(name="settings", fallback="show")
+    @guild_only()
+    async def settings(ctx: Context):
+        """Show current archiver settings."""
+        try:
+            # Defer the response immediately for slash commands
+            if hasattr(ctx, "interaction") and ctx.interaction:
+                await ctx.defer()
+
+            embed = await cog.config_manager.format_settings_embed(ctx.guild)
+            await handle_response(ctx, embed=embed)
+        except Exception as e:
+            logger.error(f"Error showing settings: {e}")
+            await handle_response(
+                ctx, "An error occurred while showing settings."
+            )
+
+    @settings.command(name="setchannel")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where archived videos will be stored")
@@ -35,7 +51,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the archive channel."
             )
 
-    @cog.hybrid_command(name="setlog")
+    @settings.command(name="setlog")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where log messages will be sent")
@@ -58,7 +74,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the log channel."
             )
 
-    @cog.hybrid_command(name="addchannel")
+    @settings.command(name="addchannel")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to monitor for videos")
@@ -91,7 +107,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while adding the channel."
             )
 
-    @cog.hybrid_command(name="removechannel")
+    @settings.command(name="removechannel")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to stop monitoring")
@@ -124,7 +140,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while removing the channel."
             )
 
-    @cog.hybrid_command(name="setformat")
+    @settings.command(name="setformat")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(format="The video format to use (mp4, webm, or mkv)")
@@ -152,7 +168,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the video format."
             )
 
-    @cog.hybrid_command(name="setquality")
+    @settings.command(name="setquality")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(quality="The video quality (144-4320)")
@@ -181,7 +197,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the video quality."
             )
 
-    @cog.hybrid_command(name="setmaxsize")
+    @settings.command(name="setmaxsize")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(size="The maximum file size in MB (1-100)")
@@ -208,7 +224,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the maximum file size."
             )
 
-    @cog.hybrid_command(name="setmessageduration")
+    @settings.command(name="setmessageduration")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(hours="How long to keep messages in hours (0-168)")
@@ -237,7 +253,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the message duration."
             )
 
-    @cog.hybrid_command(name="settemplate")
+    @settings.command(name="settemplate")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(
@@ -271,7 +287,7 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting the message template."
             )
 
-    @cog.hybrid_command(name="setconcurrent")
+    @settings.command(name="setconcurrent")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(count="Number of concurrent downloads (1-5)")
@@ -300,24 +316,8 @@ def setup_settings_commands(cog):
                 ctx, "An error occurred while setting concurrent downloads."
             )
 
-    @cog.hybrid_command(name="settings")
-    @guild_only()
-    async def show_settings(ctx: Context):
-        """Show current archiver settings."""
-        try:
-            # Defer the response immediately for slash commands
-            if hasattr(ctx, "interaction") and ctx.interaction:
-                await ctx.defer()
-
-            embed = await cog.config_manager.format_settings_embed(ctx.guild)
-            await handle_response(ctx, embed=embed)
-        except Exception as e:
-            logger.error(f"Error showing settings: {e}")
-            await handle_response(
-                ctx, "An error occurred while showing settings."
-            )
-
     # Store commands in cog for access
+    cog.settings = settings
     cog.set_archive_channel = set_archive_channel
     cog.set_log_channel = set_log_channel
     cog.add_enabled_channel = add_enabled_channel
@@ -328,4 +328,5 @@ def setup_settings_commands(cog):
     cog.set_message_duration = set_message_duration
     cog.set_message_template = set_message_template
     cog.set_concurrent_downloads = set_concurrent_downloads
-    cog.show_settings = show_settings
+
+    return settings
