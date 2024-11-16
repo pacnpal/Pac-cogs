@@ -1,11 +1,13 @@
 """Module for core archiver commands"""
 
-import discord
-from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
-from discord import app_commands
 import logging
-from typing import Optional, Any, Dict, TypedDict, Callable, Awaitable
 from enum import Enum, auto
+from typing import Optional, Any, Dict, TypedDict, Callable, Awaitable
+
+import discord
+from discord import app_commands
+from redbot.core import commands
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
 
 from ..response_handler import handle_response, ResponseType
 from ...utils.exceptions import (
@@ -44,7 +46,7 @@ class CommandContext:
 
     async def __aenter__(self) -> 'CommandContext':
         """Set up command context"""
-        self.start_time = ctx.message.created_at
+        self.start_time = self.ctx.message.created_at
         logger.debug(
             f"Starting command {self.operation} in category {self.category.name}"
         )
