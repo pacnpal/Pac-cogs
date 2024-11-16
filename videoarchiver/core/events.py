@@ -39,7 +39,17 @@ def setup_events(cog: "VideoArchiver") -> None:
     @cog.bot.event
     async def on_message(message: discord.Message) -> None:
         """Handle new messages for video processing"""
-        if not cog.ready.is_set() or message.guild is None or message.author.bot:
+        # Only block video processing features, not command processing
+        if message.guild is None or message.author.bot:
+            return
+
+        # Check if this is a command - if so, let it process normally
+        if message.content.startswith(await cog.bot.get_prefix(message)):
+            return
+
+        # Only process videos if initialization is complete
+        if not cog.ready.is_set():
+            logger.debug("Skipping video processing - initialization not complete")
             return
 
         try:
