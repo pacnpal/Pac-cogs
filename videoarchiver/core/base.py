@@ -12,7 +12,11 @@ from redbot.core.commands import (
     hybrid_command,
     hybrid_group,
     guild_only,
-    commands,  # Added this import
+    commands,
+    MissingPermissions,
+    BotMissingPermissions,
+    MissingRequiredArgument,
+    BadArgument,
 )
 from redbot.core import checks
 from discord import app_commands
@@ -102,21 +106,34 @@ class VideoArchiver(GroupCog):
     async def enable_database(self, ctx: Context):
         """Enable the video archive database."""
         try:
-            current_setting = await self.config_manager.get_setting(
-                ctx.guild.id, "use_database"
-            )
-            if current_setting:
-                await ctx.send("The video archive database is already enabled.")
-                return
+            # First check if database is already enabled
+            try:
+                current_setting = await self.config_manager.get_setting(
+                    ctx.guild.id, "use_database"
+                )
+                if current_setting:
+                    await ctx.send("The video archive database is already enabled.")
+                    return
+            except Exception as e:
+                logger.error(f"Failed to get setting use_database: {e}")
+                # If setting doesn't exist, we'll create it
+                await self.config_manager.update_setting(ctx.guild.id, "use_database", False)
 
             # Initialize database if it's being enabled
-            self.db = VideoArchiveDB(self.data_path)
-            # Update processor with database
-            self.processor.db = self.db
-            self.processor.queue_handler.db = self.db
+            try:
+                self.db = VideoArchiveDB(self.data_path)
+                # Update processor with database
+                if self.processor:
+                    self.processor.db = self.db
+                    if self.processor.queue_handler:
+                        self.processor.queue_handler.db = self.db
 
-            await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
-            await ctx.send("Video archive database has been enabled.")
+                await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
+                await ctx.send("Video archive database has been enabled.")
+            except Exception as e:
+                logger.error(f"Error initializing database: {e}")
+                await ctx.send("An error occurred while initializing the database.")
+                return
 
         except Exception as e:
             logger.error(f"Error enabling database: {e}")
@@ -429,13 +446,13 @@ class VideoArchiver(GroupCog):
         """Handle command errors"""
         error_msg = None
         try:
-            if isinstance(error, redbot.core.commands.MissingPermissions):  # Fixed this line
+            if isinstance(error, MissingPermissions):
                 error_msg = "❌ You don't have permission to use this command."
-            elif isinstance(error, redbot.core.commands.BotMissingPermissions):  # And this line
+            elif isinstance(error, BotMissingPermissions):
                 error_msg = "❌ I don't have the required permissions to do that."
-            elif isinstance(error, redbot.core.commands.MissingRequiredArgument):  # And this line
+            elif isinstance(error, MissingRequiredArgument):
                 error_msg = f"❌ Missing required argument: {error.param.name}"
-            elif isinstance(error, redbot.core.commands.BadArgument):  # And this line
+            elif isinstance(error, BadArgument):
                 error_msg = f"❌ Invalid argument: {str(error)}"
             elif isinstance(error, ConfigError):
                 error_msg = f"❌ Configuration error: {str(error)}"

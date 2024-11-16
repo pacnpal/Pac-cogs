@@ -1,5 +1,6 @@
 """Configuration management for VideoArchiver"""
 from redbot.core import Config
+from redbot.core import commands  # Added for exception types
 from typing import Dict, Any, Optional, List, Union, cast
 import discord
 import logging
@@ -33,6 +34,7 @@ class ConfigManager:
         "retry_delay": 5,
         "discord_retry_attempts": 3,
         "discord_retry_delay": 5,
+        "use_database": False,  # Added the missing use_database setting
     }
 
     # Valid settings constraints
@@ -88,7 +90,7 @@ class ConfigManager:
             elif setting in ["message_template"] and not isinstance(value, str):
                 raise ConfigError("Message template must be a string")
             
-            elif setting in ["enabled", "delete_after_repost", "disable_update_check"] and not isinstance(value, bool):
+            elif setting in ["enabled", "delete_after_repost", "disable_update_check", "use_database"] and not isinstance(value, bool):
                 raise ConfigError(f"{setting} must be a boolean")
             
         except Exception as e:
@@ -341,6 +343,11 @@ class ConfigManager:
             embed.add_field(
                 name="Update Check Disabled",
                 value=str(settings["disable_update_check"]),
+                inline=True
+            )
+            embed.add_field(
+                name="Database Enabled",
+                value=str(settings["use_database"]),
                 inline=True
             )
 
