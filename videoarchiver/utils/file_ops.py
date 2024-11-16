@@ -148,3 +148,23 @@ class FileOperations:
         except Exception as e:
             logger.error(f"Error getting directory info: {e}")
             return 0, [f"Error: {str(e)}"]
+
+# Create a singleton instance
+_file_ops = FileOperations()
+
+# Module-level wrapper functions
+async def secure_delete_file(file_path: str, max_size: Optional[int] = None) -> bool:
+    """Module-level wrapper for secure_delete_file"""
+    return await _file_ops.secure_delete_file(file_path, max_size)
+
+async def cleanup_downloads(download_path: str, recursive: bool = True, delete_empty: bool = True) -> None:
+    """Module-level wrapper for cleanup_downloads"""
+    await _file_ops.cleanup_downloads(download_path, recursive, delete_empty)
+
+async def ensure_directory(directory_path: str) -> None:
+    """Module-level wrapper for ensure_directory"""
+    await _file_ops.ensure_directory(directory_path)
+
+async def get_directory_info(directory_path: str) -> Tuple[int, List[str]]:
+    """Module-level wrapper for get_directory_info"""
+    return await _file_ops.get_directory_info(directory_path)
