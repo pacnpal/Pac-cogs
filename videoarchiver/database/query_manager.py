@@ -7,7 +7,8 @@ from datetime import datetime
 
 logger = logging.getLogger("DBQueryManager")
 
-class QueryManager:
+
+class DatabaseQueryManager:
     """Manages database queries and operations"""
 
     def __init__(self, connection_manager):
@@ -20,13 +21,13 @@ class QueryManager:
         message_id: int,
         channel_id: int,
         guild_id: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Add a newly archived video to the database"""
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
-                
+
                 # Prepare query and parameters
                 query = """
                     INSERT OR REPLACE INTO archived_videos 
@@ -34,7 +35,7 @@ class QueryManager:
                      file_size, duration, format, resolution, bitrate)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
-                
+
                 # Extract metadata values with defaults
                 metadata = metadata or {}
                 params = (
@@ -43,13 +44,13 @@ class QueryManager:
                     message_id,
                     channel_id,
                     guild_id,
-                    metadata.get('file_size'),
-                    metadata.get('duration'),
-                    metadata.get('format'),
-                    metadata.get('resolution'),
-                    metadata.get('bitrate')
+                    metadata.get("file_size"),
+                    metadata.get("duration"),
+                    metadata.get("format"),
+                    metadata.get("resolution"),
+                    metadata.get("bitrate"),
                 )
-                
+
                 cursor.execute(query, params)
                 conn.commit()
                 return True
@@ -58,37 +59,37 @@ class QueryManager:
             logger.error(f"Error adding archived video: {e}")
             return False
 
-    async def get_archived_video(
-        self,
-        url: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_archived_video(self, url: str) -> Optional[Dict[str, Any]]:
         """Get archived video information by original URL"""
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT discord_url, message_id, channel_id, guild_id,
                            file_size, duration, format, resolution, bitrate,
                            archived_at
                     FROM archived_videos
                     WHERE original_url = ?
-                """, (url,))
-                
+                """,
+                    (url,),
+                )
+
                 result = cursor.fetchone()
                 if not result:
                     return None
-                    
+
                 return {
-                    'discord_url': result[0],
-                    'message_id': result[1],
-                    'channel_id': result[2],
-                    'guild_id': result[3],
-                    'file_size': result[4],
-                    'duration': result[5],
-                    'format': result[6],
-                    'resolution': result[7],
-                    'bitrate': result[8],
-                    'archived_at': result[9]
+                    "discord_url": result[0],
+                    "message_id": result[1],
+                    "channel_id": result[2],
+                    "guild_id": result[3],
+                    "file_size": result[4],
+                    "duration": result[5],
+                    "format": result[6],
+                    "resolution": result[7],
+                    "bitrate": result[8],
+                    "archived_at": result[9],
                 }
 
         except sqlite3.Error as e:
@@ -101,8 +102,7 @@ class QueryManager:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT 1 FROM archived_videos WHERE original_url = ?",
-                    (url,)
+                    "SELECT 1 FROM archived_videos WHERE original_url = ?", (url,)
                 )
                 return cursor.fetchone() is not None
 
@@ -115,7 +115,8 @@ class QueryManager:
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT 
                         COUNT(*) as total_videos,
                         SUM(file_size) as total_size,
@@ -123,36 +124,36 @@ class QueryManager:
                         MAX(archived_at) as last_archived
                     FROM archived_videos
                     WHERE guild_id = ?
-                """, (guild_id,))
-                
+                """,
+                    (guild_id,),
+                )
+
                 result = cursor.fetchone()
                 return {
-                    'total_videos': result[0],
-                    'total_size': result[1] or 0,
-                    'avg_duration': result[2] or 0,
-                    'last_archived': result[3]
+                    "total_videos": result[0],
+                    "total_size": result[1] or 0,
+                    "avg_duration": result[2] or 0,
+                    "last_archived": result[3],
                 }
 
         except sqlite3.Error as e:
             logger.error(f"Error getting guild stats: {e}")
             return {
-                'total_videos': 0,
-                'total_size': 0,
-                'avg_duration': 0,
-                'last_archived': None
+                "total_videos": 0,
+                "total_size": 0,
+                "avg_duration": 0,
+                "last_archived": None,
             }
 
     async def get_channel_videos(
-        self,
-        channel_id: int,
-        limit: int = 100,
-        offset: int = 0
+        self, channel_id: int, limit: int = 100, offset: int = 0
     ) -> List[Dict[str, Any]]:
         """Get archived videos for a channel"""
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT original_url, discord_url, message_id,
                            file_size, duration, format, resolution,
                            archived_at
@@ -160,19 +161,24 @@ class QueryManager:
                     WHERE channel_id = ?
                     ORDER BY archived_at DESC
                     LIMIT ? OFFSET ?
-                """, (channel_id, limit, offset))
-                
+                """,
+                    (channel_id, limit, offset),
+                )
+
                 results = cursor.fetchall()
-                return [{
-                    'original_url': row[0],
-                    'discord_url': row[1],
-                    'message_id': row[2],
-                    'file_size': row[3],
-                    'duration': row[4],
-                    'format': row[5],
-                    'resolution': row[6],
-                    'archived_at': row[7]
-                } for row in results]
+                return [
+                    {
+                        "original_url": row[0],
+                        "discord_url": row[1],
+                        "message_id": row[2],
+                        "file_size": row[3],
+                        "duration": row[4],
+                        "format": row[5],
+                        "resolution": row[6],
+                        "archived_at": row[7],
+                    }
+                    for row in results
+                ]
 
         except sqlite3.Error as e:
             logger.error(f"Error getting channel videos: {e}")
@@ -183,11 +189,14 @@ class QueryManager:
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     DELETE FROM archived_videos
                     WHERE archived_at < datetime('now', ? || ' days')
-                """, (-days,))
-                
+                """,
+                    (-days,),
+                )
+
                 deleted = cursor.rowcount
                 conn.commit()
                 return deleted
