@@ -10,7 +10,7 @@ from queue import Queue, Empty
 
 logger = logging.getLogger("DBConnectionManager")
 
-class ConnectionManager:
+class DatabaseConnectionManager:
     """Manages SQLite database connections and connection pooling"""
 
     def __init__(self, db_path: Path, pool_size: int = 5):
