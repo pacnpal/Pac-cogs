@@ -3,7 +3,7 @@
 import logging
 import asyncio
 from enum import Enum
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 from datetime import datetime
 import discord
 from discord.ext import commands
@@ -13,7 +13,7 @@ from .queue_handler import QueueHandler
 from .progress_tracker import ProgressTracker
 from .status_display import StatusDisplay
 from .cleanup_manager import CleanupManager
-from .reactions import REACTIONS
+from .constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 

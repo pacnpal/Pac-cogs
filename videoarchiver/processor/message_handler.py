@@ -10,7 +10,7 @@ import discord
 from .url_extractor import URLExtractor
 from .message_validator import MessageValidator
 from .queue_processor import QueueProcessor
-from .reactions import REACTIONS
+from .constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 

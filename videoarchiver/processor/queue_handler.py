@@ -7,7 +7,7 @@ import discord
 from typing import Dict, Optional, Tuple, Any
 from datetime import datetime
 
-from .reactions import REACTIONS
+from .constants import REACTIONS
 from .progress_tracker import ProgressTracker
 
 logger = logging.getLogger("VideoArchiver")
@@ -305,3 +305,14 @@ class QueueHandler:
 
         except Exception as e:
             logger.error(f"Failed to update download progress reaction: {e}")
+
+    def is_healthy(self) -> bool:
+        """Check if handler is healthy"""
+        # Check if any downloads are stuck
+        current_time = datetime.utcnow()
+        for url, task in self._active_downloads.items():
+            if not task.done() and task.get_coro().cr_frame.f_locals.get('start_time'):
+                start_time = task.get_coro().cr_frame.f_locals['start_time']
+                if (current_time - start_time).total_seconds() > 3600:  # 1 hour timeout
+                    return False
+        return True

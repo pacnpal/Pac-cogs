@@ -1,22 +1,12 @@
-"""Reaction emojis and reaction management for VideoProcessor"""
+"""Reaction handling for VideoProcessor"""
 
 import logging
 import asyncio
 import discord
 
-logger = logging.getLogger("VideoArchiver")
+from .constants import REACTIONS
 
-# Reaction emojis
-REACTIONS = {
-    'queued': '📹',
-    'processing': '⚙️',
-    'success': '✅',
-    'error': '❌',
-    'archived': '🔄',  # New reaction for already archived videos
-    'numbers': ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'],
-    'progress': ['⬛', '🟨', '🟩'],
-    'download': ['0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟']
-}
+logger = logging.getLogger("VideoArchiver")
 
 async def handle_archived_reaction(message: discord.Message, user: discord.User, db) -> None:
     """Handle reaction to archived video message"""

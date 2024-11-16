@@ -7,7 +7,8 @@ import traceback
 from typing import TYPE_CHECKING, Dict, Any, Optional
 from datetime import datetime
 
-from ..processor.reactions import REACTIONS, handle_archived_reaction
+from ..processor.constants import REACTIONS
+from ..processor.reactions import handle_archived_reaction
 from .guild import initialize_guild_components, cleanup_guild_components
 from .error_handler import error_manager
 from .response_handler import response_manager

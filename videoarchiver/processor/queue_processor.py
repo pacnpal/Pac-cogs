@@ -8,7 +8,7 @@ from datetime import datetime
 import discord
 
 from ..queue.models import QueueItem
-from .reactions import REACTIONS
+from .constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 
