@@ -5,14 +5,14 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Optional, Any, Dict, TypedDict
 
-import discord # type: ignore
-from discord import app_commands # type: ignore
-from redbot.core import commands # type: ignore
-from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions # type: ignore
+import discord  # type: ignore
+from discord import app_commands  # type: ignore
+from redbot.core import commands  # type: ignore
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions  # type: ignore
 
-from core.response_handler import handle_response, ResponseType
-from utils.exceptions import CommandError, ErrorContext, ErrorSeverity, DatabaseError
-from database.video_archive_db import VideoArchiveDB
+from ...core.response_handler import handle_response, ResponseType
+from ...utils.exceptions import CommandError, ErrorContext, ErrorSeverity, DatabaseError
+from ...database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 

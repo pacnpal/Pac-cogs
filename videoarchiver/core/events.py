@@ -7,12 +7,12 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, ClassVar, List
 
-import discord # type: ignore
+import discord  # type: ignore
 
 from ..processor.constants import REACTIONS
 from ..processor.reactions import handle_archived_reaction
 from ..core.guild import initialize_guild_components, cleanup_guild_components
-from ..core.error_handler import error_manager
+from ..core.error_handler import ErrorManager
 from ..core.response_handler import response_manager
 from ..utils.exceptions import EventError, ErrorContext, ErrorSeverity
 
