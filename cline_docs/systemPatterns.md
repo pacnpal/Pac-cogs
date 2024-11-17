@@ -1,110 +1,60 @@
 # System Patterns
 
-## High-Level Architecture
+## Import Patterns
 
-The videoarchiver module is organized into several key components:
+### Relative Imports
 
-- processor: Handles core processing logic
-- queue: Manages video processing queue
-- database: Handles data persistence
-- ffmpeg: Manages video processing
-- utils: Provides utility functions
-- core: Contains core bot functionality
-- config: Manages configuration
+- Use relative imports by default to maintain package structure
+- Single dot (.) for imports from same directory
+- Double dots (..) for imports from parent directory
+- Example: `from .base import VideoArchiver`
 
-## Cyclic Dependencies Analysis
+### Fallback Import Pattern
 
-### Current Dependency Chain (Verified 2024)
+When loading in different environments (development vs Red-DiscordBot):
 
-1. VideoProcessor (core.py)
-   - Uses TYPE_CHECKING for handler imports
-   - Late initialization of handlers
-   - Clean dependency structure with no cycles
+```python
+try:
+    # Try relative imports first
+    from ..utils.exceptions import ComponentError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import ComponentError
+```
 
-2. MessageHandler (message_handler.py)
-   - Imports from config, queue, and utils
-   - No circular dependencies detected
-   - Clean dependency structure
+### Package Structure
 
-3. QueueHandler (queue_handler.py)
-   - Imports from database, utils, and config
-   - No circular dependencies detected
-   - Clean dependency structure
+- Each module has __init__.py to mark it as a package
+- Core package imports are kept simple and direct
+- Avoid circular imports by using proper hierarchy
 
-### Mitigation Strategies Used
+## Component Management
 
-1. TYPE_CHECKING conditional imports
-   - Used effectively in core.py
-   - Prevents runtime circular imports
-   - Maintains type safety during development
+- Components are loaded in dependency order
+- Each component is registered and tracked
+- State changes and errors are logged
+- Health checks ensure system stability
 
-2. Late imports
-   - Used in VideoProcessor.__init__ to avoid circular dependencies
-   - Handlers are imported only when needed
+## Error Handling
 
-3. Forward references
-   - Type hints use string literals for types that aren't yet defined
+- Detailed error contexts are maintained
+- Component errors include severity levels
+- Graceful degradation when possible
+- Clear error messages for debugging
 
-## Core Technical Patterns
+## Initialization Flow
 
-1. Component Initialization Pattern
-   - Core processor initializes handlers
-   - Handlers are loosely coupled through interfaces
-   - Dependencies are injected through constructor
+1. Package imports are resolved
+2. Core components are initialized
+3. Dependencies are checked and ordered
+4. Components are initialized in dependency order
+5. Health checks are established
+6. System enters ready state
 
-2. Message Processing Pipeline
-   - Message validation
-   - URL extraction
-   - Queue management
-   - Progress tracking
+## Development Patterns
 
-3. Cleanup Management
-   - Staged cleanup process
-   - Multiple cleanup strategies
-   - Resource tracking and monitoring
-
-## Data Flow
-
-1. Message Processing Flow
-   - Message received → MessageHandler
-   - Validation → URL Extraction
-   - Queue addition → Processing
-
-2. Video Processing Flow
-   - Queue item → Download
-   - Processing → Archival
-   - Cleanup → Completion
-
-## Key Technical Decisions
-
-1. Dependency Management
-   - Use of TYPE_CHECKING for circular import prevention
-   - Late initialization of components
-   - Clear separation of concerns between handlers
-
-2. Error Handling
-   - Each component has dedicated error types
-   - Comprehensive error tracking
-   - Graceful degradation
-
-3. State Management
-   - Clear state transitions
-   - Progress tracking
-   - Health monitoring
-
-4. Resource Management
-   - Staged cleanup process
-   - Multiple cleanup strategies
-   - Resource tracking
-
-## Recommendations
-
-1. Current Structure
-   - The current architecture effectively manages dependencies
-   - No immediate issues requiring refactoring
-   - Clean dependency structure verified
-
-2. Future Improvements
-   - Consider using dependency injection container
-   - Implement interface segregation for cleaner dependencies
-   - Add more comprehensive health checks
+- Always maintain relative imports where possible
+- Use fallback patterns for environment compatibility
+- Keep package structure clean and hierarchical
+- Document import patterns and their rationale
+- Test in both development and production environments
