@@ -5,15 +5,15 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-from .exceptions import (
+from videoarchiver.ffmpeg.exceptions import (
     FFmpegError,
     DownloadError,
     VerificationError,
     PermissionError,
     FFmpegNotFoundError
 )
-from .ffmpeg_downloader import FFmpegDownloader
-from .verification_manager import VerificationManager
+from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
+from videoarchiver.ffmpeg.verification_manager import VerificationManager
 
 logger = logging.getLogger("FFmpegBinaryManager")
 

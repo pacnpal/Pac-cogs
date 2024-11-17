@@ -10,7 +10,7 @@ import threading
 from queue import Queue, Empty
 from datetime import datetime
 
-from ..utils.exceptions import (
+from videoarchiver.utils.exceptions import (
     DatabaseError,
     ErrorContext,
     ErrorSeverity

@@ -7,12 +7,12 @@ import yt_dlp
 from typing import Dict, Optional, Callable, Tuple
 from pathlib import Path
 
-from .url_validator import check_url_support
-from .progress_handler import ProgressHandler, CancellableYTDLLogger
-from .file_operations import FileOperations
-from .compression_handler import CompressionHandler
-from .process_manager import ProcessManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.utils.url_validator import check_url_support
+from videoarchiver.utils.progress_handler import ProgressHandler, CancellableYTDLLogger
+from videoarchiver.utils.file_operations import FileOperations
+from videoarchiver.utils.compression_handler import CompressionHandler
+from videoarchiver.utils.process_manager import ProcessManager
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 

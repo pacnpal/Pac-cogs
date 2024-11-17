@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from .exceptions import FileCleanupError
+from videoarchiver.utils.exceptions import FileCleanupError
 
 logger = logging.getLogger("FileDeleter")
 

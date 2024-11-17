@@ -15,7 +15,7 @@ from videoarchiver.utils.message_manager import MessageManager
 from videoarchiver.utils.exceptions import QueueHandlerError
 from videoarchiver.queue.models import QueueItem
 from videoarchiver.config_manager import ConfigManager
-from .constants import REACTIONS
+from videoarchiver.processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 

@@ -8,17 +8,17 @@ from datetime import datetime, timedelta
 import discord
 from discord.ext import commands
 
-from .message_handler import MessageHandler
-from .queue_handler import QueueHandler
+from videoarchiver.processor.message_handler import MessageHandler
+from videoarchiver.processor.queue_handler import QueueHandler
 from videoarchiver.utils import progress_tracker
-from .status_display import StatusDisplay
-from .cleanup_manager import CleanupManager, CleanupStrategy
-from .constants import REACTIONS
-from ..queue.manager import EnhancedVideoQueueManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
-from ..database.video_archive_db import VideoArchiveDB
-from ..config_manager import ConfigManager
-from ..utils.exceptions import ProcessorError
+from videoarchiver.processor.status_display import StatusDisplay
+from videoarchiver.processor.cleanup_manager import CleanupManager, CleanupStrategy
+from videoarchiver.processor.constants import REACTIONS
+from videoarchiver.queue.manager import EnhancedVideoQueueManager
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.database.video_archive_db import VideoArchiveDB
+from videoarchiver.config_manager import ConfigManager
+from videoarchiver.utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
 

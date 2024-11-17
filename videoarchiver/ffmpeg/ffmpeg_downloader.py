@@ -16,7 +16,7 @@ from typing import Optional, Dict, List
 import time
 import lzma
 
-from .exceptions import DownloadError
+from videoarchiver.ffmpeg.exceptions import DownloadError
 
 logger = logging.getLogger("VideoArchiver")
 

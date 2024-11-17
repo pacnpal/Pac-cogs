@@ -1,12 +1,13 @@
 """Module for cleaning guild-specific queue items"""
 
 import logging
+import asyncio
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Any, Optional
 from datetime import datetime
 
-from ..models import QueueItem
+from videoarchiver.queue.models import QueueItem
 
 logger = logging.getLogger("GuildCleaner")
 

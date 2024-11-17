@@ -1,8 +1,8 @@
 """Command handlers for VideoArchiver"""
 
-from .archiver_commands import setup_archiver_commands
-from .database_commands import setup_database_commands
-from .settings_commands import setup_settings_commands
+from videoarchiver.core.commands.archiver_commands import setup_archiver_commands
+from videoarchiver.core.commands.database_commands import setup_database_commands
+from videoarchiver.core.commands.settings_commands import setup_settings_commands
 
 __all__ = [
     'setup_archiver_commands',

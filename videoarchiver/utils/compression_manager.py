@@ -7,11 +7,11 @@ import subprocess
 from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List, Set, Tuple
 
-from ..processor import _compression_progress
-from .compression_handler import CompressionHandler
-from .progress_handler import ProgressHandler
-from .file_operations import FileOperations
-from .exceptions import CompressionError, VideoVerificationError
+from videoarchiver.processor import _compression_progress
+from videoarchiver.utils.compression_handler import CompressionHandler
+from videoarchiver.utils.progress_handler import ProgressHandler
+from videoarchiver.utils.file_operations import FileOperations
+from videoarchiver.utils.exceptions import CompressionError, VideoVerificationError
 
 logger = logging.getLogger("VideoArchiver")
 

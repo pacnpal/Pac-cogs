@@ -1,12 +1,13 @@
 """Module for handling queue item recovery operations"""
 
 import logging
+import asyncio
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Any, Set
 from datetime import datetime, timedelta
 
-from .models import QueueItem
+from videoarchiver.queue.models import QueueItem
 
 logger = logging.getLogger("QueueRecoveryManager")
 

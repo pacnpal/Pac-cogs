@@ -8,7 +8,7 @@ import fcntl
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-from .models import QueueItem, QueueMetrics
+from videoarchiver.queue.models import QueueItem, QueueMetrics
 
 # Configure logging
 logging.basicConfig(

@@ -1,6 +1,6 @@
 """Base exceptions for VideoArchiver"""
 
-from .utils.exceptions import (
+from videoarchiver.utils.exceptions import (
     VideoArchiverError,
     ConfigurationError,
     VideoVerificationError,

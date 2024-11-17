@@ -2,27 +2,27 @@
 
 from typing import Dict, Optional, Any, Union, List
 
-from .file_ops import (
+from videoarchiver.utils.file_ops import (
     cleanup_downloads,
     ensure_directory,
     get_file_size,
     is_valid_path,
     safe_delete
 )
-from .file_deletion import FileDeleter
-from .directory_manager import DirectoryManager
-from .permission_manager import PermissionManager
-from .download_manager import DownloadManager
-from .compression_manager import CompressionManager
-from .progress_tracker import (
+from videoarchiver.utils.file_deletion import FileDeleter
+from videoarchiver.utils.directory_manager import DirectoryManager
+from videoarchiver.utils.permission_manager import PermissionManager
+from videoarchiver.utils.download_manager import DownloadManager
+from videoarchiver.utils.compression_manager import CompressionManager
+from videoarchiver.utils.progress_tracker import (
     ProgressTracker,
     ProgressStatus,
     DownloadProgress,
     CompressionProgress,
     CompressionParams
 )
-from .path_manager import PathManager
-from .exceptions import (
+from videoarchiver.utils.path_manager import PathManager
+from videoarchiver.utils.exceptions import (
     # Base exception
     VideoArchiverError,
     ErrorSeverity,

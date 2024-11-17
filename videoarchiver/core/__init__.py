@@ -1,5 +1,5 @@
 """Core module for VideoArchiver cog"""
 
-from .base import VideoArchiver
+from videoarchiver.core.base import VideoArchiver
 
 __all__ = ["VideoArchiver"]

@@ -6,11 +6,11 @@ from typing import Dict, Any, Optional, List, Union
 import discord
 from redbot.core import Config
 
-from .config.validation_manager import ValidationManager
-from .config.settings_formatter import SettingsFormatter
-from .config.channel_manager import ChannelManager
-from .config.role_manager import RoleManager
-from .utils.exceptions import ConfigurationError as ConfigError
+from videoarchiver.config.validation_manager import ValidationManager
+from videoarchiver.config.settings_formatter import SettingsFormatter
+from videoarchiver.config.channel_manager import ChannelManager
+from videoarchiver.config.role_manager import RoleManager
+from videoarchiver.utils.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("VideoArchiver")
 

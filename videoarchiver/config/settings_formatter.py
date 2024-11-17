@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from datetime import datetime
 import discord
 
-from .exceptions import ConfigurationError as ConfigError
+from videoarchiver.config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("SettingsFormatter")
 

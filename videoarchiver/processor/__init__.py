@@ -3,8 +3,8 @@
 from typing import Dict, Any, Optional, Union, List, Tuple
 import discord
 
-from .core import VideoProcessor
-from .constants import (
+from videoarchiver.processor.core import VideoProcessor
+from videoarchiver.processor.constants import (
     REACTIONS,
     ReactionType,
     ReactionEmojis,
@@ -12,7 +12,7 @@ from .constants import (
     get_reaction,
     get_progress_emoji
 )
-from .url_extractor import (
+from videoarchiver.processor.url_extractor import (
     URLExtractor,
     URLMetadata,
     URLPattern,
@@ -21,7 +21,7 @@ from .url_extractor import (
     URLValidator,
     URLMetadataExtractor
 )
-from .message_validator import (
+from videoarchiver.processor.message_validator import (
     MessageValidator,
     ValidationContext,
     ValidationRule,
@@ -32,9 +32,9 @@ from .message_validator import (
     ValidationCacheEntry,
     ValidationError
 )
-from .message_handler import MessageHandler
-from .queue_handler import QueueHandler
-from .reactions import (
+from videoarchiver.processor.message_handler import MessageHandler
+from videoarchiver.processor.queue_handler import QueueHandler
+from videoarchiver.processor.reactions import (
     handle_archived_reaction,
     update_queue_position_reaction,
     update_progress_reaction,

@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, List, Set, Dict, Any
 from datetime import datetime, timedelta
 
-from .models import QueueItem
-from .state_manager import QueueStateManager, ItemState
-from .monitoring import QueueMonitor
+from videoarchiver.queue.models import QueueItem
+from videoarchiver.queue.state_manager import QueueStateManager, ItemState
+from videoarchiver.queue.monitoring import QueueMonitor
 
 logger = logging.getLogger("QueueProcessor")
 

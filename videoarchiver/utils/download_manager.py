@@ -9,9 +9,9 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from pathlib import Path
 
-from .verification_manager import VideoVerificationManager
-from .compression_manager import CompressionManager
-from . import progress_tracker
+from videoarchiver.utils.verification_manager import VideoVerificationManager
+from videoarchiver.utils.compression_manager import CompressionManager
+from videoarchiver.utils import progress_tracker
 
 logger = logging.getLogger("DownloadManager")
 

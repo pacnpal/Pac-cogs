@@ -28,21 +28,21 @@ for module in modules_to_reload:
         del sys.modules[module]
 
 # Import and reload utils
-from . import utils
-importlib.reload(utils)
+import videoarchiver.utils
+importlib.reload(videoarchiver.utils)
 
 # Import and reload processor
-from . import processor
-importlib.reload(processor)
+import videoarchiver.processor
+importlib.reload(videoarchiver.processor)
 
 # Import and reload queue
-from . import queue
-importlib.reload(queue)
+import videoarchiver.queue
+importlib.reload(videoarchiver.queue)
 
-from .core.base import VideoArchiver
-from .core.initialization import initialize_cog, init_callback
-from .core.cleanup import cleanup_resources
-from .utils.exceptions import (
+from videoarchiver.core.base import VideoArchiver
+from videoarchiver.core.initialization import initialize_cog, init_callback
+from videoarchiver.core.cleanup import cleanup_resources
+from videoarchiver.utils.exceptions import (
     VideoArchiverError,
     CommandError,
     EventError,
@@ -51,12 +51,12 @@ from .utils.exceptions import (
     ErrorSeverity,
     ProcessingError
 )
-from .database import VideoArchiveDB
-from .ffmpeg import FFmpegManager
-from .queue import EnhancedVideoQueueManager
-from .processor import VideoProcessor
-from .config_manager import ConfigManager
-from .update_checker import UpdateChecker
+from videoarchiver.database import VideoArchiveDB
+from videoarchiver.ffmpeg import FFmpegManager
+from videoarchiver.queue import EnhancedVideoQueueManager
+from videoarchiver.processor import VideoProcessor
+from videoarchiver.config_manager import ConfigManager
+from videoarchiver.update_checker import UpdateChecker
 
 logger = logging.getLogger("VideoArchiver")
 
