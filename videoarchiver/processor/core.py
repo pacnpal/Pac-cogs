@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from .message_handler import MessageHandler
 from .queue_handler import QueueHandler
-from ..utils import progress_tracker
+from videoarchiver.utils import progress_tracker
 from .status_display import StatusDisplay
 from .cleanup_manager import CleanupManager, CleanupStrategy
 from .constants import REACTIONS

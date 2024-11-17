@@ -11,6 +11,8 @@ from redbot.core.bot import Red
 modules_to_reload = [
     'videoarchiver.utils.exceptions',
     'videoarchiver.utils',
+    'videoarchiver.processor',
+    'videoarchiver.processor.core',
     'videoarchiver.core.commands.settings_commands',
     'videoarchiver.core.commands.archiver_commands',
     'videoarchiver.core.commands.database_commands'
@@ -24,6 +26,10 @@ for module in modules_to_reload:
 # Import and reload utils
 from . import utils
 importlib.reload(utils)
+
+# Import and reload processor
+from . import processor
+importlib.reload(processor)
 
 from .core.base import VideoArchiver
 from .core.initialization import initialize_cog, init_callback
