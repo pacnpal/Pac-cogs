@@ -3,7 +3,9 @@
 ## Import Patterns
 
 ### Standard Import Structure
+
 Every non-init Python file should follow this pattern:
+
 ```python
 try:
     # Try relative imports first
@@ -16,7 +18,9 @@ except ImportError:
 ```
 
 ### TYPE_CHECKING Imports
+
 For type checking imports, use:
+
 ```python
 if TYPE_CHECKING:
     try:
@@ -26,7 +30,9 @@ if TYPE_CHECKING:
 ```
 
 ### Package-Level Imports
+
 For package-level imports, use:
+
 ```python
 try:
     from .. import utils
@@ -35,6 +41,7 @@ except ImportError:
 ```
 
 ### Import Rules
+
 1. Always try relative imports first
 2. Provide absolute import fallbacks
 3. Group imports logically:
@@ -49,6 +56,7 @@ except ImportError:
 ## Module Organization
 
 ### Core Module
+
 - Base components and interfaces
 - Core functionality implementation
 - Command handling
@@ -57,6 +65,7 @@ except ImportError:
 - Lifecycle management
 
 ### Database Module
+
 - Database connections
 - Query management
 - Schema definitions
@@ -64,6 +73,7 @@ except ImportError:
 - Migration handling
 
 ### FFmpeg Module
+
 - Process management
 - Binary handling
 - Encoding parameters
@@ -71,6 +81,7 @@ except ImportError:
 - Video analysis
 
 ### Queue Module
+
 - Queue management
 - State tracking
 - Health monitoring
@@ -78,6 +89,7 @@ except ImportError:
 - Cleanup operations
 
 ### Utils Module
+
 - Common utilities
 - File operations
 - Progress tracking
@@ -87,6 +99,7 @@ except ImportError:
 ## Development Patterns
 
 ### Code Organization
+
 - Keep modules focused and cohesive
 - Follow single responsibility principle
 - Use clear and consistent naming
@@ -94,6 +107,7 @@ except ImportError:
 - Implement proper error handling
 
 ### Testing Strategy
+
 - Test in development environment
 - Verify in production environment
 - Check import resolution
@@ -101,6 +115,7 @@ except ImportError:
 - Monitor error handling
 
 ### Error Handling
+
 - Use specific exception types
 - Provide detailed error contexts
 - Implement graceful degradation
@@ -108,6 +123,7 @@ except ImportError:
 - Track error patterns
 
 ### Component Management
+
 - Register components explicitly
 - Track component states
 - Monitor health metrics
@@ -115,6 +131,7 @@ except ImportError:
 - Manage dependencies carefully
 
 ### Documentation
+
 - Maintain clear docstrings
 - Update context files
 - Document patterns and decisions
