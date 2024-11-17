@@ -8,21 +8,16 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-from ..core.types import (
-    IComponent,
-    IConfigManager,
-    IQueueManager,
-    ProcessorState,
-    ComponentStatus,
-)
-from ..processor.constants import REACTIONS
+from ..core.types import ComponentState, ProcessorState, ComponentStatus
+from .constants import REACTIONS
 from ..utils import progress_tracker
 from ..utils.exceptions import ProcessorError
 
 if TYPE_CHECKING:
-    from ..processor.cleanup_manager import CleanupManager
-    from ..processor.message_handler import MessageHandler
-    from ..processor.queue_handler import QueueHandler
+    from .cleanup_manager import CleanupManager
+    from .message_handler import MessageHandler
+    from .queue_handler import QueueHandler
+    from ..core.types import IComponent, IConfigManager, IQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -153,9 +148,9 @@ class VideoProcessor(IComponent):
     def __init__(
         self,
         bot: commands.Bot,
-        config_manager: IConfigManager,
+        config_manager: "IConfigManager",
         components: Dict[int, Dict[str, Any]],
-        queue_manager: Optional[IQueueManager] = None,
+        queue_manager: Optional["IQueueManager"] = None,
         ffmpeg_mgr: Optional[Any] = None,
         db: Optional[Any] = None,
     ) -> None:
@@ -173,9 +168,9 @@ class VideoProcessor(IComponent):
 
         try:
             # Import handlers here to avoid circular imports
-            from ..processor.queue_handler import QueueHandler
-            from ..processor.message_handler import MessageHandler
-            from ..processor.cleanup_manager import CleanupManager, CleanupStrategy
+            from .queue_handler import QueueHandler
+            from .message_handler import MessageHandler
+            from .cleanup_manager import CleanupManager, CleanupStrategy
 
             # Initialize handlers
             self.queue_handler: "QueueHandler" = QueueHandler(bot, config_manager, components)
@@ -201,7 +196,7 @@ class VideoProcessor(IComponent):
             raise ProcessorError(f"Failed to initialize processor: {str(e)}")
 
     @property
-    def state(self) -> ProcessorState:
+    def state(self) -> ComponentState:
         """Get processor state"""
         return self._state
 
@@ -299,7 +294,7 @@ class VideoProcessor(IComponent):
             active_ops = self.operation_tracker.get_active_operations()
 
             # Import StatusDisplay here to avoid circular imports
-            from ..processor.status_display import StatusDisplay
+            from .status_display import StatusDisplay
 
             # Create and send status embed
             embed = await StatusDisplay.create_queue_status_embed(

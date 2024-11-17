@@ -20,7 +20,7 @@ from typing import (
 from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
-    from ..processor.queue_handler import QueueHandler
+    from .queue_handler import QueueHandler
 
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..utils.exceptions import CleanupError

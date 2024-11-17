@@ -10,9 +10,9 @@ import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
 from ..config_manager import ConfigManager
-from ..processor.constants import REACTIONS
-from ..processor.message_validator import MessageValidator, ValidationError
-from ..processor.url_extractor import URLExtractor, URLMetadata
+from .constants import REACTIONS
+from .message_validator import MessageValidator, ValidationError
+from .url_extractor import URLExtractor, URLMetadata
 from ..queue.types import QueuePriority
 from ..utils.exceptions import MessageHandlerError
 
