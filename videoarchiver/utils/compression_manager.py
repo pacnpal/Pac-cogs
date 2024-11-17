@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List, Set, Tuple
 
-from ..processor import _compression_progress
+from ..shared.progress import update_compression_progress
 from ..utils.compression_handler import CompressionHandler
 from ..utils.progress_handler import ProgressHandler
 from ..utils.file_operations import FileOperations
@@ -266,7 +266,7 @@ class CompressionManager:
         duration: float,
     ) -> None:
         """Initialize compression progress tracking"""
-        _compression_progress[input_file] = {
+        progress_data = {
             "active": True,
             "filename": os.path.basename(input_file),
             "start_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
@@ -285,6 +285,7 @@ class CompressionManager:
             "audio_bitrate": params.get("b:a", "unknown"),
             "last_update": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
         }
+        update_compression_progress(input_file, progress_data)
 
     async def _update_progress(
         self,
@@ -301,23 +302,14 @@ class CompressionManager:
             if duration > 0:
                 progress = min(100, (current_time / duration) * 100)
 
-                if input_file in _compression_progress:
-                    elapsed = datetime.utcnow() - start_time
-                    _compression_progress[input_file].update(
-                        {
-                            "percent": progress,
-                            "elapsed_time": str(elapsed).split(".")[0],
-                            "current_size": (
-                                os.path.getsize(output_file)
-                                if os.path.exists(output_file)
-                                else 0
-                            ),
-                            "current_time": current_time,
-                            "last_update": datetime.utcnow().strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            ),
-                        }
-                    )
+                progress_data = {
+                    "percent": progress,
+                    "elapsed_time": str(datetime.utcnow() - start_time).split(".")[0],
+                    "current_size": os.path.getsize(output_file) if os.path.exists(output_file) else 0,
+                    "current_time": current_time,
+                    "last_update": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                update_compression_progress(input_file, progress_data)
 
                 if progress_callback:
                     progress_callback(progress)
