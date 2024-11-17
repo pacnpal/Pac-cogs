@@ -21,9 +21,9 @@ from pathlib import Path
 import importlib
 
 from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-from ..utils.path_manager import ensure_directory
+from ..utils.path_manager import PathManager
 from ..config_manager import ConfigManager
-from ..processor.core import Processor
+from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
@@ -281,7 +281,7 @@ class ComponentManager:
 
     CORE_COMPONENTS: ClassVar[Dict[str, Tuple[Type[Any], Set[str]]]] = {
         "config_manager": (ConfigManager, set()),
-        "processor": (Processor, {"config_manager"}),
+        "processor": (VideoProcessor, {"config_manager"}),
         "queue_manager": (EnhancedVideoQueueManager, {"config_manager"}),
         "ffmpeg_mgr": (FFmpegManager, set()),
     }
@@ -291,6 +291,7 @@ class ComponentManager:
         self._components: Dict[str, Component] = {}
         self.tracker = ComponentTracker()
         self.dependency_manager = DependencyManager()
+        self.path_manager = PathManager()  # Create an instance of PathManager
 
     def register(
         self,
@@ -451,8 +452,8 @@ class ComponentManager:
             download_dir = data_dir / "downloads"
 
             # Ensure directories exist
-            await ensure_directory(data_dir)
-            await ensure_directory(download_dir)
+            await self.path_manager.ensure_directory(data_dir)
+            await self.path_manager.ensure_directory(download_dir)
 
             # Register paths
             self.register("data_path", data_dir)
