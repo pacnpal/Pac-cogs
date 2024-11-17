@@ -4,11 +4,13 @@ from typing import Dict, Any, List, Optional, Union, TypedDict, ClassVar
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from ..utils.exceptions import (
-    ConfigurationError,
-    ErrorContext,
-    ErrorSeverity
-)
+try:
+    # Try relative imports first
+    from ..utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+
 
 class VideoFormat(Enum):
     """Supported video formats"""
