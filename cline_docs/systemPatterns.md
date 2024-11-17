@@ -2,59 +2,121 @@
 
 ## Import Patterns
 
-### Relative Imports
-
-- Use relative imports by default to maintain package structure
-- Single dot (.) for imports from same directory
-- Double dots (..) for imports from parent directory
-- Example: `from .base import VideoArchiver`
-
-### Fallback Import Pattern
-
-When loading in different environments (development vs Red-DiscordBot):
-
+### Standard Import Structure
+Every non-init Python file should follow this pattern:
 ```python
 try:
     # Try relative imports first
-    from ..utils.exceptions import ComponentError
+    from ..module.submodule import Component
+    from .local_module import LocalComponent
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import ComponentError
+    from videoarchiver.module.submodule import Component
+    from videoarchiver.current_module.local_module import LocalComponent
 ```
 
-### Package Structure
+### TYPE_CHECKING Imports
+For type checking imports, use:
+```python
+if TYPE_CHECKING:
+    try:
+        from ..module.component import Component
+    except ImportError:
+        from videoarchiver.module.component import Component
+```
 
-- Each module has __init__.py to mark it as a package
-- Core package imports are kept simple and direct
-- Avoid circular imports by using proper hierarchy
+### Package-Level Imports
+For package-level imports, use:
+```python
+try:
+    from .. import utils
+except ImportError:
+    from videoarchiver import utils
+```
 
-## Component Management
+### Import Rules
+1. Always try relative imports first
+2. Provide absolute import fallbacks
+3. Group imports logically:
+   - Standard library imports first
+   - Third-party imports second
+   - Local/relative imports third
+4. Use explicit imports over wildcard imports
+5. Handle TYPE_CHECKING imports separately
+6. Keep __init__.py files simple with direct imports
+7. Test imports in both development and production environments
 
-- Components are loaded in dependency order
-- Each component is registered and tracked
-- State changes and errors are logged
-- Health checks ensure system stability
+## Module Organization
 
-## Error Handling
+### Core Module
+- Base components and interfaces
+- Core functionality implementation
+- Command handling
+- Event processing
+- Error handling
+- Lifecycle management
 
-- Detailed error contexts are maintained
-- Component errors include severity levels
-- Graceful degradation when possible
-- Clear error messages for debugging
+### Database Module
+- Database connections
+- Query management
+- Schema definitions
+- Data models
+- Migration handling
 
-## Initialization Flow
+### FFmpeg Module
+- Process management
+- Binary handling
+- Encoding parameters
+- GPU detection
+- Video analysis
 
-1. Package imports are resolved
-2. Core components are initialized
-3. Dependencies are checked and ordered
-4. Components are initialized in dependency order
-5. Health checks are established
-6. System enters ready state
+### Queue Module
+- Queue management
+- State tracking
+- Health monitoring
+- Recovery mechanisms
+- Cleanup operations
+
+### Utils Module
+- Common utilities
+- File operations
+- Progress tracking
+- Permission management
+- Message handling
 
 ## Development Patterns
 
-- Always maintain relative imports where possible
-- Use fallback patterns for environment compatibility
-- Keep package structure clean and hierarchical
-- Document import patterns and their rationale
-- Test in both development and production environments
+### Code Organization
+- Keep modules focused and cohesive
+- Follow single responsibility principle
+- Use clear and consistent naming
+- Maintain proper documentation
+- Implement proper error handling
+
+### Testing Strategy
+- Test in development environment
+- Verify in production environment
+- Check import resolution
+- Validate component interactions
+- Monitor error handling
+
+### Error Handling
+- Use specific exception types
+- Provide detailed error contexts
+- Implement graceful degradation
+- Log errors appropriately
+- Track error patterns
+
+### Component Management
+- Register components explicitly
+- Track component states
+- Monitor health metrics
+- Handle cleanup properly
+- Manage dependencies carefully
+
+### Documentation
+- Maintain clear docstrings
+- Update context files
+- Document patterns and decisions
+- Track changes systematically
+- Keep examples current
