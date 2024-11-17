@@ -67,53 +67,59 @@ for module in modules_to_reload:
     if module in sys.modules:
         del sys.modules[module]
 
-# Import and reload utils
-from . import utils
+try:
+    # Try relative imports first
+    from . import utils
+    from . import processor
+    from . import queue
+    from . import ffmpeg
+    from . import database
+    from . import config
+    from . import core
+    from .core.base import VideoArchiver
+    from .core.initialization import initialize_cog, init_callback
+    from .core.cleanup import cleanup_resources
+    from .utils.exceptions import (
+        VideoArchiverError,
+        CommandError,
+        EventError,
+        CogError,
+        ErrorContext,
+        ErrorSeverity,
+        ProcessingError,
+    )
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver import utils
+    from videoarchiver import processor
+    from videoarchiver import queue
+    from videoarchiver import ffmpeg
+    from videoarchiver import database
+    from videoarchiver import config
+    from videoarchiver import core
+    from videoarchiver.core.base import VideoArchiver
+    from videoarchiver.core.initialization import initialize_cog, init_callback
+    from videoarchiver.core.cleanup import cleanup_resources
+    from videoarchiver.utils.exceptions import (
+        VideoArchiverError,
+        CommandError,
+        EventError,
+        CogError,
+        ErrorContext,
+        ErrorSeverity,
+        ProcessingError,
+    )
 
+# Reload all modules
 importlib.reload(utils)
-
-# Import and reload processor
-from . import processor
-
 importlib.reload(processor)
-
-# Import and reload queue
-from . import queue
-
 importlib.reload(queue)
-
-# Import and reload ffmpeg
-from . import ffmpeg
-
 importlib.reload(ffmpeg)
-
-# Import and reload database
-from . import database
-
 importlib.reload(database)
-
-# Import and reload config
-from . import config
-
 importlib.reload(config)
-
-# Import and reload core
-from . import core
-
 importlib.reload(core)
 
-from .core.base import VideoArchiver
-from .core.initialization import initialize_cog, init_callback
-from .core.cleanup import cleanup_resources
-from .utils.exceptions import (
-    VideoArchiverError,
-    CommandError,
-    EventError,
-    CogError,
-    ErrorContext,
-    ErrorSeverity,
-    ProcessingError,
-)
+# Import all submodules
 from .database import *
 from .ffmpeg import *
 from .queue import *
