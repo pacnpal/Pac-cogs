@@ -3,9 +3,16 @@
 import os
 import logging
 from typing import Dict, Any
-from .exceptions import CompressionError, QualityError, BitrateError
+
+try:
+    # Try relative imports first
+    from .exceptions import CompressionError, QualityError, BitrateError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.ffmpeg.exceptions import CompressionError, QualityError, BitrateError
 
 logger = logging.getLogger("VideoArchiver")
+
 
 class EncoderParams:
     """Manages FFmpeg encoding parameters based on hardware and content"""
