@@ -4,10 +4,18 @@ import logging
 from typing import Dict, List, Optional, Tuple
 import discord # type: ignore
 
-from .exceptions import (
-    ConfigurationError as ConfigError,
-    DiscordAPIError,
-)
+try:
+    # Try relative imports first
+    from .exceptions import (
+        ConfigurationError as ConfigError,
+        DiscordAPIError,
+    )
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.config.exceptions import (
+        ConfigurationError as ConfigError,
+        DiscordAPIError,
+    )
 
 logger = logging.getLogger("ChannelManager")
 
@@ -47,8 +55,6 @@ class ChannelManager:
             channel = guild.get_channel(channel_id)
             if channel is None:
                 logger.warning(f"Channel {channel_id} not found in guild {guild.id}")
-                return None
-
                 return None
 
             if not isinstance(channel, discord.TextChannel):
