@@ -16,7 +16,12 @@ import tempfile
 import os
 import shutil
 
-from .utils.exceptions import UpdateError
+try:
+    # Try relative imports first
+    from .utils.exceptions import UpdateError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import UpdateError
 
 logger = logging.getLogger("VideoArchiver")
 
