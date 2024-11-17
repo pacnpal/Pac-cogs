@@ -7,8 +7,8 @@ from typing import Optional, Dict, Any, Set, List, Callable, TypedDict, ClassVar
 from enum import Enum, auto
 from datetime import datetime
 
-from .cleanup import cleanup_resources, force_cleanup_resources
-from ..utils.exceptions import (
+from videoarchiver.core.cleanup import cleanup_resources, force_cleanup_resources
+from videoarchiver.utils.exceptions import (
     VideoArchiverError,
     ErrorContext,
     ErrorSeverity,

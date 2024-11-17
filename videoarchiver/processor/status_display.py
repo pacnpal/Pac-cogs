@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable, TypeVar, Union, TypedDict, ClassVar, Tuple
 import discord
 
-from ..utils.exceptions import DisplayError
+from videoarchiver.utils.exceptions import DisplayError
 
 logger = logging.getLogger("VideoArchiver")
 

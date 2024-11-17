@@ -7,7 +7,7 @@ from datetime import datetime
 import discord
 from redbot.core.commands import Context
 
-from ..utils.exceptions import ErrorSeverity
+from videoarchiver.utils.exceptions import ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 

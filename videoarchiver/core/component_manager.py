@@ -8,16 +8,16 @@ from datetime import datetime
 from pathlib import Path
 import importlib
 
-from ..utils.exceptions import (
+from videoarchiver.utils.exceptions import (
     ComponentError,
     ErrorContext,
     ErrorSeverity
 )
-from ..utils.path_manager import ensure_directory
-from ..config_manager import ConfigManager
-from ..processor.core import Processor
-from ..queue.manager import EnhancedVideoQueueManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.utils.path_manager import ensure_directory
+from videoarchiver.config_manager import ConfigManager
+from videoarchiver.processor.core import Processor
+from videoarchiver.queue.manager import EnhancedVideoQueueManager
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 

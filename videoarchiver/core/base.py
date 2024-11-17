@@ -12,22 +12,22 @@ import discord
 from redbot.core.bot import Red
 from redbot.core.commands import GroupCog, Context
 
-from .settings import Settings
-from .lifecycle import LifecycleManager, LifecycleState
-from .component_manager import ComponentManager, ComponentState
-from .error_handler import error_manager, handle_command_error
-from .response_handler import response_manager
-from .commands.archiver_commands import setup_archiver_commands
-from .commands.database_commands import setup_database_commands
-from .commands.settings_commands import setup_settings_commands
-from .events import setup_events, EventManager
+from videoarchiver.core.settings import Settings
+from videoarchiver.core.lifecycle import LifecycleManager, LifecycleState
+from videoarchiver.core.component_manager import ComponentManager, ComponentState
+from videoarchiver.core.error_handler import error_manager, handle_command_error
+from videoarchiver.core.response_handler import response_manager
+from videoarchiver.core.commands.archiver_commands import setup_archiver_commands
+from videoarchiver.core.commands.database_commands import setup_database_commands
+from videoarchiver.core.commands.settings_commands import setup_settings_commands
+from videoarchiver.core.events import setup_events, EventManager
 
-from ..processor.core import Processor
-from ..queue.manager import QueueManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
-from ..database.video_archive_db import VideoArchiveDB
-from ..config_manager import ConfigManager
-from ..utils.exceptions import (
+from videoarchiver.processor.core import Processor
+from videoarchiver.queue.manager import QueueManager
+from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from videoarchiver.database.video_archive_db import VideoArchiveDB
+from videoarchiver.config_manager import ConfigManager
+from videoarchiver.utils.exceptions import (
     CogError,
     ErrorContext,
     ErrorSeverity
