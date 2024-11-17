@@ -6,13 +6,23 @@ from typing import Dict, Any, Optional, List, Union
 import discord # type: ignore
 from redbot.core import Config # type: ignore
 
-from .config.validation_manager import ValidationManager
-from .config.settings_formatter import SettingsFormatter
-from .config.channel_manager import ChannelManager
-from .config.role_manager import RoleManager
-from .utils.exceptions import ConfigurationError as ConfigError
+try:
+    # Try relative imports first
+    from .config.validation_manager import ValidationManager
+    from .config.settings_formatter import SettingsFormatter
+    from .config.channel_manager import ChannelManager
+    from .config.role_manager import RoleManager
+    from .utils.exceptions import ConfigurationError as ConfigError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.config.validation_manager import ValidationManager
+    from videoarchiver.config.settings_formatter import SettingsFormatter
+    from videoarchiver.config.channel_manager import ChannelManager
+    from videoarchiver.config.role_manager import RoleManager
+    from videoarchiver.utils.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("VideoArchiver")
+
 
 class ConfigManager:
     """Manages guild configurations for VideoArchiver"""
