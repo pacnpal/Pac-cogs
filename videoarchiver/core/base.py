@@ -8,42 +8,42 @@ from typing import Dict, Any, Optional, TypedDict, ClassVar, List, Set, Union
 from datetime import datetime
 from pathlib import Path
 
-import discord # type: ignore
-from redbot.core.bot import Red # type: ignore
-from redbot.core.commands import GroupCog, Context # type: ignore
+import discord  # type: ignore
+from redbot.core.bot import Red  # type: ignore
+from redbot.core.commands import GroupCog, Context  # type: ignore
 
 from .settings import Settings
 from .lifecycle import LifecycleManager, LifecycleState
 from .component_manager import ComponentManager, ComponentState
 from .error_handler import error_manager, handle_command_error
-from .response_handler import response_manager
+from .response_handler import ResponseManager
 from .commands.archiver_commands import setup_archiver_commands
 from .commands.database_commands import setup_database_commands
 from .commands.settings_commands import setup_settings_commands
 from .events import setup_events, EventManager
 
-from ..processor.core import Processor
-from ..queue.manager import QueueManager
+from ..processor.core import VideoProcessor
+from ..queue.manager import EnhancedVideoQueueManager
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..database.video_archive_db import VideoArchiveDB
 from ..config_manager import ConfigManager
-from ..utils.exceptions import (
-    CogError,
-    ErrorContext,
-    ErrorSeverity
-)
+from ..utils.exceptions import CogError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class CogHealthCheck(TypedDict):
     """Type definition for health check status"""
+
     name: str
     status: bool
     last_check: str
     details: Optional[Dict[str, Any]]
 
+
 class CogStatus(TypedDict):
     """Type definition for cog status"""
+
     uptime: float
     last_error: Optional[str]
     error_count: int
@@ -52,6 +52,7 @@ class CogStatus(TypedDict):
     health_checks: Dict[str, CogHealthCheck]
     state: str
     ready: bool
+
 
 class StatusTracker:
     """Tracks cog status and health"""
@@ -78,17 +79,14 @@ class StatusTracker:
         self.last_command_time = datetime.utcnow()
 
     def update_health_check(
-        self,
-        name: str,
-        status: bool,
-        details: Optional[Dict[str, Any]] = None
+        self, name: str, status: bool, details: Optional[Dict[str, Any]] = None
     ) -> None:
         """Update health check status"""
         self.health_checks[name] = CogHealthCheck(
             name=name,
             status=status,
             last_check=datetime.utcnow().isoformat(),
-            details=details
+            details=details,
         )
 
     def get_status(self) -> CogStatus:
@@ -98,10 +96,12 @@ class StatusTracker:
             last_error=self.last_error,
             error_count=self.error_count,
             command_count=self.command_count,
-            last_command=self.last_command_time.isoformat() if self.last_command_time else None,
+            last_command=(
+                self.last_command_time.isoformat() if self.last_command_time else None
+            ),
             health_checks=self.health_checks.copy(),
             state="healthy" if self.is_healthy() else "unhealthy",
-            ready=True
+            ready=True,
         )
 
     def is_healthy(self) -> bool:
@@ -109,6 +109,7 @@ class StatusTracker:
         if self.error_count > self.ERROR_THRESHOLD:
             return False
         return all(check["status"] for check in self.health_checks.values())
+
 
 class ComponentAccessor:
     """Provides safe access to components"""
@@ -119,10 +120,10 @@ class ComponentAccessor:
     def get_component(self, name: str) -> Optional[Any]:
         """
         Get a component with state validation.
-        
+
         Args:
             name: Component name
-            
+
         Returns:
             Component instance if ready, None otherwise
         """
@@ -134,14 +135,15 @@ class ComponentAccessor:
     def get_component_status(self, name: str) -> Dict[str, Any]:
         """
         Get component status.
-        
+
         Args:
             name: Component name
-            
+
         Returns:
             Component status dictionary
         """
         return self._component_manager.get_component_status().get(name, {})
+
 
 class VideoArchiver(GroupCog, Settings):
     """Archive videos from Discord channels"""
@@ -151,7 +153,7 @@ class VideoArchiver(GroupCog, Settings):
         super().__init__()
         self.bot = bot
         self.ready = asyncio.Event()
-        
+
         # Initialize managers
         self.lifecycle_manager = LifecycleManager(self)
         self.component_manager = ComponentManager(self)
@@ -164,7 +166,7 @@ class VideoArchiver(GroupCog, Settings):
         self._cleanup_task: Optional[asyncio.Task] = None
         self._queue_task: Optional[asyncio.Task] = None
         self._health_tasks: Set[asyncio.Task] = set()
-        
+
         # Initialize component storage
         self.components: Dict[int, Dict[str, Any]] = {}
         self.update_checker = None
@@ -184,7 +186,7 @@ class VideoArchiver(GroupCog, Settings):
     async def cog_load(self) -> None:
         """
         Handle cog loading.
-        
+
         Raises:
             CogError: If loading fails
         """
@@ -198,17 +200,14 @@ class VideoArchiver(GroupCog, Settings):
             raise CogError(
                 error,
                 context=ErrorContext(
-                    "VideoArchiver",
-                    "cog_load",
-                    None,
-                    ErrorSeverity.CRITICAL
-                )
+                    "VideoArchiver", "cog_load", None, ErrorSeverity.CRITICAL
+                ),
             )
 
     async def cog_unload(self) -> None:
         """
         Handle cog unloading.
-        
+
         Raises:
             CogError: If unloading fails
         """
@@ -226,18 +225,11 @@ class VideoArchiver(GroupCog, Settings):
             raise CogError(
                 error,
                 context=ErrorContext(
-                    "VideoArchiver",
-                    "cog_unload",
-                    None,
-                    ErrorSeverity.CRITICAL
-                )
+                    "VideoArchiver", "cog_unload", None, ErrorSeverity.CRITICAL
+                ),
             )
 
-    async def cog_command_error(
-        self,
-        ctx: Context,
-        error: Exception
-    ) -> None:
+    async def cog_command_error(self, ctx: Context, error: Exception) -> None:
         """Handle command errors"""
         self.status_tracker.record_error(str(error))
         await handle_command_error(ctx, error)
@@ -249,12 +241,8 @@ class VideoArchiver(GroupCog, Settings):
 
     async def _start_health_monitoring(self) -> None:
         """Start health monitoring tasks"""
-        self._health_tasks.add(
-            asyncio.create_task(self._monitor_component_health())
-        )
-        self._health_tasks.add(
-            asyncio.create_task(self._monitor_system_health())
-        )
+        self._health_tasks.add(asyncio.create_task(self._monitor_component_health()))
+        self._health_tasks.add(asyncio.create_task(self._monitor_system_health()))
 
     async def _monitor_component_health(self) -> None:
         """Monitor component health"""
@@ -265,7 +253,7 @@ class VideoArchiver(GroupCog, Settings):
                     self.status_tracker.update_health_check(
                         f"component_{name}",
                         status["state"] == ComponentState.READY.name,
-                        status
+                        status,
                     )
             except Exception as e:
                 logger.error(f"Error monitoring component health: {e}", exc_info=True)
@@ -281,34 +269,28 @@ class VideoArchiver(GroupCog, Settings):
                     self.status_tracker.update_health_check(
                         "queue_health",
                         queue_status["active"] and not queue_status["stalled"],
-                        queue_status
+                        queue_status,
                     )
 
                 # Check processor health
                 if processor := self.processor:
                     processor_status = await processor.get_status()
                     self.status_tracker.update_health_check(
-                        "processor_health",
-                        processor_status["active"],
-                        processor_status
+                        "processor_health", processor_status["active"], processor_status
                     )
 
                 # Check database health
                 if db := self.db:
                     db_status = await db.get_status()
                     self.status_tracker.update_health_check(
-                        "database_health",
-                        db_status["connected"],
-                        db_status
+                        "database_health", db_status["connected"], db_status
                     )
 
                 # Check event system health
                 if self.event_manager:
                     event_stats = self.event_manager.get_stats()
                     self.status_tracker.update_health_check(
-                        "event_health",
-                        event_stats["health"],
-                        event_stats
+                        "event_health", event_stats["health"], event_stats
                     )
 
             except Exception as e:
@@ -334,7 +316,7 @@ class VideoArchiver(GroupCog, Settings):
     def get_status(self) -> Dict[str, Any]:
         """
         Get comprehensive cog status.
-        
+
         Returns:
             Dictionary containing cog status information
         """
@@ -343,17 +325,17 @@ class VideoArchiver(GroupCog, Settings):
             "lifecycle": self.lifecycle_manager.get_status(),
             "components": self.component_manager.get_component_status(),
             "errors": error_manager.tracker.get_error_stats(),
-            "events": self.event_manager.get_stats() if self.event_manager else None
+            "events": self.event_manager.get_stats() if self.event_manager else None,
         }
 
     # Component property accessors
     @property
-    def processor(self) -> Optional[Processor]:
+    def processor(self) -> Optional[VideoProcessor]:
         """Get the processor component"""
         return self.component_accessor.get_component("processor")
 
     @property
-    def queue_manager(self) -> Optional[QueueManager]:
+    def queue_manager(self) -> Optional[EnhancedVideoQueueManager]:
         """Get the queue manager component"""
         return self.component_accessor.get_component("queue_manager")
 

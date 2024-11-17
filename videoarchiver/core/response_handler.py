@@ -4,15 +4,17 @@ import logging
 from enum import Enum, auto
 from typing import Optional, Union, Dict, Any, TypedDict, ClassVar
 from datetime import datetime
-import discord # type: ignore
-from redbot.core.commands import Context # type: ignore
+import discord  # type: ignore
+from redbot.core.commands import Context  # type: ignore
 
 from ..utils.exceptions import ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class ResponseType(Enum):
     """Types of responses"""
+
     NORMAL = auto()
     SUCCESS = auto()
     ERROR = auto()
@@ -20,16 +22,21 @@ class ResponseType(Enum):
     INFO = auto()
     DEBUG = auto()
 
+
 class ResponseTheme(TypedDict):
     """Type definition for response theme"""
+
     emoji: str
     color: discord.Color
 
+
 class ResponseFormat(TypedDict):
     """Type definition for formatted response"""
+
     content: str
     color: discord.Color
     timestamp: str
+
 
 class ResponseFormatter:
     """Formats responses for consistency"""
@@ -39,29 +46,27 @@ class ResponseFormatter:
         ResponseType.ERROR: ResponseTheme(emoji="❌", color=discord.Color.red()),
         ResponseType.WARNING: ResponseTheme(emoji="⚠️", color=discord.Color.gold()),
         ResponseType.INFO: ResponseTheme(emoji="ℹ️", color=discord.Color.blue()),
-        ResponseType.DEBUG: ResponseTheme(emoji="🔧", color=discord.Color.greyple())
+        ResponseType.DEBUG: ResponseTheme(emoji="🔧", color=discord.Color.greyple()),
     }
 
     SEVERITY_MAPPING: ClassVar[Dict[ErrorSeverity, ResponseType]] = {
         ErrorSeverity.LOW: ResponseType.INFO,
         ErrorSeverity.MEDIUM: ResponseType.WARNING,
         ErrorSeverity.HIGH: ResponseType.ERROR,
-        ErrorSeverity.CRITICAL: ResponseType.ERROR
+        ErrorSeverity.CRITICAL: ResponseType.ERROR,
     }
 
     @classmethod
     def format_response(
-        cls,
-        message: str,
-        response_type: ResponseType = ResponseType.NORMAL
+        cls, message: str, response_type: ResponseType = ResponseType.NORMAL
     ) -> ResponseFormat:
         """
         Format a response message.
-        
+
         Args:
             message: Message to format
             response_type: Type of response
-            
+
         Returns:
             Formatted response dictionary
         """
@@ -69,27 +74,28 @@ class ResponseFormatter:
         if theme:
             return ResponseFormat(
                 content=f"{theme['emoji']} {message}",
-                color=theme['color'],
-                timestamp=datetime.utcnow().isoformat()
+                color=theme["color"],
+                timestamp=datetime.utcnow().isoformat(),
             )
         return ResponseFormat(
             content=message,
             color=discord.Color.default(),
-            timestamp=datetime.utcnow().isoformat()
+            timestamp=datetime.utcnow().isoformat(),
         )
 
     @classmethod
     def get_response_type(cls, severity: ErrorSeverity) -> ResponseType:
         """
         Get response type for error severity.
-        
+
         Args:
             severity: Error severity level
-            
+
         Returns:
             Appropriate response type
         """
         return cls.SEVERITY_MAPPING.get(severity, ResponseType.ERROR)
+
 
 class InteractionHandler:
     """Handles slash command interactions"""
@@ -98,45 +104,49 @@ class InteractionHandler:
         self,
         interaction: discord.Interaction,
         content: Optional[str] = None,
-        embed: Optional[discord.Embed] = None
+        embed: Optional[discord.Embed] = None,
     ) -> bool:
         """
         Send initial interaction response.
-        
+
         Args:
             interaction: Discord interaction
             content: Optional message content
             embed: Optional embed
-            
+
         Returns:
             True if response was sent successfully
         """
         try:
             if not interaction.response.is_done():
                 if embed:
-                    await interaction.response.send_message(content=content, embed=embed)
+                    await interaction.response.send_message(
+                        content=content, embed=embed
+                    )
                 else:
                     await interaction.response.send_message(content=content)
                 return True
             return False
         except Exception as e:
-            logger.error(f"Error sending initial interaction response: {e}", exc_info=True)
+            logger.error(
+                f"Error sending initial interaction response: {e}", exc_info=True
+            )
             return False
 
     async def send_followup(
         self,
         interaction: discord.Interaction,
         content: Optional[str] = None,
-        embed: Optional[discord.Embed] = None
+        embed: Optional[discord.Embed] = None,
     ) -> bool:
         """
         Send interaction followup.
-        
+
         Args:
             interaction: Discord interaction
             content: Optional message content
             embed: Optional embed
-            
+
         Returns:
             True if followup was sent successfully
         """
@@ -150,6 +160,7 @@ class InteractionHandler:
             logger.error(f"Error sending interaction followup: {e}", exc_info=True)
             return False
 
+
 class ResponseManager:
     """Manages command responses"""
 
@@ -162,11 +173,11 @@ class ResponseManager:
         ctx: Context,
         content: Optional[str] = None,
         embed: Optional[discord.Embed] = None,
-        response_type: Union[ResponseType, str, ErrorSeverity] = ResponseType.NORMAL
+        response_type: Union[ResponseType, str, ErrorSeverity] = ResponseType.NORMAL,
     ) -> None:
         """
         Send a response to a command.
-        
+
         Args:
             ctx: Command context
             content: Optional message content
@@ -191,7 +202,7 @@ class ResponseManager:
                 if not embed:
                     embed = discord.Embed(
                         color=formatted["color"],
-                        timestamp=datetime.fromisoformat(formatted["timestamp"])
+                        timestamp=datetime.fromisoformat(formatted["timestamp"]),
                     )
 
             # Handle response
@@ -209,10 +220,7 @@ class ResponseManager:
         return hasattr(ctx, "interaction") and ctx.interaction is not None
 
     async def _handle_interaction_response(
-        self,
-        ctx: Context,
-        content: Optional[str],
-        embed: Optional[discord.Embed]
+        self, ctx: Context, content: Optional[str], embed: Optional[discord.Embed]
     ) -> None:
         """Handle interaction response"""
         try:
@@ -236,10 +244,7 @@ class ResponseManager:
             await self._send_fallback_response(ctx, content, embed)
 
     async def _handle_regular_response(
-        self,
-        ctx: Context,
-        content: Optional[str],
-        embed: Optional[discord.Embed]
+        self, ctx: Context, content: Optional[str], embed: Optional[discord.Embed]
     ) -> None:
         """Handle regular command response"""
         try:
@@ -252,10 +257,7 @@ class ResponseManager:
             await self._send_fallback_response(ctx, content, embed)
 
     async def _send_fallback_response(
-        self,
-        ctx: Context,
-        content: Optional[str],
-        embed: Optional[discord.Embed]
+        self, ctx: Context, content: Optional[str], embed: Optional[discord.Embed]
     ) -> None:
         """Send fallback response when other methods fail"""
         try:
@@ -266,18 +268,20 @@ class ResponseManager:
         except Exception as e:
             logger.error(f"Failed to send fallback response: {e}", exc_info=True)
 
+
 # Global response manager instance
 response_manager = ResponseManager()
+
 
 async def handle_response(
     ctx: Context,
     content: Optional[str] = None,
     embed: Optional[discord.Embed] = None,
-    response_type: Union[ResponseType, str, ErrorSeverity] = ResponseType.NORMAL
+    response_type: Union[ResponseType, str, ErrorSeverity] = ResponseType.NORMAL,
 ) -> None:
     """
     Helper function to handle responses using the response manager.
-    
+
     Args:
         ctx: Command context
         content: Optional message content
