@@ -14,26 +14,50 @@ from redbot.core.commands import ( # type: ignore
     CommandError
 )
 
-from ..utils.exceptions import (
-    VideoArchiverError,
-    ErrorSeverity,
-    ErrorContext,
-    ProcessorError,
-    ValidationError,
-    DisplayError,
-    URLExtractionError,
-    MessageHandlerError,
-    QueueHandlerError,
-    QueueProcessorError,
-    FFmpegError,
-    DatabaseError,
-    HealthCheckError,
-    TrackingError,
-    NetworkError,
-    ResourceExhaustedError,
-    ConfigurationError
-)
-from ..core.response_handler import response_manager
+try:
+    # Try relative imports first
+    from ..utils.exceptions import (
+        VideoArchiverError,
+        ErrorSeverity,
+        ErrorContext,
+        ProcessorError,
+        ValidationError,
+        DisplayError,
+        URLExtractionError,
+        MessageHandlerError,
+        QueueHandlerError,
+        QueueProcessorError,
+        FFmpegError,
+        DatabaseError,
+        HealthCheckError,
+        TrackingError,
+        NetworkError,
+        ResourceExhaustedError,
+        ConfigurationError
+    )
+    from ..core.response_handler import response_manager
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import (
+        VideoArchiverError,
+        ErrorSeverity,
+        ErrorContext,
+        ProcessorError,
+        ValidationError,
+        DisplayError,
+        URLExtractionError,
+        MessageHandlerError,
+        QueueHandlerError,
+        QueueProcessorError,
+        FFmpegError,
+        DatabaseError,
+        HealthCheckError,
+        TrackingError,
+        NetworkError,
+        ResourceExhaustedError,
+        ConfigurationError
+    )
+    from videoarchiver.core.response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 
