@@ -13,6 +13,10 @@ modules_to_reload = [
     'videoarchiver.utils',
     'videoarchiver.processor',
     'videoarchiver.processor.core',
+    'videoarchiver.processor.queue_processor',
+    'videoarchiver.queue',
+    'videoarchiver.queue.models',
+    'videoarchiver.queue.manager',
     'videoarchiver.core.commands.settings_commands',
     'videoarchiver.core.commands.archiver_commands',
     'videoarchiver.core.commands.database_commands'
@@ -30,6 +34,10 @@ importlib.reload(utils)
 # Import and reload processor
 from . import processor
 importlib.reload(processor)
+
+# Import and reload queue
+from . import queue
+importlib.reload(queue)
 
 from .core.base import VideoArchiver
 from .core.initialization import initialize_cog, init_callback
