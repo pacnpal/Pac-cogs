@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from enum import auto, Enum
-from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, TypedDict
+from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, TypedDict, TYPE_CHECKING
 
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
@@ -14,8 +14,10 @@ from ..processor.constants import REACTIONS
 from ..processor.message_validator import MessageValidator, ValidationError
 from ..processor.url_extractor import URLExtractor, URLMetadata
 from ..queue.types import QueuePriority
-from ..queue.manager import EnhancedVideoQueueManager
 from ..utils.exceptions import MessageHandlerError
+
+if TYPE_CHECKING:
+    from ..queue.manager import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -207,7 +209,7 @@ class MessageHandler:
         self,
         bot: discord.Client,
         config_manager: ConfigManager,
-        queue_manager: EnhancedVideoQueueManager,
+        queue_manager: "EnhancedVideoQueueManager",
     ) -> None:
         self.bot = bot
         self.config_manager = config_manager

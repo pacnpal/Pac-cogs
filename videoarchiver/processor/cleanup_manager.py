@@ -15,10 +15,13 @@ from typing import (
     Callable,
     Awaitable,
     Tuple,
+    TYPE_CHECKING,
 )
 from datetime import datetime, timedelta
 
-from ..processor.queue_handler import QueueHandler
+if TYPE_CHECKING:
+    from ..processor.queue_handler import QueueHandler
+
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..utils.exceptions import CleanupError
 
@@ -192,7 +195,7 @@ class CleanupManager:
 
     def __init__(
         self,
-        queue_handler: QueueHandler,
+        queue_handler: "QueueHandler",
         ffmpeg_mgr: Optional[FFmpegManager] = None,
         strategy: CleanupStrategy = CleanupStrategy.NORMAL,
     ) -> None:

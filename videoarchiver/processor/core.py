@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
@@ -15,13 +15,14 @@ from ..core.types import (
     ProcessorState,
     ComponentStatus,
 )
-from ..processor.cleanup_manager import CleanupManager, CleanupStrategy
 from ..processor.constants import REACTIONS
-from ..processor.message_handler import MessageHandler
-from ..processor.queue_handler import QueueHandler
-from ..processor.status_display import StatusDisplay
 from ..utils import progress_tracker
 from ..utils.exceptions import ProcessorError
+
+if TYPE_CHECKING:
+    from ..processor.cleanup_manager import CleanupManager
+    from ..processor.message_handler import MessageHandler
+    from ..processor.queue_handler import QueueHandler
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -171,10 +172,15 @@ class VideoProcessor(IComponent):
         self.health_monitor = HealthMonitor(self)
 
         try:
+            # Import handlers here to avoid circular imports
+            from ..processor.queue_handler import QueueHandler
+            from ..processor.message_handler import MessageHandler
+            from ..processor.cleanup_manager import CleanupManager, CleanupStrategy
+
             # Initialize handlers
-            self.queue_handler = QueueHandler(bot, config_manager, components)
-            self.message_handler = MessageHandler(bot, config_manager, queue_manager)
-            self.cleanup_manager = CleanupManager(
+            self.queue_handler: "QueueHandler" = QueueHandler(bot, config_manager, components)
+            self.message_handler: "MessageHandler" = MessageHandler(bot, config_manager, queue_manager)
+            self.cleanup_manager: "CleanupManager" = CleanupManager(
                 self.queue_handler, ffmpeg_mgr, CleanupStrategy.NORMAL
             )
 
@@ -291,6 +297,9 @@ class VideoProcessor(IComponent):
 
             # Get active operations
             active_ops = self.operation_tracker.get_active_operations()
+
+            # Import StatusDisplay here to avoid circular imports
+            from ..processor.status_display import StatusDisplay
 
             # Create and send status embed
             embed = await StatusDisplay.create_queue_status_embed(

@@ -1,6 +1,7 @@
 """Enhanced queue manager for video processing"""
 
 import asyncio
+from enum import Enum
 import logging
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List, Set, Callable

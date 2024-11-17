@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, C
 from datetime import datetime
 import discord  # type: ignore
 
-from ..utils import progress_tracker
+from .. import utils  # Import the utils package
 from ..database.video_archive_db import VideoArchiveDB
 from ..utils.download_manager import DownloadManager
 from ..utils.message_manager import MessageManager
@@ -378,7 +378,7 @@ class QueueHandler:
                         return
 
                     # Update progress tracking
-                    progress_tracker.update_download_progress(
+                    utils.progress_tracker.update_download_progress(
                         url,
                         {
                             "percent": progress,
@@ -425,9 +425,9 @@ class QueueHandler:
                 download_task, timeout=self.DOWNLOAD_TIMEOUT
             )
             if success:
-                progress_tracker.complete_download(url)
+                utils.progress_tracker.complete_download(url)
             else:
-                progress_tracker.increment_download_retries(url)
+                utils.progress_tracker.increment_download_retries(url)
             return success, file_path, error
 
         except asyncio.TimeoutError:
