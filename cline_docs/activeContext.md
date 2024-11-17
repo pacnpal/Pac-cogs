@@ -12,6 +12,7 @@
 - Simplified relative import in core/__init__.py to use correct package structure
 - Added fallback to absolute imports in queue_processor.py for consistent import handling
 - Added fallback to absolute imports in message_handler.py with TYPE_CHECKING support
+- Added fallback to absolute imports in queue_handler.py with package-level imports
 - Imports are now more resilient while maintaining relative import patterns
 
 ## Active Files
@@ -20,6 +21,7 @@
 - videoarchiver/core/__init__.py
 - videoarchiver/processor/queue_processor.py
 - videoarchiver/processor/message_handler.py
+- videoarchiver/processor/queue_handler.py
 - videoarchiver/processor/__init__.py
 
 ## Next Steps
@@ -28,4 +30,4 @@
 - Verify imports work in both development and production environments
 - Apply similar import pattern updates to other modules if similar issues arise
 - Continue to maintain consistent import patterns across the codebase
-- Pay special attention to TYPE_CHECKING imports in other modules
+- Pay special attention to package-level imports like 'from .. import utils'
