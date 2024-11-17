@@ -4,9 +4,15 @@ import logging
 from typing import Dict, List, Set, Tuple, Optional, Any
 import discord # type: ignore
 
-from .exceptions import ConfigurationError as ConfigError
+try:
+    # Try relative imports first
+    from .exceptions import ConfigurationError as ConfigError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("RoleManager")
+
 
 class RoleManager:
     """Manages Discord role configurations"""
