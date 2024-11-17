@@ -114,6 +114,14 @@ from .processor import VideoProcessor
 from .config_manager import ConfigManager
 from .update_checker import UpdateChecker
 
+# Additional imports from subdirectories
+from .queue.cleaners import QueueCleaner
+from .queue import QueueStateManager, QueueMetricsManager, QueueProcessor
+from .ffmpeg import BinaryManager, EncoderParams, GPUDetector, ProcessManager
+from .database import DatabaseConnectionManager, DatabaseQueryManager, DatabaseSchemaManager
+from .processor import CleanupManager, MessageHandler, QueueProcessor
+from .utils import CompressionManager, DirectoryManager, DownloadManager, FileOperations
+
 logger = logging.getLogger("VideoArchiver")
 
 # Track initialization task
@@ -177,6 +185,23 @@ __all__ = [
     "VideoProcessor",
     "ConfigManager",
     "UpdateChecker",
+    "QueueCleaner",
+    "QueueStateManager",
+    "QueueMetricsManager",
+    "QueueProcessor",
+    "BinaryManager",
+    "EncoderParams",
+    "GPUDetector",
+    "ProcessManager",
+    "DatabaseConnectionManager",
+    "DatabaseQueryManager",
+    "DatabaseSchemaManager",
+    "CleanupManager",
+    "MessageHandler",
+    "CompressionManager",
+    "DirectoryManager",
+    "DownloadManager",
+    "FileOperations",
     
     # Base exceptions
     "VideoArchiverError",
