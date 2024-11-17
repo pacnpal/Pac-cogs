@@ -8,14 +8,26 @@ from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, C
 from datetime import datetime
 import discord  # type: ignore
 
-from .. import utils  # Import the utils package
-from ..database.video_archive_db import VideoArchiveDB
-from ..utils.download_manager import DownloadManager
-from ..utils.message_manager import MessageManager
-from ..utils.exceptions import QueueHandlerError
-from ..queue.models import QueueItem
-from ..config_manager import ConfigManager
-from .constants import REACTIONS
+try:
+    # Try relative imports first
+    from .. import utils
+    from ..database.video_archive_db import VideoArchiveDB
+    from ..utils.download_manager import DownloadManager
+    from ..utils.message_manager import MessageManager
+    from ..utils.exceptions import QueueHandlerError
+    from ..queue.models import QueueItem
+    from ..config_manager import ConfigManager
+    from .constants import REACTIONS
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver import utils
+    from videoarchiver.database.video_archive_db import VideoArchiveDB
+    from videoarchiver.utils.download_manager import DownloadManager
+    from videoarchiver.utils.message_manager import MessageManager
+    from videoarchiver.utils.exceptions import QueueHandlerError
+    from videoarchiver.queue.models import QueueItem
+    from videoarchiver.config_manager import ConfigManager
+    from videoarchiver.processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 
