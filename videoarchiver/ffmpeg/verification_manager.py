@@ -6,14 +6,25 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .exceptions import (
-    TimeoutError,
-    VerificationError,
-    EncodingError,
-    handle_ffmpeg_error
-)
+try:
+    # Try relative imports first
+    from .exceptions import (
+        TimeoutError,
+        VerificationError,
+        EncodingError,
+        handle_ffmpeg_error
+    )
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.ffmpeg.exceptions import (
+        TimeoutError,
+        VerificationError,
+        EncodingError,
+        handle_ffmpeg_error
+    )
 
 logger = logging.getLogger("FFmpegVerification")
+
 
 class VerificationManager:
     """Handles verification of FFmpeg functionality"""
