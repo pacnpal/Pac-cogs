@@ -3,7 +3,6 @@
 from .processor import (
     VideoProcessor,
     REACTIONS,
-    ProgressTracker,
     MessageHandler,
     QueueHandler
 )
@@ -11,7 +10,6 @@ from .processor import (
 __all__ = [
     'VideoProcessor',
     'REACTIONS',
-    'ProgressTracker',
     'MessageHandler',
     'QueueHandler'
 ]
