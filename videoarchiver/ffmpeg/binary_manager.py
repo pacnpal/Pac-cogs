@@ -5,17 +5,31 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 
-from .exceptions import (
-    FFmpegError,
-    DownloadError,
-    VerificationError,
-    PermissionError,
-    FFmpegNotFoundError
-)
-from .ffmpeg_downloader import FFmpegDownloader
-from .verification_manager import VerificationManager
+try:
+    # Try relative imports first
+    from .exceptions import (
+        FFmpegError,
+        DownloadError,
+        VerificationError,
+        PermissionError,
+        FFmpegNotFoundError
+    )
+    from .ffmpeg_downloader import FFmpegDownloader
+    from .verification_manager import VerificationManager
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.ffmpeg.exceptions import (
+        FFmpegError,
+        DownloadError,
+        VerificationError,
+        PermissionError,
+        FFmpegNotFoundError
+    )
+    from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
+    from videoarchiver.ffmpeg.verification_manager import VerificationManager
 
 logger = logging.getLogger("FFmpegBinaryManager")
+
 
 class BinaryManager:
     """Manages FFmpeg binary files and their lifecycle"""
