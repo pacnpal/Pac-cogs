@@ -6,7 +6,10 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .base import VideoArchiver
+    try:
+        from .base import VideoArchiver
+    except ImportError:
+        from videoarchiver.core.base import VideoArchiver
 
 def setup_commands(cog: "VideoArchiver") -> None:
     """Command setup is now handled in the VideoArchiver class"""
