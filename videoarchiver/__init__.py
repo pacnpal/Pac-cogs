@@ -125,8 +125,6 @@ from .database import *
 from .utils import *
 from .core import *
 from .config import *
-from config_manager import *
-from update_checker import *
 
 logger = logging.getLogger("VideoArchiver")
 
