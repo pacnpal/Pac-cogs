@@ -3,8 +3,8 @@
 from typing import Dict, Any, Optional, Union, List, Tuple
 import discord # type: ignore
 
-from ..processor.core import VideoProcessor
-from ..processor.constants import (
+from .core import VideoProcessor
+from .constants import (
     REACTIONS,
     ReactionType,
     ReactionEmojis,
@@ -12,7 +12,7 @@ from ..processor.constants import (
     get_reaction,
     get_progress_emoji,
 )
-from ..processor.url_extractor import (
+from .url_extractor import (
     URLExtractor,
     URLMetadata,
     URLPattern,
@@ -21,7 +21,7 @@ from ..processor.url_extractor import (
     URLValidator,
     URLMetadataExtractor,
 )
-from ..processor.message_validator import (
+from .message_validator import (
     MessageValidator,
     ValidationContext,
     ValidationRule,
@@ -32,9 +32,9 @@ from ..processor.message_validator import (
     ValidationCacheEntry,
     ValidationError,
 )
-from ..processor.message_handler import MessageHandler
-from ..processor.queue_handler import QueueHandler
-from ..processor.reactions import (
+from .message_handler import MessageHandler
+from .queue_handler import QueueHandler
+from .reactions import (
     handle_archived_reaction,
     update_queue_position_reaction,
     update_progress_reaction,
