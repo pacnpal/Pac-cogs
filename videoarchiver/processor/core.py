@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from .message_handler import MessageHandler
 from .queue_handler import QueueHandler
-from ..utils.progress_tracker import ProgressTracker
+from ..utils import progress_tracker
 from .status_display import StatusDisplay
 from .cleanup_manager import CleanupManager, CleanupStrategy
 from .constants import REACTIONS
@@ -196,7 +196,7 @@ class HealthMonitor:
                 self.health_status.update({
                     "queue_handler": self.processor.queue_handler.is_healthy(),
                     "message_handler": self.processor.message_handler.is_healthy(),
-                    "progress_tracker": self.processor.progress_tracker.is_healthy()
+                    "progress_tracker": progress_tracker.is_healthy()
                 })
 
                 # Check operation health
@@ -248,7 +248,6 @@ class VideoProcessor:
             # Initialize handlers
             self.queue_handler = QueueHandler(bot, config_manager, components)
             self.message_handler = MessageHandler(bot, config_manager, queue_manager)
-            self.progress_tracker = ProgressTracker()
             self.cleanup_manager = CleanupManager(
                 self.queue_handler,
                 ffmpeg_mgr,

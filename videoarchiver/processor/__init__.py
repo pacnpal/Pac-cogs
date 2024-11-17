@@ -40,6 +40,7 @@ from .reactions import (
     update_progress_reaction,
     update_download_progress_reaction
 )
+from ..utils import progress_tracker
 
 # Export public classes and constants
 __all__ = [
@@ -207,6 +208,3 @@ def clear_caches(message_id: Optional[int] = None) -> None:
     """
     url_extractor.clear_cache(message_id)
     message_validator.clear_cache(message_id)
-
-# Initialize shared progress tracker instance
-progress_tracker = ProgressTracker()

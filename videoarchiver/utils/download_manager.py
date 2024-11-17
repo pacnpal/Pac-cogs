@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .verification_manager import VideoVerificationManager
 from .compression_manager import CompressionManager
-from .progress_tracker import ProgressTracker
+from . import progress_tracker
 
 logger = logging.getLogger("DownloadManager")
 
@@ -62,7 +62,6 @@ class DownloadManager:
         # Initialize components
         self.verification_manager = VideoVerificationManager(ffmpeg_mgr)
         self.compression_manager = CompressionManager(ffmpeg_mgr, max_file_size)
-        self.progress_tracker = ProgressTracker()
         
         # Create thread pool
         self.download_pool = ThreadPoolExecutor(
@@ -135,7 +134,7 @@ class DownloadManager:
             logger.info(f"Download completed: {d['filename']}")
         elif d["status"] == "downloading":
             try:
-                self.progress_tracker.update_download_progress(d)
+                progress_tracker.update_download_progress(d)
             except Exception as e:
                 logger.debug(f"Error logging progress: {str(e)}")
 
@@ -145,7 +144,7 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.cleanup()
-        self.progress_tracker.clear_progress()
+        progress_tracker.clear_progress()
 
     async def force_cleanup(self) -> None:
         """Force cleanup of all resources"""
@@ -153,7 +152,7 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.force_cleanup()
-        self.progress_tracker.clear_progress()
+        progress_tracker.clear_progress()
 
     async def download_video(
         self,
@@ -164,7 +163,7 @@ class DownloadManager:
         if self._shutting_down:
             return False, "", "Downloader is shutting down"
 
-        self.progress_tracker.start_download(url)
+        progress_tracker.start_download(url)
         
         try:
             # Download video
@@ -186,7 +185,7 @@ class DownloadManager:
             return False, "", str(e)
 
         finally:
-            self.progress_tracker.end_download(url)
+            progress_tracker.end_download(url)
 
     async def _safe_download(
         self,
