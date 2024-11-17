@@ -7,15 +7,22 @@ from typing import Dict, Optional, Tuple, List, Any, Callable, Set, TypedDict, C
 from datetime import datetime
 import discord # type: ignore
 
-from ..utils.exceptions import ValidationError 
+try:
+    # Try relative imports first
+    from ..utils.exceptions import ValidationError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import ValidationError
 
 logger = logging.getLogger("VideoArchiver")
+
 
 class ValidationResult(Enum):
     """Possible validation results"""
     VALID = auto()
     INVALID = auto()
     IGNORED = auto()
+
 
 class ValidationStats(TypedDict):
     """Type definition for validation statistics"""
@@ -25,12 +32,14 @@ class ValidationStats(TypedDict):
     ignored: int
     cached: int
 
+
 class ValidationCacheEntry(TypedDict):
     """Type definition for validation cache entry"""
     valid: bool
     reason: Optional[str]
     rule: Optional[str]
     timestamp: str
+
 
 @dataclass
 class ValidationContext:
@@ -83,6 +92,7 @@ class ValidationContext:
         except Exception as e:
             raise ValidationError(f"Failed to create validation context: {str(e)}")
 
+
 @dataclass
 class ValidationRule:
     """Defines a validation rule"""
@@ -101,6 +111,7 @@ class ValidationRule:
             raise ValueError("Validate must be a callable")
         if self.priority < 0:
             raise ValueError("Priority must be non-negative")
+
 
 class ValidationCache:
     """Caches validation results"""
@@ -145,6 +156,7 @@ class ValidationCache:
         oldest = min(self._access_times.items(), key=lambda x: x[1])[0]
         del self._cache[oldest]
         del self._access_times[oldest]
+
 
 class ValidationRuleManager:
     """Manages validation rules"""
@@ -198,6 +210,7 @@ class ValidationRuleManager:
         if allowed_roles and not (ctx.roles & set(allowed_roles)):
             return False, "User does not have required roles"
         return True, None
+
 
 class MessageValidator:
     """Handles validation of messages for video processing"""
