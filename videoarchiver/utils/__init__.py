@@ -72,7 +72,17 @@ from .exceptions import (
     CleanupError,
     
     # Health monitoring
-    HealthCheckError
+    HealthCheckError,
+    
+    # Command and Event operations
+    CommandError,
+    EventError,
+    
+    # Cog operations
+    CogError,
+    
+    # Progress tracking
+    TrackingError
 )
 
 __all__ = [
@@ -148,6 +158,16 @@ __all__ = [
     
     # Health Monitoring Exceptions
     'HealthCheckError',
+    
+    # Command and Event Exceptions
+    'CommandError',
+    'EventError',
+    
+    # Cog Exceptions
+    'CogError',
+    
+    # Progress Tracking Exceptions
+    'TrackingError',
     
     # Helper Functions
     'get_download_progress',
