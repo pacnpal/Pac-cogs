@@ -36,6 +36,7 @@ try:
     )
     from .message_handler import MessageHandler
     from .queue_handler import QueueHandler
+    from .queue_processor import QueueProcessor  # Added import
     from .reactions import (
         handle_archived_reaction,
         update_queue_position_reaction,
@@ -76,6 +77,7 @@ except ImportError:
     )
     from videoarchiver.processor.message_handler import MessageHandler
     from videoarchiver.processor.queue_handler import QueueHandler
+    from videoarchiver.processor.queue_processor import QueueProcessor  # Added import
     from videoarchiver.processor.reactions import (
         handle_archived_reaction,
         update_queue_position_reaction,
@@ -90,6 +92,7 @@ __all__ = [
     "VideoProcessor",
     "MessageHandler",
     "QueueHandler",
+    "QueueProcessor",  # Added export
     # URL Extraction
     "URLExtractor",
     "URLMetadata",

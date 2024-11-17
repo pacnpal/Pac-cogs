@@ -15,6 +15,7 @@ modules_to_reload = [
     ".processor.core",
     ".processor.queue_processor",
     ".queue",
+    ".queue.types",  # Added types module
     ".queue.models",
     ".queue.manager",
     ".queue.cleaners",

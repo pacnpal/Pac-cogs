@@ -1,6 +1,7 @@
 """Queue management package for video processing"""
 
 from .models import QueueItem, QueueMetrics
+from .types import QueuePriority, ProcessingMetrics
 from .manager import EnhancedVideoQueueManager
 from .persistence import QueuePersistenceManager, QueueError
 from .monitoring import QueueMonitor, MonitoringError
@@ -23,27 +24,35 @@ from ..utils.progress_tracker import ProgressTracker
 from ..utils.url_validator import UrlValidator
 
 __all__ = [
+    # Queue models and types
     'QueueItem',
     'QueueMetrics',
+    'QueuePriority',
+    'ProcessingMetrics',
+    # Core components
     'EnhancedVideoQueueManager',
     'QueuePersistenceManager',
     'QueueMonitor',
     'QueueCleaner',
-    'QueueError',
-    'MonitoringError',
-    'CleanupError',
+    'QueueProcessor',
+    'HealthChecker',
+    # Managers
     'RecoveryManager',
     'StateManager',
     'MetricsManager',
-    'QueueProcessor',
-    'HealthChecker',
+    # Cleaners
     'GuildCleaner',
     'HistoryCleaner',
     'TrackingCleaner',
+    # Utility handlers
     'CompressionHandler',
     'DirectoryManager',
     'DownloadManager',
     'FileOperations',
     'ProgressTracker',
     'UrlValidator',
+    # Errors
+    'QueueError',
+    'MonitoringError',
+    'CleanupError',
 ]
