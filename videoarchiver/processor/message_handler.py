@@ -12,9 +12,8 @@ from discord.ext import commands  # type: ignore
 from ..config_manager import ConfigManager
 from ..processor.constants import REACTIONS
 from ..processor.message_validator import MessageValidator, ValidationError
-from ..processor.queue_processor import QueuePriority, QueueProcessor
-
 from ..processor.url_extractor import URLExtractor, URLMetadata
+from ..queue.types import QueuePriority
 from ..queue.manager import EnhancedVideoQueueManager
 from ..utils.exceptions import MessageHandlerError
 
@@ -214,7 +213,7 @@ class MessageHandler:
         self.config_manager = config_manager
         self.url_extractor = URLExtractor()
         self.message_validator = MessageValidator()
-        self.queue_processor = QueueProcessor(queue_manager)
+        self.queue_manager = queue_manager
 
         # Initialize tracking and caching
         self.tracker = ProcessingTracker()
@@ -316,9 +315,15 @@ class MessageHandler:
                 message.id, MessageState.PROCESSING, ProcessingStage.QUEUEING
             )
             try:
-                await self.queue_processor.process_urls(
-                    message, urls, priority=QueuePriority.NORMAL
-                )
+                for url_metadata in urls:
+                    await self.queue_manager.add_to_queue(
+                        url=url_metadata.url,
+                        message_id=message.id,
+                        channel_id=message.channel.id,
+                        guild_id=message.guild.id,
+                        author_id=message.author.id,
+                        priority=QueuePriority.NORMAL.value
+                    )
             except Exception as e:
                 raise MessageHandlerError(f"Queue processing failed: {str(e)}")
 
@@ -331,22 +336,6 @@ class MessageHandler:
             raise
         except Exception as e:
             raise MessageHandlerError(f"Unexpected error: {str(e)}")
-
-    async def format_archive_message(
-        self, author: Optional[discord.Member], channel: discord.TextChannel, url: str
-    ) -> str:
-        """
-        Format message for archive channel.
-
-        Args:
-            author: Optional message author
-            channel: Channel the message was posted in
-            url: URL being archived
-
-        Returns:
-            Formatted message string
-        """
-        return await self.queue_processor.format_archive_message(author, channel, url)
 
     def get_message_status(self, message_id: int) -> MessageStatus:
         """

@@ -16,12 +16,35 @@ class QueueProcessor:
     _active_items: ClassVar[Set[int]] = set()
     _processing_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
-    def __init__(self):
+    def __init__(self, queue_manager):
+        """Initialize queue processor
+        
+        Args:
+            queue_manager: Queue manager instance to handle queue operations
+        """
+        self.queue_manager = queue_manager
         self._metrics = ProcessingMetrics()
 
-    async def process_item(self, item: QueueItem) -> bool:
+    async def process_urls(self, message, urls, priority: QueuePriority = QueuePriority.NORMAL) -> None:
+        """Process URLs from a message
+        
+        Args:
+            message: Discord message containing URLs
+            urls: List of URLs to process
+            priority: Processing priority level
         """
-        Process a single queue item
+        for url_metadata in urls:
+            await self.queue_manager.add_to_queue(
+                url=url_metadata.url,
+                message_id=message.id,
+                channel_id=message.channel.id,
+                guild_id=message.guild.id,
+                author_id=message.author.id,
+                priority=priority.value
+            )
+
+    async def process_item(self, item: QueueItem) -> bool:
+        """Process a single queue item
 
         Args:
             item: Queue item to process
