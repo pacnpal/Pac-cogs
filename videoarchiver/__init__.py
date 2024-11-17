@@ -9,57 +9,57 @@ from redbot.core.bot import Red
 
 # Force reload of all modules
 modules_to_reload = [
-    '.utils.exceptions',
-    '.utils',
-    '.processor',
-    '.processor.core',
-    '.processor.queue_processor',
-    '.queue',
-    '.queue.models',
-    '.queue.manager',
-    '.queue.cleaners',
-    '.queue.cleaners.guild_cleaner',
-    '.queue.cleaners.history_cleaner',
-    '.queue.cleaners.tracking_cleaner',
-    '.queue.monitoring',
-    '.queue.recovery_manager',
-    '.queue.state_manager',
-    '.ffmpeg',
-    '.ffmpeg.binary_manager',
-    '.ffmpeg.encoder_params',
-    '.ffmpeg.exceptions',
-    '.ffmpeg.ffmpeg_downloader',
-    '.ffmpeg.ffmpeg_manager',
-    '.ffmpeg.gpu_detector',
-    '.ffmpeg.process_manager',
-    '.ffmpeg.verification_manager',
-    '.ffmpeg.video_analyzer',
-    '.database',
-    '.database.connection_manager',
-    '.database.query_manager',
-    '.database.schema_manager',
-    '.database.video_archive_db',
-    '.config',
-    '.config.channel_manager',
-    '.config.exceptions',
-    '.config.role_manager',
-    '.config.settings_formatter',
-    '.config.validation_manager',
-    '.core',
-    '.core.base',
-    '.core.cleanup',
-    '.core.commands',
-    '.core.commands.archiver_commands',
-    '.core.commands.database_commands',
-    '.core.commands.settings_commands',
-    '.core.component_manager',
-    '.core.error_handler',
-    '.core.events',
-    '.core.guild',
-    '.core.initialization',
-    '.core.lifecycle',
-    '.core.response_handler',
-    '.core.settings'
+    ".utils.exceptions",
+    ".utils",
+    ".processor",
+    ".processor.core",
+    ".processor.queue_processor",
+    ".queue",
+    ".queue.models",
+    ".queue.manager",
+    ".queue.cleaners",
+    ".queue.cleaners.guild_cleaner",
+    ".queue.cleaners.history_cleaner",
+    ".queue.cleaners.tracking_cleaner",
+    ".queue.monitoring",
+    ".queue.recovery_manager",
+    ".queue.state_manager",
+    ".ffmpeg",
+    ".ffmpeg.binary_manager",
+    ".ffmpeg.encoder_params",
+    ".ffmpeg.exceptions",
+    ".ffmpeg.ffmpeg_downloader",
+    ".ffmpeg.ffmpeg_manager",
+    ".ffmpeg.gpu_detector",
+    ".ffmpeg.process_manager",
+    ".ffmpeg.verification_manager",
+    ".ffmpeg.video_analyzer",
+    ".database",
+    ".database.connection_manager",
+    ".database.query_manager",
+    ".database.schema_manager",
+    ".database.video_archive_db",
+    ".config",
+    ".config.channel_manager",
+    ".config.exceptions",
+    ".config.role_manager",
+    ".config.settings_formatter",
+    ".config.validation_manager",
+    ".core",
+    ".core.base",
+    ".core.cleanup",
+    ".core.commands",
+    ".core.commands.archiver_commands",
+    ".core.commands.database_commands",
+    ".core.commands.settings_commands",
+    ".core.component_manager",
+    ".core.error_handler",
+    ".core.events",
+    ".core.guild",
+    ".core.initialization",
+    ".core.lifecycle",
+    ".core.response_handler",
+    ".core.settings",
 ]
 
 # Remove modules to force fresh import
@@ -69,30 +69,37 @@ for module in modules_to_reload:
 
 # Import and reload utils
 from . import utils
+
 importlib.reload(utils)
 
 # Import and reload processor
 from . import processor
+
 importlib.reload(processor)
 
 # Import and reload queue
 from . import queue
+
 importlib.reload(queue)
 
 # Import and reload ffmpeg
 from . import ffmpeg
+
 importlib.reload(ffmpeg)
 
 # Import and reload database
 from . import database
+
 importlib.reload(database)
 
 # Import and reload config
 from . import config
+
 importlib.reload(config)
 
 # Import and reload core
 from . import core
+
 importlib.reload(core)
 
 from .core.base import VideoArchiver
@@ -105,22 +112,21 @@ from .utils.exceptions import (
     CogError,
     ErrorContext,
     ErrorSeverity,
-    ProcessingError
+    ProcessingError,
 )
-from .database import VideoArchiveDB
-from .ffmpeg import FFmpegManager
-from .queue import EnhancedVideoQueueManager
-from .processor import VideoProcessor
-from .config_manager import ConfigManager
-from .update_checker import UpdateChecker
-
-# Additional imports from subdirectories
-from .queue.cleaners import QueueCleaner
-from .queue import QueueStateManager, QueueMetricsManager, QueueProcessor
-from .ffmpeg import BinaryManager, EncoderParams, GPUDetector, ProcessManager
-from .database import DatabaseConnectionManager, DatabaseQueryManager, DatabaseSchemaManager
-from .processor import CleanupManager, MessageHandler, QueueProcessor
-from .utils import CompressionManager, DirectoryManager, DownloadManager, FileOperations
+from .database import *
+from .ffmpeg import *
+from .queue import *
+from .processor import *
+from .config_manager import *
+from .update_checker import *
+from .queue.cleaners import *
+from .database import *
+from .utils import *
+from .core import *
+from .config import *
+from config_manager import *
+from update_checker import *
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -131,6 +137,7 @@ _init_task: Optional[asyncio.Task] = None
 __version__ = "1.0.0"
 __author__ = "VideoArchiver Team"
 __description__ = "Video archiving cog for Red-DiscordBot"
+
 
 async def setup(bot: Red) -> None:
     """Load VideoArchiver with proper initialization."""
@@ -202,7 +209,6 @@ __all__ = [
     "DirectoryManager",
     "DownloadManager",
     "FileOperations",
-    
     # Base exceptions
     "VideoArchiverError",
     "CommandError",
@@ -211,8 +217,7 @@ __all__ = [
     "ErrorContext",
     "ErrorSeverity",
     "ProcessingError",
-    
     # Setup functions
     "setup",
-    "teardown"
+    "teardown",
 ]
