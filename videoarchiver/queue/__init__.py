@@ -14,6 +14,14 @@ from .health_checker import HealthChecker
 # Importing from cleaners subdirectory
 from .cleaners import GuildCleaner, HistoryCleaner, TrackingCleaner
 
+# Corrected relative imports from utils
+from ..utils.compression_handler import CompressionHandler
+from ..utils.directory_manager import DirectoryManager
+from ..utils.download_manager import DownloadManager
+from ..utils.file_operations import FileOperations
+from ..utils.progress_tracker import ProgressTracker
+from ..utils.url_validator import UrlValidator
+
 __all__ = [
     'QueueItem',
     'QueueMetrics',
@@ -32,4 +40,10 @@ __all__ = [
     'GuildCleaner',
     'HistoryCleaner',
     'TrackingCleaner',
+    'CompressionHandler',
+    'DirectoryManager',
+    'DownloadManager',
+    'FileOperations',
+    'ProgressTracker',
+    'UrlValidator',
 ]

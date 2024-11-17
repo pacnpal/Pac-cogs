@@ -17,9 +17,49 @@ modules_to_reload = [
     'videoarchiver.queue',
     'videoarchiver.queue.models',
     'videoarchiver.queue.manager',
-    'videoarchiver.core.commands.settings_commands',
+    'videoarchiver.queue.cleaners',
+    'videoarchiver.queue.cleaners.guild_cleaner',
+    'videoarchiver.queue.cleaners.history_cleaner',
+    'videoarchiver.queue.cleaners.tracking_cleaner',
+    'videoarchiver.queue.monitoring',
+    'videoarchiver.queue.recovery_manager',
+    'videoarchiver.queue.state_manager',
+    'videoarchiver.ffmpeg',
+    'videoarchiver.ffmpeg.binary_manager',
+    'videoarchiver.ffmpeg.encoder_params',
+    'videoarchiver.ffmpeg.exceptions',
+    'videoarchiver.ffmpeg.ffmpeg_downloader',
+    'videoarchiver.ffmpeg.ffmpeg_manager',
+    'videoarchiver.ffmpeg.gpu_detector',
+    'videoarchiver.ffmpeg.process_manager',
+    'videoarchiver.ffmpeg.verification_manager',
+    'videoarchiver.ffmpeg.video_analyzer',
+    'videoarchiver.database',
+    'videoarchiver.database.connection_manager',
+    'videoarchiver.database.query_manager',
+    'videoarchiver.database.schema_manager',
+    'videoarchiver.database.video_archive_db',
+    'videoarchiver.config',
+    'videoarchiver.config.channel_manager',
+    'videoarchiver.config.exceptions',
+    'videoarchiver.config.role_manager',
+    'videoarchiver.config.settings_formatter',
+    'videoarchiver.config.validation_manager',
+    'videoarchiver.core',
+    'videoarchiver.core.base',
+    'videoarchiver.core.cleanup',
+    'videoarchiver.core.commands',
     'videoarchiver.core.commands.archiver_commands',
-    'videoarchiver.core.commands.database_commands'
+    'videoarchiver.core.commands.database_commands',
+    'videoarchiver.core.commands.settings_commands',
+    'videoarchiver.core.component_manager',
+    'videoarchiver.core.error_handler',
+    'videoarchiver.core.events',
+    'videoarchiver.core.guild',
+    'videoarchiver.core.initialization',
+    'videoarchiver.core.lifecycle',
+    'videoarchiver.core.response_handler',
+    'videoarchiver.core.settings'
 ]
 
 # Remove modules to force fresh import
@@ -38,6 +78,22 @@ importlib.reload(videoarchiver.processor)
 # Import and reload queue
 import videoarchiver.queue
 importlib.reload(videoarchiver.queue)
+
+# Import and reload ffmpeg
+import videoarchiver.ffmpeg
+importlib.reload(videoarchiver.ffmpeg)
+
+# Import and reload database
+import videoarchiver.database
+importlib.reload(videoarchiver.database)
+
+# Import and reload config
+import videoarchiver.config
+importlib.reload(videoarchiver.config)
+
+# Import and reload core
+import videoarchiver.core
+importlib.reload(videoarchiver.core)
 
 from .core.base import VideoArchiver
 from .core.initialization import initialize_cog, init_callback
