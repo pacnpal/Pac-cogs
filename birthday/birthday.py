@@ -1,7 +1,7 @@
-import discord
-from redbot.core import commands, checks, app_commands
-from redbot.core.bot import Red
-from redbot.core.config import Config
+import discord # type: ignore
+from redbot.core import commands, checks, app_commands # type: ignore
+from redbot.core.bot import Red # type: ignore
+from redbot.core.config import Config # type: ignore
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import random

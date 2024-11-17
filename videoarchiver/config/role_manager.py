@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, List, Set, Tuple, Optional, Any
-import discord
+import discord # type: ignore
 
 from .exceptions import ConfigurationError as ConfigError
 

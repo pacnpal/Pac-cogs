@@ -6,7 +6,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Set, Pattern, ClassVar
 from datetime import datetime
-import discord
+import discord # type: ignore
 from urllib.parse import urlparse, parse_qs, ParseResult
 
 logger = logging.getLogger("VideoArchiver")

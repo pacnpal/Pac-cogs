@@ -1,29 +1,33 @@
 """Core VideoProcessor class that manages video processing operations"""
 
-import logging
 import asyncio
-from enum import Enum, auto
-from typing import Optional, Tuple, Dict, Any, List, TypedDict, ClassVar
+import logging
 from datetime import datetime, timedelta
-import discord
-from discord.ext import commands
+from enum import auto, Enum
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, TypedDict
 
-from .processor.message_handler import MessageHandler
-from .processor.queue_handler import QueueHandler
-from .utils import progress_tracker
-from .processor.status_display import StatusDisplay
-from .processor.cleanup_manager import CleanupManager, CleanupStrategy
-from .processor.constants import REACTIONS
-from .queue.manager import EnhancedVideoQueueManager
-from .ffmpeg.ffmpeg_manager import FFmpegManager
-from .database.video_archive_db import VideoArchiveDB
-from .config_manager import ConfigManager
-from .utils.exceptions import ProcessorError
+import discord  # type: ignore
+from discord.ext import commands  # type: ignore
+
+from ..config_manager import ConfigManager
+from ..database.video_archive_db import VideoArchiveDB
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from ..processor.cleanup_manager import CleanupManager, CleanupStrategy
+from ..processor.constants import REACTIONS
+
+from ..processor.message_handler import MessageHandler
+from ..processor.queue_handler import QueueHandler
+from ..processor.status_display import StatusDisplay
+from ..queue.manager import EnhancedVideoQueueManager
+from ..utils import progress_tracker
+from ..utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class ProcessorState(Enum):
     """Possible states of the video processor"""
+
     INITIALIZING = auto()
     READY = auto()
     PROCESSING = auto()
@@ -31,15 +35,19 @@ class ProcessorState(Enum):
     ERROR = auto()
     SHUTDOWN = auto()
 
+
 class OperationType(Enum):
     """Types of processor operations"""
+
     MESSAGE_PROCESSING = auto()
     VIDEO_PROCESSING = auto()
     QUEUE_MANAGEMENT = auto()
     CLEANUP = auto()
 
+
 class OperationDetails(TypedDict):
     """Type definition for operation details"""
+
     type: str
     start_time: datetime
     end_time: Optional[datetime]
@@ -47,22 +55,27 @@ class OperationDetails(TypedDict):
     details: Dict[str, Any]
     error: Optional[str]
 
+
 class OperationStats(TypedDict):
     """Type definition for operation statistics"""
+
     total_operations: int
     active_operations: int
     success_count: int
     error_count: int
     success_rate: float
 
+
 class ProcessorStatus(TypedDict):
     """Type definition for processor status"""
+
     state: str
     health: bool
     operations: OperationStats
     active_operations: Dict[str, OperationDetails]
     last_health_check: Optional[str]
     health_status: Dict[str, bool]
+
 
 class OperationTracker:
     """Tracks processor operations"""
@@ -75,18 +88,14 @@ class OperationTracker:
         self.error_count = 0
         self.success_count = 0
 
-    def start_operation(
-        self,
-        op_type: OperationType,
-        details: Dict[str, Any]
-    ) -> str:
+    def start_operation(self, op_type: OperationType, details: Dict[str, Any]) -> str:
         """
         Start tracking an operation.
-        
+
         Args:
             op_type: Type of operation
             details: Operation details
-            
+
         Returns:
             Operation ID string
         """
@@ -97,30 +106,29 @@ class OperationTracker:
             end_time=None,
             status="running",
             details=details,
-            error=None
+            error=None,
         )
         return op_id
 
     def end_operation(
-        self,
-        op_id: str,
-        success: bool,
-        error: Optional[str] = None
+        self, op_id: str, success: bool, error: Optional[str] = None
     ) -> None:
         """
         End tracking an operation.
-        
+
         Args:
             op_id: Operation ID
             success: Whether operation succeeded
             error: Optional error message
         """
         if op_id in self.operations:
-            self.operations[op_id].update({
-                "end_time": datetime.utcnow(),
-                "status": "success" if success else "error",
-                "error": error
-            })
+            self.operations[op_id].update(
+                {
+                    "end_time": datetime.utcnow(),
+                    "status": "success" if success else "error",
+                    "error": error,
+                }
+            )
             # Move to history
             self.operation_history.append(self.operations.pop(op_id))
             # Update counts
@@ -131,12 +139,12 @@ class OperationTracker:
 
             # Cleanup old history if needed
             if len(self.operation_history) > self.MAX_HISTORY:
-                self.operation_history = self.operation_history[-self.MAX_HISTORY:]
+                self.operation_history = self.operation_history[-self.MAX_HISTORY :]
 
     def get_active_operations(self) -> Dict[str, OperationDetails]:
         """
         Get currently active operations.
-        
+
         Returns:
             Dictionary of active operations
         """
@@ -145,7 +153,7 @@ class OperationTracker:
     def get_operation_stats(self) -> OperationStats:
         """
         Get operation statistics.
-        
+
         Returns:
             Dictionary containing operation statistics
         """
@@ -155,8 +163,9 @@ class OperationTracker:
             active_operations=len(self.operations),
             success_count=self.success_count,
             error_count=self.error_count,
-            success_rate=self.success_count / total if total > 0 else 0.0
+            success_rate=self.success_count / total if total > 0 else 0.0,
         )
+
 
 class HealthMonitor:
     """Monitors processor health"""
@@ -165,7 +174,7 @@ class HealthMonitor:
     ERROR_CHECK_INTERVAL: ClassVar[int] = 30  # Seconds between checks after error
     SUCCESS_RATE_THRESHOLD: ClassVar[float] = 0.9  # 90% success rate threshold
 
-    def __init__(self, processor: 'VideoProcessor') -> None:
+    def __init__(self, processor: "VideoProcessor") -> None:
         self.processor = processor
         self.last_check: Optional[datetime] = None
         self.health_status: Dict[str, bool] = {}
@@ -191,13 +200,15 @@ class HealthMonitor:
         while True:
             try:
                 self.last_check = datetime.utcnow()
-                
+
                 # Check component health
-                self.health_status.update({
-                    "queue_handler": self.processor.queue_handler.is_healthy(),
-                    "message_handler": self.processor.message_handler.is_healthy(),
-                    "progress_tracker": progress_tracker.is_healthy()
-                })
+                self.health_status.update(
+                    {
+                        "queue_handler": self.processor.queue_handler.is_healthy(),
+                        "message_handler": self.processor.message_handler.is_healthy(),
+                        "progress_tracker": progress_tracker.is_healthy(),
+                    }
+                )
 
                 # Check operation health
                 op_stats = self.processor.operation_tracker.get_operation_stats()
@@ -214,11 +225,12 @@ class HealthMonitor:
     def is_healthy(self) -> bool:
         """
         Check if processor is healthy.
-        
+
         Returns:
             True if all components are healthy, False otherwise
         """
         return all(self.health_status.values())
+
 
 class VideoProcessor:
     """Handles video processing operations"""
@@ -230,7 +242,7 @@ class VideoProcessor:
         components: Dict[int, Dict[str, Any]],
         queue_manager: Optional[EnhancedVideoQueueManager] = None,
         ffmpeg_mgr: Optional[FFmpegManager] = None,
-        db: Optional[VideoArchiveDB] = None
+        db: Optional[VideoArchiveDB] = None,
     ) -> None:
         self.bot = bot
         self.config = config_manager
@@ -249,9 +261,7 @@ class VideoProcessor:
             self.queue_handler = QueueHandler(bot, config_manager, components)
             self.message_handler = MessageHandler(bot, config_manager, queue_manager)
             self.cleanup_manager = CleanupManager(
-                self.queue_handler,
-                ffmpeg_mgr,
-                CleanupStrategy.NORMAL
+                self.queue_handler, ffmpeg_mgr, CleanupStrategy.NORMAL
             )
 
             # Pass db to queue handler if it exists
@@ -260,7 +270,7 @@ class VideoProcessor:
 
             # Store queue task reference
             self._queue_task: Optional[asyncio.Task] = None
-            
+
             # Mark as ready
             self.state = ProcessorState.READY
             logger.info("VideoProcessor initialized successfully")
@@ -273,7 +283,7 @@ class VideoProcessor:
     async def start(self) -> None:
         """
         Start processor operations.
-        
+
         Raises:
             ProcessorError: If startup fails
         """
@@ -288,21 +298,20 @@ class VideoProcessor:
     async def process_video(self, item: Any) -> Tuple[bool, Optional[str]]:
         """
         Process a video from the queue.
-        
+
         Args:
             item: Queue item to process
-            
+
         Returns:
             Tuple of (success, error_message)
-            
+
         Raises:
             ProcessorError: If processing fails
         """
         op_id = self.operation_tracker.start_operation(
-            OperationType.VIDEO_PROCESSING,
-            {"item": str(item)}
+            OperationType.VIDEO_PROCESSING, {"item": str(item)}
         )
-        
+
         try:
             self.state = ProcessorState.PROCESSING
             result = await self.queue_handler.process_video(item)
@@ -321,18 +330,17 @@ class VideoProcessor:
     async def process_message(self, message: discord.Message) -> None:
         """
         Process a message for video content.
-        
+
         Args:
             message: Discord message to process
-            
+
         Raises:
             ProcessorError: If processing fails
         """
         op_id = self.operation_tracker.start_operation(
-            OperationType.MESSAGE_PROCESSING,
-            {"message_id": message.id}
+            OperationType.MESSAGE_PROCESSING, {"message_id": message.id}
         )
-        
+
         try:
             await self.message_handler.process_message(message)
             self.operation_tracker.end_operation(op_id, True)
@@ -345,15 +353,14 @@ class VideoProcessor:
     async def cleanup(self) -> None:
         """
         Clean up resources and stop processing.
-        
+
         Raises:
             ProcessorError: If cleanup fails
         """
         op_id = self.operation_tracker.start_operation(
-            OperationType.CLEANUP,
-            {"type": "normal"}
+            OperationType.CLEANUP, {"type": "normal"}
         )
-        
+
         try:
             self.state = ProcessorState.SHUTDOWN
             await self.health_monitor.stop_monitoring()
@@ -368,15 +375,14 @@ class VideoProcessor:
     async def force_cleanup(self) -> None:
         """
         Force cleanup of resources.
-        
+
         Raises:
             ProcessorError: If force cleanup fails
         """
         op_id = self.operation_tracker.start_operation(
-            OperationType.CLEANUP,
-            {"type": "force"}
+            OperationType.CLEANUP, {"type": "force"}
         )
-        
+
         try:
             self.state = ProcessorState.SHUTDOWN
             await self.health_monitor.stop_monitoring()
@@ -391,7 +397,7 @@ class VideoProcessor:
     async def show_queue_details(self, ctx: commands.Context) -> None:
         """
         Display detailed queue status.
-        
+
         Args:
             ctx: Command context
         """
@@ -402,14 +408,13 @@ class VideoProcessor:
 
             # Get queue status
             queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
-            
+
             # Get active operations
             active_ops = self.operation_tracker.get_active_operations()
 
             # Create and send status embed
             embed = await StatusDisplay.create_queue_status_embed(
-                queue_status,
-                active_ops
+                queue_status, active_ops
             )
             await ctx.send(embed=embed)
 
@@ -421,7 +426,7 @@ class VideoProcessor:
     def set_queue_task(self, task: asyncio.Task) -> None:
         """
         Set the queue processing task.
-        
+
         Args:
             task: Queue processing task
         """
@@ -431,7 +436,7 @@ class VideoProcessor:
     def get_status(self) -> ProcessorStatus:
         """
         Get processor status.
-        
+
         Returns:
             Dictionary containing processor status information
         """
@@ -445,5 +450,5 @@ class VideoProcessor:
                 if self.health_monitor.last_check
                 else None
             ),
-            health_status=self.health_monitor.health_status
+            health_status=self.health_monitor.health_status,
         )

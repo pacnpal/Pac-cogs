@@ -2,7 +2,7 @@
 
 import re
 import logging
-import yt_dlp
+import yt_dlp # type: ignore
 from typing import List, Optional
 
 logger = logging.getLogger("VideoArchiver")

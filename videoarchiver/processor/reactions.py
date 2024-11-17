@@ -4,22 +4,26 @@ import logging
 import asyncio
 import re
 from typing import List, Optional
-import discord
+import discord  # type: ignore
 from urllib.parse import urlparse
 
-from .processor.constants import REACTIONS, ReactionType, get_reaction, get_progress_emoji
-from .database.video_archive_db import VideoArchiveDB
+from ..processor.constants import (
+    REACTIONS,
+    ReactionType,
+    get_reaction,
+    get_progress_emoji,
+)
+from ..database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 
+
 async def handle_archived_reaction(
-    message: discord.Message,
-    user: discord.User,
-    db: VideoArchiveDB
+    message: discord.Message, user: discord.User, db: VideoArchiveDB
 ) -> None:
     """
     Handle reaction to archived video message.
-    
+
     Args:
         message: The Discord message that was reacted to
         user: The user who added the reaction
@@ -27,7 +31,9 @@ async def handle_archived_reaction(
     """
     try:
         # Check if the reaction is from a user (not the bot) and is the archived reaction
-        if user.bot or str(message.reactions[0].emoji) != get_reaction(ReactionType.ARCHIVED):
+        if user.bot or str(message.reactions[0].emoji) != get_reaction(
+            ReactionType.ARCHIVED
+        ):
             return
 
         # Extract URLs from the message using regex
@@ -37,9 +43,9 @@ async def handle_archived_reaction(
         # Check each URL in the database
         for url in urls:
             # Ensure URL has proper scheme
-            if url.startswith('www.'):
-                url = 'http://' + url
-                
+            if url.startswith("www."):
+                url = "http://" + url
+
             # Validate URL
             try:
                 result = urlparse(url)
@@ -59,14 +65,13 @@ async def handle_archived_reaction(
     except Exception as e:
         logger.error(f"Error handling archived reaction: {e}", exc_info=True)
 
+
 async def update_queue_position_reaction(
-    message: discord.Message,
-    position: int,
-    bot_user: discord.ClientUser
+    message: discord.Message, position: int, bot_user: discord.ClientUser
 ) -> None:
     """
     Update queue position reaction.
-    
+
     Args:
         message: The Discord message to update reactions on
         position: Queue position (0-based index)
@@ -100,14 +105,13 @@ async def update_queue_position_reaction(
     except Exception as e:
         logger.error(f"Failed to update queue position reaction: {e}", exc_info=True)
 
+
 async def update_progress_reaction(
-    message: discord.Message,
-    progress: float,
-    bot_user: discord.ClientUser
+    message: discord.Message, progress: float, bot_user: discord.ClientUser
 ) -> None:
     """
     Update progress reaction based on FFmpeg progress.
-    
+
     Args:
         message: The Discord message to update reactions on
         progress: Progress value between 0 and 100
@@ -142,14 +146,13 @@ async def update_progress_reaction(
     except Exception as e:
         logger.error(f"Failed to update progress reaction: {e}", exc_info=True)
 
+
 async def update_download_progress_reaction(
-    message: discord.Message,
-    progress: float,
-    bot_user: discord.ClientUser
+    message: discord.Message, progress: float, bot_user: discord.ClientUser
 ) -> None:
     """
     Update download progress reaction.
-    
+
     Args:
         message: The Discord message to update reactions on
         progress: Progress value between 0 and 100

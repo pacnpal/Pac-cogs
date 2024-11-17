@@ -8,8 +8,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, ClassVar
 
-from .utils.file_ops import cleanup_downloads
-from .utils.exceptions import (
+from ..utils.file_ops import cleanup_downloads
+from ..utils.exceptions import (
     CleanupError,
     ErrorContext,
     ErrorSeverity

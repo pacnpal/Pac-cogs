@@ -1,8 +1,8 @@
 """Birthday cog for Red-DiscordBot"""
-from redbot.core.bot import Red
+from redbot.core.bot import Red # type: ignore
 import logging
-import discord
-from discord.app_commands.errors import CommandAlreadyRegistered
+import discord # type: ignore
+from discord.app_commands.errors import CommandAlreadyRegistered # type: ignore
 from .birthday import Birthday, birthday_context_menu
 
 logger = logging.getLogger("Birthday")

@@ -5,7 +5,7 @@ import asyncio
 import logging
 import importlib
 from typing import Optional
-from redbot.core.bot import Red
+from redbot.core.bot import Red # type: ignore
 
 # Force reload of all modules
 modules_to_reload = [

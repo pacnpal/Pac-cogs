@@ -1,5 +1,6 @@
 """Path management utilities"""
 
+import asyncio
 import os
 import tempfile
 import shutil
@@ -7,11 +8,11 @@ import stat
 import logging
 import contextlib
 import time
-from typing import Generator, List, Optional
+from typing import List, Optional, AsyncGenerator
 from pathlib import Path
 
-from .utils.exceptions import FileCleanupError
-from .utils.permission_manager import PermissionManager
+from ..utils.exceptions import FileCleanupError
+from ..utils.permission_manager import PermissionManager
 
 logger = logging.getLogger("PathManager")
 
@@ -162,7 +163,7 @@ class PathManager:
     async def temp_path_context(
         self,
         prefix: str = "videoarchiver_"
-    ) -> Generator[str, None, None]:
+    ) -> AsyncGenerator[str, None]:
         """Async context manager for temporary path creation and cleanup
         
         Args:

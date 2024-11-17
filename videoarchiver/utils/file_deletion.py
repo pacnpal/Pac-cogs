@@ -7,16 +7,17 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from .utils.exceptions import FileCleanupError
+from ..utils.exceptions import FileCleanupError
 
 logger = logging.getLogger("FileDeleter")
+
 
 class SecureFileDeleter:
     """Handles secure file deletion operations"""
 
     def __init__(self, max_size: int = 100 * 1024 * 1024):
         """Initialize the file deleter
-        
+
         Args:
             max_size: Maximum file size in bytes for secure deletion (default: 100MB)
         """
@@ -24,13 +25,13 @@ class SecureFileDeleter:
 
     async def delete_file(self, file_path: str) -> bool:
         """Delete a file securely
-        
+
         Args:
             file_path: Path to the file to delete
-            
+
         Returns:
             bool: True if file was successfully deleted
-            
+
         Raises:
             FileCleanupError: If file deletion fails after all attempts
         """
@@ -65,7 +66,9 @@ class SecureFileDeleter:
     async def _delete_large_file(self, file_path: str) -> bool:
         """Delete a large file directly"""
         try:
-            logger.debug(f"File {file_path} exceeds max size for secure deletion, performing direct removal")
+            logger.debug(
+                f"File {file_path} exceeds max size for secure deletion, performing direct removal"
+            )
             os.remove(file_path)
             return True
         except OSError as e:
@@ -84,11 +87,13 @@ class SecureFileDeleter:
     async def _zero_file_content(self, file_path: str, file_size: int) -> None:
         """Zero out file content in chunks"""
         try:
-            chunk_size = min(1024 * 1024, file_size)  # 1MB chunks or file size if smaller
+            chunk_size = min(
+                1024 * 1024, file_size
+            )  # 1MB chunks or file size if smaller
             with open(file_path, "wb") as f:
                 for offset in range(0, file_size, chunk_size):
                     write_size = min(chunk_size, file_size - offset)
-                    f.write(b'\0' * write_size)
+                    f.write(b"\0" * write_size)
                     await asyncio.sleep(0)  # Allow other tasks to run
                 f.flush()
                 os.fsync(f.fileno())

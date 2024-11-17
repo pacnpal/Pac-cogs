@@ -6,29 +6,33 @@ import os
 from enum import Enum, auto
 from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, Callable
 from datetime import datetime
-import discord
+import discord  # type: ignore
 
-from .utils import progress_tracker
-from .database.video_archive_db import VideoArchiveDB
-from .utils.download_manager import DownloadManager
-from .utils.message_manager import MessageManager
-from .utils.exceptions import QueueHandlerError
-from .queue.models import QueueItem
-from .config_manager import ConfigManager
-from .processor.constants import REACTIONS
+from ..utils import progress_tracker
+from ..database.video_archive_db import VideoArchiveDB
+from ..utils.download_manager import DownloadManager
+from ..utils.message_manager import MessageManager
+from ..utils.exceptions import QueueHandlerError
+from ..queue.models import QueueItem
+from ..config_manager import ConfigManager
+from ..processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class QueueItemStatus(Enum):
     """Status of a queue item"""
+
     PENDING = auto()
     PROCESSING = auto()
     COMPLETED = auto()
     FAILED = auto()
     CANCELLED = auto()
 
+
 class QueueStats(TypedDict):
     """Type definition for queue statistics"""
+
     active_downloads: int
     processing_items: int
     completed_items: int
@@ -36,6 +40,7 @@ class QueueStats(TypedDict):
     average_processing_time: float
     last_processed: Optional[str]
     is_healthy: bool
+
 
 class QueueHandler:
     """Handles queue processing and video operations"""
@@ -48,7 +53,7 @@ class QueueHandler:
         bot: discord.Client,
         config_manager: ConfigManager,
         components: Dict[int, Dict[str, Any]],
-        db: Optional[VideoArchiveDB] = None
+        db: Optional[VideoArchiveDB] = None,
     ) -> None:
         self.bot = bot
         self.config_manager = config_manager
@@ -64,7 +69,7 @@ class QueueHandler:
             "failed_items": 0,
             "average_processing_time": 0.0,
             "last_processed": None,
-            "is_healthy": True
+            "is_healthy": True,
         }
 
     async def process_video(self, item: QueueItem) -> Tuple[bool, Optional[str]]:

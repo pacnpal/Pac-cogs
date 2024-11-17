@@ -4,122 +4,130 @@ import logging
 from enum import Enum, auto
 from typing import Optional, Any, Dict, TypedDict
 
-import discord
-from discord import app_commands
-from redbot.core import commands
-from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
+import discord # type: ignore
+from discord import app_commands # type: ignore
+from redbot.core import commands # type: ignore
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions # type: ignore
 
-from .core.settings import VideoFormat, VideoQuality
-from .core.response_handler import handle_response, ResponseType
-from .utils.exceptions import (
-    CommandError,
-    ErrorContext,
-    ErrorSeverity
-)
+from core.settings import VideoFormat, VideoQuality
+from core.response_handler import handle_response, ResponseType
+from utils.exceptions import CommandError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class SettingCategory(Enum):
     """Setting categories"""
+
     CHANNELS = auto()
     VIDEO = auto()
     MESSAGES = auto()
     PERFORMANCE = auto()
 
+
 class SettingValidation(TypedDict):
     """Type definition for setting validation"""
+
     valid: bool
     error: Optional[str]
     details: Dict[str, Any]
 
+
 class SettingUpdate(TypedDict):
     """Type definition for setting update"""
+
     setting: str
     old_value: Any
     new_value: Any
     category: SettingCategory
 
+
 async def validate_setting(
-    category: SettingCategory,
-    setting: str,
-    value: Any
+    category: SettingCategory, setting: str, value: Any
 ) -> SettingValidation:
     """
     Validate a setting value.
-    
+
     Args:
         category: Setting category
         setting: Setting name
         value: Value to validate
-        
+
     Returns:
         Validation result
     """
     validation = SettingValidation(
         valid=True,
         error=None,
-        details={"category": category.name, "setting": setting, "value": value}
+        details={"category": category.name, "setting": setting, "value": value},
     )
 
     try:
         if category == SettingCategory.VIDEO:
             if setting == "format":
                 if value not in [f.value for f in VideoFormat]:
-                    validation.update({
-                        "valid": False,
-                        "error": f"Invalid format. Must be one of: {', '.join(f.value for f in VideoFormat)}"
-                    })
+                    validation.update(
+                        {
+                            "valid": False,
+                            "error": f"Invalid format. Must be one of: {', '.join(f.value for f in VideoFormat)}",
+                        }
+                    )
             elif setting == "quality":
                 if not 144 <= value <= 4320:
-                    validation.update({
-                        "valid": False,
-                        "error": "Quality must be between 144 and 4320"
-                    })
+                    validation.update(
+                        {
+                            "valid": False,
+                            "error": "Quality must be between 144 and 4320",
+                        }
+                    )
             elif setting == "max_file_size":
                 if not 1 <= value <= 100:
-                    validation.update({
-                        "valid": False,
-                        "error": "Size must be between 1 and 100 MB"
-                    })
+                    validation.update(
+                        {"valid": False, "error": "Size must be between 1 and 100 MB"}
+                    )
 
         elif category == SettingCategory.MESSAGES:
             if setting == "duration":
                 if not 0 <= value <= 168:
-                    validation.update({
-                        "valid": False,
-                        "error": "Duration must be between 0 and 168 hours (1 week)"
-                    })
+                    validation.update(
+                        {
+                            "valid": False,
+                            "error": "Duration must be between 0 and 168 hours (1 week)",
+                        }
+                    )
             elif setting == "template":
                 placeholders = ["{author}", "{channel}", "{original_message}"]
                 if not any(ph in value for ph in placeholders):
-                    validation.update({
-                        "valid": False,
-                        "error": f"Template must include at least one placeholder: {', '.join(placeholders)}"
-                    })
+                    validation.update(
+                        {
+                            "valid": False,
+                            "error": f"Template must include at least one placeholder: {', '.join(placeholders)}",
+                        }
+                    )
 
         elif category == SettingCategory.PERFORMANCE:
             if setting == "concurrent_downloads":
                 if not 1 <= value <= 5:
-                    validation.update({
-                        "valid": False,
-                        "error": "Concurrent downloads must be between 1 and 5"
-                    })
+                    validation.update(
+                        {
+                            "valid": False,
+                            "error": "Concurrent downloads must be between 1 and 5",
+                        }
+                    )
 
     except Exception as e:
-        validation.update({
-            "valid": False,
-            "error": f"Validation error: {str(e)}"
-        })
+        validation.update({"valid": False, "error": f"Validation error: {str(e)}"})
 
     return validation
+
 
 def setup_settings_commands(cog: Any) -> Any:
     """
     Set up settings commands for the cog.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Returns:
         Main settings command group
     """
@@ -137,8 +145,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "show_settings",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -146,11 +154,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             embed = await cog.config_manager.format_settings_embed(ctx.guild)
-            await handle_response(
-                ctx,
-                embed=embed,
-                response_type=ResponseType.INFO
-            )
+            await handle_response(ctx, embed=embed, response_type=ResponseType.INFO)
 
         except Exception as e:
             error = f"Failed to show settings: {str(e)}"
@@ -161,8 +165,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "show_settings",
                     {"guild_id": ctx.guild.id},
-                    ErrorSeverity.MEDIUM
-                )
+                    ErrorSeverity.MEDIUM,
+                ),
             )
 
     @settings.command(name="setchannel")
@@ -180,8 +184,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_archive_channel",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -194,7 +198,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 send_messages=True,
                 embed_links=True,
                 attach_files=True,
-                read_message_history=True
+                read_message_history=True,
             )
             channel_perms = channel.permissions_for(bot_member)
             if not all(getattr(channel_perms, perm) for perm in required_perms):
@@ -207,23 +211,22 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm for perm in required_perms
+                                perm
+                                for perm in required_perms
                                 if not getattr(channel_perms, perm)
-                            ]
+                            ],
                         },
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "archive_channel",
-                channel.id
+                ctx.guild.id, "archive_channel", channel.id
             )
             await handle_response(
                 ctx,
                 f"Archive channel has been set to {channel.mention}.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -235,8 +238,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_archive_channel",
                     {"guild_id": ctx.guild.id, "channel_id": channel.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setlog")
@@ -254,8 +257,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_log_channel",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -265,9 +268,7 @@ def setup_settings_commands(cog: Any) -> Any:
             # Check channel permissions
             bot_member = ctx.guild.me
             required_perms = discord.Permissions(
-                send_messages=True,
-                embed_links=True,
-                read_message_history=True
+                send_messages=True, embed_links=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
             if not all(getattr(channel_perms, perm) for perm in required_perms):
@@ -280,23 +281,22 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm for perm in required_perms
+                                perm
+                                for perm in required_perms
                                 if not getattr(channel_perms, perm)
-                            ]
+                            ],
                         },
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "log_channel",
-                channel.id
+                ctx.guild.id, "log_channel", channel.id
             )
             await handle_response(
                 ctx,
                 f"Log channel has been set to {channel.mention}.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -308,8 +308,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_log_channel",
                     {"guild_id": ctx.guild.id, "channel_id": channel.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="addchannel")
@@ -327,8 +327,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "add_enabled_channel",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -338,8 +338,7 @@ def setup_settings_commands(cog: Any) -> Any:
             # Check channel permissions
             bot_member = ctx.guild.me
             required_perms = discord.Permissions(
-                read_messages=True,
-                read_message_history=True
+                read_messages=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
             if not all(getattr(channel_perms, perm) for perm in required_perms):
@@ -352,36 +351,34 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm for perm in required_perms
+                                perm
+                                for perm in required_perms
                                 if not getattr(channel_perms, perm)
-                            ]
+                            ],
                         },
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
             enabled_channels = await cog.config_manager.get_setting(
-                ctx.guild.id,
-                "enabled_channels"
+                ctx.guild.id, "enabled_channels"
             )
             if channel.id in enabled_channels:
                 await handle_response(
                     ctx,
                     f"{channel.mention} is already being monitored.",
-                    response_type=ResponseType.WARNING
+                    response_type=ResponseType.WARNING,
                 )
                 return
 
             enabled_channels.append(channel.id)
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "enabled_channels",
-                enabled_channels
+                ctx.guild.id, "enabled_channels", enabled_channels
             )
             await handle_response(
                 ctx,
                 f"Now monitoring {channel.mention} for videos.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -393,15 +390,17 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "add_enabled_channel",
                     {"guild_id": ctx.guild.id, "channel_id": channel.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="removechannel")
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to stop monitoring")
-    async def remove_enabled_channel(ctx: Context, channel: discord.TextChannel) -> None:
+    async def remove_enabled_channel(
+        ctx: Context, channel: discord.TextChannel
+    ) -> None:
         """Remove a channel from video monitoring."""
         try:
             # Check if config manager is ready
@@ -412,8 +411,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "remove_enabled_channel",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -421,27 +420,24 @@ def setup_settings_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             enabled_channels = await cog.config_manager.get_setting(
-                ctx.guild.id,
-                "enabled_channels"
+                ctx.guild.id, "enabled_channels"
             )
             if channel.id not in enabled_channels:
                 await handle_response(
                     ctx,
                     f"{channel.mention} is not being monitored.",
-                    response_type=ResponseType.WARNING
+                    response_type=ResponseType.WARNING,
                 )
                 return
 
             enabled_channels.remove(channel.id)
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "enabled_channels",
-                enabled_channels
+                ctx.guild.id, "enabled_channels", enabled_channels
             )
             await handle_response(
                 ctx,
                 f"Stopped monitoring {channel.mention} for videos.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -453,8 +449,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "remove_enabled_channel",
                     {"guild_id": ctx.guild.id, "channel_id": channel.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setformat")
@@ -472,8 +468,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_video_format",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -482,28 +478,20 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate format
             format = format.lower()
-            validation = await validate_setting(
-                SettingCategory.VIDEO,
-                "format",
-                format
-            )
+            validation = await validate_setting(SettingCategory.VIDEO, "format", format)
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "video_format",
-                format
+                ctx.guild.id, "video_format", format
             )
             await handle_response(
                 ctx,
                 f"Video format has been set to {format}.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -515,8 +503,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_video_format",
                     {"guild_id": ctx.guild.id, "format": format},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setquality")
@@ -534,8 +522,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_video_quality",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -544,27 +532,21 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate quality
             validation = await validate_setting(
-                SettingCategory.VIDEO,
-                "quality",
-                quality
+                SettingCategory.VIDEO, "quality", quality
             )
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "video_quality",
-                quality
+                ctx.guild.id, "video_quality", quality
             )
             await handle_response(
                 ctx,
                 f"Video quality has been set to {quality}p.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -576,8 +558,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_video_quality",
                     {"guild_id": ctx.guild.id, "quality": quality},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setmaxsize")
@@ -595,8 +577,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_max_file_size",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -605,27 +587,19 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate size
             validation = await validate_setting(
-                SettingCategory.VIDEO,
-                "max_file_size",
-                size
+                SettingCategory.VIDEO, "max_file_size", size
             )
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
-            await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "max_file_size",
-                size
-            )
+            await cog.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
             await handle_response(
                 ctx,
                 f"Maximum file size has been set to {size}MB.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -637,8 +611,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_max_file_size",
                     {"guild_id": ctx.guild.id, "size": size},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setmessageduration")
@@ -656,8 +630,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_message_duration",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -666,27 +640,21 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate duration
             validation = await validate_setting(
-                SettingCategory.MESSAGES,
-                "duration",
-                hours
+                SettingCategory.MESSAGES, "duration", hours
             )
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "message_duration",
-                hours
+                ctx.guild.id, "message_duration", hours
             )
             await handle_response(
                 ctx,
                 f"Message duration has been set to {hours} hours.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -698,8 +666,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_message_duration",
                     {"guild_id": ctx.guild.id, "hours": hours},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="settemplate")
@@ -719,8 +687,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_message_template",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -729,27 +697,21 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate template
             validation = await validate_setting(
-                SettingCategory.MESSAGES,
-                "template",
-                template
+                SettingCategory.MESSAGES, "template", template
             )
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "message_template",
-                template
+                ctx.guild.id, "message_template", template
             )
             await handle_response(
                 ctx,
                 f"Message template has been set to: {template}",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -761,8 +723,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_message_template",
                     {"guild_id": ctx.guild.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @settings.command(name="setconcurrent")
@@ -780,8 +742,8 @@ def setup_settings_commands(cog: Any) -> Any:
                         "SettingsCommands",
                         "set_concurrent_downloads",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -790,27 +752,21 @@ def setup_settings_commands(cog: Any) -> Any:
 
             # Validate count
             validation = await validate_setting(
-                SettingCategory.PERFORMANCE,
-                "concurrent_downloads",
-                count
+                SettingCategory.PERFORMANCE, "concurrent_downloads", count
             )
             if not validation["valid"]:
                 await handle_response(
-                    ctx,
-                    validation["error"],
-                    response_type=ResponseType.ERROR
+                    ctx, validation["error"], response_type=ResponseType.ERROR
                 )
                 return
 
             await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "concurrent_downloads",
-                count
+                ctx.guild.id, "concurrent_downloads", count
             )
             await handle_response(
                 ctx,
                 f"Concurrent downloads has been set to {count}.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -822,8 +778,8 @@ def setup_settings_commands(cog: Any) -> Any:
                     "SettingsCommands",
                     "set_concurrent_downloads",
                     {"guild_id": ctx.guild.id, "count": count},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     # Store commands in cog for access

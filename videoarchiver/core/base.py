@@ -8,9 +8,9 @@ from typing import Dict, Any, Optional, TypedDict, ClassVar, List, Set, Union
 from datetime import datetime
 from pathlib import Path
 
-import discord
-from redbot.core.bot import Red
-from redbot.core.commands import GroupCog, Context
+import discord # type: ignore
+from redbot.core.bot import Red # type: ignore
+from redbot.core.commands import GroupCog, Context # type: ignore
 
 from .settings import Settings
 from .lifecycle import LifecycleManager, LifecycleState
@@ -22,12 +22,12 @@ from .commands.database_commands import setup_database_commands
 from .commands.settings_commands import setup_settings_commands
 from .events import setup_events, EventManager
 
-from .processor.core import Processor
-from .queue.manager import QueueManager
-from .ffmpeg.ffmpeg_manager import FFmpegManager
-from .database.video_archive_db import VideoArchiveDB
-from .config_manager import ConfigManager
-from .utils.exceptions import (
+from ..processor.core import Processor
+from ..queue.manager import QueueManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from ..database.video_archive_db import VideoArchiveDB
+from ..config_manager import ConfigManager
+from ..utils.exceptions import (
     CogError,
     ErrorContext,
     ErrorSeverity

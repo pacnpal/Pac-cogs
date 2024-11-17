@@ -5,9 +5,9 @@ from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple, List, Any, Callable, Set, TypedDict, ClassVar
 from datetime import datetime
-import discord
+import discord # type: ignore
 
-from .utils.exceptions import ValidationError
+from ..utils.exceptions import ValidationError 
 
 logger = logging.getLogger("VideoArchiver")
 

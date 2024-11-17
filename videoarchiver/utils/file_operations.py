@@ -9,14 +9,15 @@ import subprocess
 from typing import Tuple
 from pathlib import Path
 
-from .utils.exceptions import VideoVerificationError
-from .utils.file_deletion import secure_delete_file
+from ..utils.exceptions import VideoVerificationError
+from ..utils.file_deletion import SecureFileDeleter
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class FileOperations:
     """Handles safe file operations with retries"""
-    
+
     def __init__(self, max_retries: int = 3, retry_delay: int = 1):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -26,7 +27,7 @@ class FileOperations:
         for attempt in range(self.max_retries):
             try:
                 if os.path.exists(file_path):
-                    await secure_delete_file(file_path)
+                    await SecureFileDeleter(file_path)
                 return True
             except Exception as e:
                 logger.error(f"Delete attempt {attempt + 1} failed: {str(e)}")
@@ -122,7 +123,7 @@ class FileOperations:
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
                 raise Exception(f"FFprobe failed: {result.stderr}")
-            
+
             data = json.loads(result.stdout)
             return float(data["format"]["duration"])
         except Exception as e:

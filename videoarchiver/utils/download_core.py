@@ -3,16 +3,16 @@
 import os
 import asyncio
 import logging
-import yt_dlp
+import yt_dlp # type: ignore
 from typing import Dict, Optional, Callable, Tuple
 from pathlib import Path
 
-from .utils.url_validator import check_url_support
-from .utils.progress_handler import ProgressHandler, CancellableYTDLLogger
-from .utils.file_operations import FileOperations
-from .utils.compression_handler import CompressionHandler
-from .utils.process_manager import ProcessManager
-from .ffmpeg.ffmpeg_manager import FFmpegManager
+from ..utils.url_validator import check_url_support
+from ..utils.progress_handler import ProgressHandler, CancellableYTDLLogger
+from ..utils.file_operations import FileOperations
+from ..utils.compression_handler import CompressionHandler
+from ..utils.process_manager import ProcessManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 

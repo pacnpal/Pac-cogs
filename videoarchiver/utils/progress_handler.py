@@ -1,8 +1,7 @@
-"""Progress tracking and logging utilities for video downloads"""
-
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, Callable
+import os
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -13,17 +12,17 @@ class CancellableYTDLLogger:
 
     def debug(self, msg):
         if self.cancelled:
-            raise yt_dlp.utils.DownloadError("Download cancelled")
+            raise yt_dlp.utils.DownloadError("Download cancelled") # type: ignore
         logger.debug(msg)
 
     def warning(self, msg):
         if self.cancelled:
-            raise yt_dlp.utils.DownloadError("Download cancelled")
+            raise yt_dlp.utils.DownloadError("Download cancelled") # type: ignore
         logger.warning(msg)
 
     def error(self, msg):
         if self.cancelled:
-            raise yt_dlp.utils.DownloadError("Download cancelled")
+            raise yt_dlp.utils.DownloadError("Download cancelled") # type: ignore
         logger.error(msg)
 
 class ProgressHandler:
@@ -123,4 +122,4 @@ class ProgressHandler:
                     progress_callback(progress)
 
         except Exception as e:
-            logger.error(f"Error upda
+            logger.error(f"Error updating compression progress: {str(e)}")

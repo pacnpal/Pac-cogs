@@ -3,8 +3,8 @@
 import logging
 import asyncio
 from typing import Dict, Any, Optional, List, Union
-import discord
-from redbot.core import Config
+import discord # type: ignore
+from redbot.core import Config # type: ignore
 
 from .config.validation_manager import ValidationManager
 from .config.settings_formatter import SettingsFormatter

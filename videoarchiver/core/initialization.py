@@ -4,15 +4,15 @@ from typing import TYPE_CHECKING, Optional, Dict, Any
 import asyncio
 import logging
 
-from .utils.exceptions import (
+from ..utils.exceptions import (
     ComponentError,
     ErrorContext,
     ErrorSeverity
 )
-from .core.lifecycle import LifecycleState
+from ..core.lifecycle import LifecycleState
 
 if TYPE_CHECKING:
-    from .core.base import VideoArchiver
+    from ..core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 

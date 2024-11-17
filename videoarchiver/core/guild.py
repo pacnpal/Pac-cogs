@@ -4,15 +4,16 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Any, Optional
 
-from .utils.download_core import DownloadCore
-from .utils.message_manager import MessageManager
-from .utils.file_ops import cleanup_downloads
-from .utils.exceptions import VideoArchiverError as ProcessingError
+from ..utils.download_core import DownloadCore
+from ..utils.message_manager import MessageManager
+from ..utils.file_ops import cleanup_downloads
+from ..utils.exceptions import VideoArchiverError as ProcessingError
 
 if TYPE_CHECKING:
-    from .core.base import VideoArchiver
+    from ..core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
+
 
 async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> None:
     """Initialize or update components for a guild with error handling"""
@@ -52,6 +53,7 @@ async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> No
     except Exception as e:
         logger.error(f"Failed to initialize guild {guild_id}: {str(e)}")
         raise ProcessingError(f"Guild initialization failed: {str(e)}")
+
 
 async def cleanup_guild_components(cog: "VideoArchiver", guild_id: int) -> None:
     """Clean up components for a specific guild"""

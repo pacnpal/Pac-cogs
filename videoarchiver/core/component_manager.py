@@ -8,6 +8,7 @@ from typing import (
     Optional,
     Set,
     List,
+    Tuple,
     TypedDict,
     ClassVar,
     Type,
@@ -19,12 +20,12 @@ from datetime import datetime
 from pathlib import Path
 import importlib
 
-from .utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-from .utils.path_manager import ensure_directory
-from .config_manager import ConfigManager
-from .processor.core import Processor
-from .queue.manager import EnhancedVideoQueueManager
-from .ffmpeg.ffmpeg_manager import FFmpegManager
+from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+from ..utils.path_manager import ensure_directory
+from ..config_manager import ConfigManager
+from ..processor.core import Processor
+from ..queue.manager import EnhancedVideoQueueManager
+from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 

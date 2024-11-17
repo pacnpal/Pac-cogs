@@ -1,5 +1,5 @@
 """Overseerr cog for Red-DiscordBot"""
-from redbot.core.bot import Red
+from redbot.core.bot import Red # type: ignore
 import logging
 from .overseerr import Overseerr
 

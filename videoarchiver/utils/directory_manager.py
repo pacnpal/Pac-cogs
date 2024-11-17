@@ -6,10 +6,11 @@ import asyncio
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from .utils.exceptions import FileCleanupError
-from .utils.file_deletion import SecureFileDeleter
+from ..utils.exceptions import FileCleanupError
+from ..utils.file_deletion import SecureFileDeleter
 
 logger = logging.getLogger("DirectoryManager")
+
 
 class DirectoryManager:
     """Handles directory operations and cleanup"""
@@ -18,21 +19,18 @@ class DirectoryManager:
         self.file_deleter = SecureFileDeleter()
 
     async def cleanup_directory(
-        self,
-        directory_path: str,
-        recursive: bool = True,
-        delete_empty: bool = True
+        self, directory_path: str, recursive: bool = True, delete_empty: bool = True
     ) -> Tuple[int, List[str]]:
         """Clean up a directory by removing files and optionally empty subdirectories
-        
+
         Args:
             directory_path: Path to the directory to clean
             recursive: Whether to clean subdirectories
             delete_empty: Whether to delete empty directories
-            
+
         Returns:
             Tuple[int, List[str]]: (Number of files deleted, List of errors)
-            
+
         Raises:
             FileCleanupError: If cleanup fails critically
         """
@@ -45,9 +43,7 @@ class DirectoryManager:
         try:
             # Process files and directories
             deleted, errs = await self._process_directory_contents(
-                directory_path,
-                recursive,
-                delete_empty
+                directory_path, recursive, delete_empty
             )
             deleted_count += deleted
             errors.extend(errs)
@@ -69,10 +65,7 @@ class DirectoryManager:
             raise FileCleanupError(f"Directory cleanup failed: {str(e)}")
 
     async def _process_directory_contents(
-        self,
-        directory_path: str,
-        recursive: bool,
-        delete_empty: bool
+        self, directory_path: str, recursive: bool, delete_empty: bool
     ) -> Tuple[int, List[str]]:
         """Process contents of a directory"""
         deleted_count = 0
@@ -90,9 +83,7 @@ class DirectoryManager:
                     elif entry.is_dir() and recursive:
                         # Process subdirectory
                         subdir_deleted, subdir_errors = await self.cleanup_directory(
-                            entry.path,
-                            recursive=True,
-                            delete_empty=delete_empty
+                            entry.path, recursive=True, delete_empty=delete_empty
                         )
                         deleted_count += subdir_deleted
                         errors.extend(subdir_errors)
@@ -133,31 +124,31 @@ class DirectoryManager:
 
     async def ensure_directory(self, directory_path: str) -> None:
         """Ensure a directory exists and is accessible
-        
+
         Args:
             directory_path: Path to the directory to ensure
-            
+
         Raises:
             FileCleanupError: If directory cannot be created or accessed
         """
         try:
             path = Path(directory_path)
             path.mkdir(parents=True, exist_ok=True)
-            
+
             # Verify directory is writable
             if not os.access(directory_path, os.W_OK):
                 raise FileCleanupError(f"Directory {directory_path} is not writable")
-                
+
         except Exception as e:
             logger.error(f"Error ensuring directory {directory_path}: {e}")
             raise FileCleanupError(f"Failed to ensure directory: {str(e)}")
 
     async def get_directory_size(self, directory_path: str) -> int:
         """Get total size of a directory in bytes
-        
+
         Args:
             directory_path: Path to the directory
-            
+
         Returns:
             int: Total size in bytes
         """
@@ -173,5 +164,5 @@ class DirectoryManager:
                     logger.warning(f"Error getting size for {entry.path}: {e}")
         except Exception as e:
             logger.error(f"Error calculating directory size: {e}")
-            
+
         return total_size

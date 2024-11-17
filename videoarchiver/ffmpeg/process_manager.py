@@ -1,7 +1,7 @@
 """Module for managing FFmpeg processes"""
 
 import logging
-import psutil
+import psutil # type: ignore
 import subprocess
 import time
 from typing import Set, Optional

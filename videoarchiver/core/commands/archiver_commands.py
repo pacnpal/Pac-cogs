@@ -4,47 +4,44 @@ import logging
 from enum import Enum, auto
 from typing import Optional, Any, Dict, TypedDict, Callable, Awaitable
 
-import discord
-from discord import app_commands
-from redbot.core import commands
-from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
+import discord # type: ignore
+from discord import app_commands # type: ignore
+from redbot.core import commands # type: ignore
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions # type: ignore
 
-from .core.response_handler import handle_response, ResponseType
-from .utils.exceptions import (
-    CommandError,
-    ErrorContext,
-    ErrorSeverity
-)
+from core.response_handler import handle_response, ResponseType
+from utils.exceptions import CommandError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class CommandCategory(Enum):
     """Command categories"""
+
     MANAGEMENT = auto()
     STATUS = auto()
     UTILITY = auto()
 
+
 class CommandResult(TypedDict):
     """Type definition for command result"""
+
     success: bool
     message: str
     details: Optional[Dict[str, Any]]
     error: Optional[str]
 
+
 class CommandContext:
     """Context manager for command execution"""
-    def __init__(
-        self,
-        ctx: Context,
-        category: CommandCategory,
-        operation: str
-    ) -> None:
+
+    def __init__(self, ctx: Context, category: CommandCategory, operation: str) -> None:
         self.ctx = ctx
         self.category = category
         self.operation = operation
         self.start_time = None
 
-    async def __aenter__(self) -> 'CommandContext':
+    async def __aenter__(self) -> "CommandContext":
         """Set up command context"""
         self.start_time = self.ctx.message.created_at
         logger.debug(
@@ -62,22 +59,23 @@ class CommandContext:
             await handle_response(
                 self.ctx,
                 f"An error occurred: {str(exc_val)}",
-                response_type=ResponseType.ERROR
+                response_type=ResponseType.ERROR,
             )
             return True
         return False
 
+
 def setup_archiver_commands(cog: Any) -> Callable:
     """
     Set up archiver commands for the cog.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Returns:
         Main archiver command group
     """
-    
+
     @hybrid_group(name="archiver", fallback="help")
     @guild_only()
     async def archiver(ctx: Context) -> None:
@@ -86,7 +84,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
             await handle_response(
                 ctx,
                 "Use `/help archiver` for a list of commands.",
-                response_type=ResponseType.INFO
+                response_type=ResponseType.INFO,
             )
 
     @archiver.command(name="enable")
@@ -104,8 +102,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                             "ArchiverCommands",
                             "enable_archiver",
                             {"guild_id": ctx.guild.id},
-                            ErrorSeverity.HIGH
-                        )
+                            ErrorSeverity.HIGH,
+                        ),
                     )
 
                 # Check current setting
@@ -116,7 +114,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     await handle_response(
                         ctx,
                         "Video archiving is already enabled.",
-                        response_type=ResponseType.WARNING
+                        response_type=ResponseType.WARNING,
                     )
                     return
 
@@ -125,7 +123,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                 await handle_response(
                     ctx,
                     "Video archiving has been enabled.",
-                    response_type=ResponseType.SUCCESS
+                    response_type=ResponseType.SUCCESS,
                 )
 
             except Exception as e:
@@ -137,8 +135,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         "ArchiverCommands",
                         "enable_archiver",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
     @archiver.command(name="disable")
@@ -156,8 +154,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                             "ArchiverCommands",
                             "disable_archiver",
                             {"guild_id": ctx.guild.id},
-                            ErrorSeverity.HIGH
-                        )
+                            ErrorSeverity.HIGH,
+                        ),
                     )
 
                 # Check current setting
@@ -168,7 +166,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     await handle_response(
                         ctx,
                         "Video archiving is already disabled.",
-                        response_type=ResponseType.WARNING
+                        response_type=ResponseType.WARNING,
                     )
                     return
 
@@ -177,7 +175,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                 await handle_response(
                     ctx,
                     "Video archiving has been disabled.",
-                    response_type=ResponseType.SUCCESS
+                    response_type=ResponseType.SUCCESS,
                 )
 
             except Exception as e:
@@ -189,8 +187,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         "ArchiverCommands",
                         "disable_archiver",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
     @archiver.command(name="queue")
@@ -207,8 +205,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                             "ArchiverCommands",
                             "show_queue",
                             {"guild_id": ctx.guild.id},
-                            ErrorSeverity.MEDIUM
-                        )
+                            ErrorSeverity.MEDIUM,
+                        ),
                     )
 
                 await cog.processor.show_queue_details(ctx)
@@ -222,8 +220,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         "ArchiverCommands",
                         "show_queue",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
     @archiver.command(name="status")
@@ -235,22 +233,32 @@ def setup_archiver_commands(cog: Any) -> Callable:
             try:
                 # Get comprehensive status
                 status = {
-                    "enabled": await cog.config_manager.get_setting(ctx.guild.id, "enabled"),
-                    "queue": cog.queue_manager.get_queue_status(ctx.guild.id) if cog.queue_manager else None,
+                    "enabled": await cog.config_manager.get_setting(
+                        ctx.guild.id, "enabled"
+                    ),
+                    "queue": (
+                        cog.queue_manager.get_queue_status(ctx.guild.id)
+                        if cog.queue_manager
+                        else None
+                    ),
                     "processor": cog.processor.get_status() if cog.processor else None,
                     "components": cog.component_manager.get_component_status(),
-                    "health": cog.status_tracker.get_status()
+                    "health": cog.status_tracker.get_status(),
                 }
 
                 # Create status embed
                 embed = discord.Embed(
                     title="VideoArchiver Status",
-                    color=discord.Color.blue() if status["enabled"] else discord.Color.red()
+                    color=(
+                        discord.Color.blue()
+                        if status["enabled"]
+                        else discord.Color.red()
+                    ),
                 )
                 embed.add_field(
                     name="Status",
                     value="Enabled" if status["enabled"] else "Disabled",
-                    inline=False
+                    inline=False,
                 )
 
                 if status["queue"]:
@@ -261,7 +269,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                             f"Processing: {status['queue']['processing']}\n"
                             f"Completed: {status['queue']['completed']}"
                         ),
-                        inline=True
+                        inline=True,
                     )
 
                 if status["processor"]:
@@ -271,7 +279,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                             f"Active: {status['processor']['active']}\n"
                             f"Health: {status['processor']['health']}"
                         ),
-                        inline=True
+                        inline=True,
                     )
 
                 embed.add_field(
@@ -280,7 +288,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         f"State: {status['health']['state']}\n"
                         f"Errors: {status['health']['error_count']}"
                     ),
-                    inline=True
+                    inline=True,
                 )
 
                 await ctx.send(embed=embed)
@@ -294,8 +302,8 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         "ArchiverCommands",
                         "show_status",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
     # Store commands in cog for access

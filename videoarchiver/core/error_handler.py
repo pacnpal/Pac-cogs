@@ -4,8 +4,8 @@ import logging
 import traceback
 from typing import Dict, Optional, Tuple, Type, TypedDict, ClassVar
 from enum import Enum, auto
-import discord
-from redbot.core.commands import (
+import discord # type: ignore
+from redbot.core.commands import ( # type: ignore
     Context,
     MissingPermissions,
     BotMissingPermissions,
@@ -14,7 +14,7 @@ from redbot.core.commands import (
     CommandError
 )
 
-from .utils.exceptions import (
+from ..utils.exceptions import (
     VideoArchiverError,
     ErrorSeverity,
     ErrorContext,
@@ -33,7 +33,7 @@ from .utils.exceptions import (
     ResourceExhaustedError,
     ConfigurationError
 )
-from .core.response_handler import response_manager
+from ..core.response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 

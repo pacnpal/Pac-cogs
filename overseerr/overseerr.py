@@ -1,10 +1,10 @@
 import aiohttp
-from redbot.core import commands, Config, app_commands
-from redbot.core.bot import Red
+from redbot.core import commands, Config, app_commands # type: ignore
+from redbot.core.bot import Red # type: ignore
 import asyncio
 import json
 import urllib.parse
-import discord
+import discord # type: ignore
 
 class Overseerr(commands.Cog):
     def __init__(self, bot: Red):

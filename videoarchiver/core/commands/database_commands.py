@@ -5,31 +5,30 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Optional, Any, Dict, TypedDict
 
-import discord
-from discord import app_commands
-from redbot.core import commands
-from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
+import discord # type: ignore
+from discord import app_commands # type: ignore
+from redbot.core import commands # type: ignore
+from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions # type: ignore
 
-from .core.response_handler import handle_response, ResponseType
-from .utils.exceptions import (
-    CommandError,
-    ErrorContext,
-    ErrorSeverity,
-    DatabaseError
-)
-from .database.video_archive_db import VideoArchiveDB
+from core.response_handler import handle_response, ResponseType
+from utils.exceptions import CommandError, ErrorContext, ErrorSeverity, DatabaseError
+from database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class DatabaseOperation(Enum):
     """Database operation types"""
+
     ENABLE = auto()
     DISABLE = auto()
     QUERY = auto()
     MAINTENANCE = auto()
 
+
 class DatabaseStatus(TypedDict):
     """Type definition for database status"""
+
     enabled: bool
     connected: bool
     initialized: bool
@@ -37,8 +36,10 @@ class DatabaseStatus(TypedDict):
     last_operation: Optional[str]
     operation_time: Optional[str]
 
+
 class ArchivedVideo(TypedDict):
     """Type definition for archived video data"""
+
     url: str
     discord_url: str
     message_id: int
@@ -46,20 +47,23 @@ class ArchivedVideo(TypedDict):
     guild_id: int
     archived_at: str
 
+
 async def check_database_status(cog: Any) -> DatabaseStatus:
     """
     Check database status.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Returns:
         Database status information
     """
     try:
-        enabled = await cog.config_manager.get_setting(
-            None, "use_database"
-        ) if cog.config_manager else False
+        enabled = (
+            await cog.config_manager.get_setting(None, "use_database")
+            if cog.config_manager
+            else False
+        )
 
         return DatabaseStatus(
             enabled=enabled,
@@ -67,7 +71,7 @@ async def check_database_status(cog: Any) -> DatabaseStatus:
             initialized=cog.db is not None,
             error=None,
             last_operation=None,
-            operation_time=datetime.utcnow().isoformat()
+            operation_time=datetime.utcnow().isoformat(),
         )
     except Exception as e:
         return DatabaseStatus(
@@ -76,16 +80,17 @@ async def check_database_status(cog: Any) -> DatabaseStatus:
             initialized=False,
             error=str(e),
             last_operation=None,
-            operation_time=datetime.utcnow().isoformat()
+            operation_time=datetime.utcnow().isoformat(),
         )
+
 
 def setup_database_commands(cog: Any) -> Any:
     """
     Set up database commands for the cog.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Returns:
         Main database command group
     """
@@ -98,39 +103,39 @@ def setup_database_commands(cog: Any) -> Any:
             try:
                 # Get database status
                 status = await check_database_status(cog)
-                
+
                 # Create status embed
                 embed = discord.Embed(
                     title="Video Archive Database Status",
-                    color=discord.Color.blue() if status["enabled"] else discord.Color.red()
+                    color=(
+                        discord.Color.blue()
+                        if status["enabled"]
+                        else discord.Color.red()
+                    ),
                 )
                 embed.add_field(
                     name="Status",
                     value="Enabled" if status["enabled"] else "Disabled",
-                    inline=False
+                    inline=False,
                 )
                 embed.add_field(
                     name="Connection",
                     value="Connected" if status["connected"] else "Disconnected",
-                    inline=True
+                    inline=True,
                 )
                 embed.add_field(
                     name="Initialization",
                     value="Initialized" if status["initialized"] else "Not Initialized",
-                    inline=True
+                    inline=True,
                 )
                 if status["error"]:
-                    embed.add_field(
-                        name="Error",
-                        value=status["error"],
-                        inline=False
-                    )
-                
+                    embed.add_field(name="Error", value=status["error"], inline=False)
+
                 await handle_response(
                     ctx,
                     "Use `/help archivedb` for a list of commands.",
                     embed=embed,
-                    response_type=ResponseType.INFO
+                    response_type=ResponseType.INFO,
                 )
             except Exception as e:
                 error = f"Failed to get database status: {str(e)}"
@@ -141,8 +146,8 @@ def setup_database_commands(cog: Any) -> Any:
                         "DatabaseCommands",
                         "show_status",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
     @archivedb.command(name="enable")
@@ -159,8 +164,8 @@ def setup_database_commands(cog: Any) -> Any:
                         "DatabaseCommands",
                         "enable_database",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -175,7 +180,7 @@ def setup_database_commands(cog: Any) -> Any:
                 await handle_response(
                     ctx,
                     "The video archive database is already enabled.",
-                    response_type=ResponseType.WARNING
+                    response_type=ResponseType.WARNING,
                 )
                 return
 
@@ -190,8 +195,8 @@ def setup_database_commands(cog: Any) -> Any:
                         "DatabaseCommands",
                         "enable_database",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Update processor with database
@@ -201,17 +206,13 @@ def setup_database_commands(cog: Any) -> Any:
                     cog.processor.queue_handler.db = cog.db
 
             # Update setting
-            await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "use_database",
-                True
-            )
+            await cog.config_manager.update_setting(ctx.guild.id, "use_database", True)
 
             # Send success message
             await handle_response(
                 ctx,
                 "Video archive database has been enabled.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -223,8 +224,8 @@ def setup_database_commands(cog: Any) -> Any:
                     "DatabaseCommands",
                     "enable_database",
                     {"guild_id": ctx.guild.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @archivedb.command(name="disable")
@@ -241,8 +242,8 @@ def setup_database_commands(cog: Any) -> Any:
                         "DatabaseCommands",
                         "disable_database",
                         {"guild_id": ctx.guild.id},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
 
             # Defer the response immediately for slash commands
@@ -250,14 +251,13 @@ def setup_database_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             current_setting = await cog.config_manager.get_setting(
-                ctx.guild.id,
-                "use_database"
+                ctx.guild.id, "use_database"
             )
             if not current_setting:
                 await handle_response(
                     ctx,
                     "The video archive database is already disabled.",
-                    response_type=ResponseType.WARNING
+                    response_type=ResponseType.WARNING,
                 )
                 return
 
@@ -275,15 +275,11 @@ def setup_database_commands(cog: Any) -> Any:
                 if cog.processor.queue_handler:
                     cog.processor.queue_handler.db = None
 
-            await cog.config_manager.update_setting(
-                ctx.guild.id,
-                "use_database",
-                False
-            )
+            await cog.config_manager.update_setting(ctx.guild.id, "use_database", False)
             await handle_response(
                 ctx,
                 "Video archive database has been disabled.",
-                response_type=ResponseType.SUCCESS
+                response_type=ResponseType.SUCCESS,
             )
 
         except Exception as e:
@@ -295,8 +291,8 @@ def setup_database_commands(cog: Any) -> Any:
                     "DatabaseCommands",
                     "disable_database",
                     {"guild_id": ctx.guild.id},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     @archivedb.command(name="check")
@@ -310,7 +306,7 @@ def setup_database_commands(cog: Any) -> Any:
                 await handle_response(
                     ctx,
                     "The archive database is not enabled. Ask an admin to enable it with `/archivedb enable`",
-                    response_type=ResponseType.ERROR
+                    response_type=ResponseType.ERROR,
                 )
                 return
 
@@ -327,8 +323,8 @@ def setup_database_commands(cog: Any) -> Any:
                         "DatabaseCommands",
                         "checkarchived",
                         {"guild_id": ctx.guild.id, "url": url},
-                        ErrorSeverity.MEDIUM
-                    )
+                        ErrorSeverity.MEDIUM,
+                    ),
                 )
 
             if result:
@@ -338,30 +334,12 @@ def setup_database_commands(cog: Any) -> Any:
                     description=f"This video has been archived!\n\nOriginal URL: {url}",
                     color=discord.Color.green(),
                 )
-                embed.add_field(
-                    name="Archived Link",
-                    value=discord_url,
-                    inline=False
-                )
-                embed.add_field(
-                    name="Message ID",
-                    value=str(message_id),
-                    inline=True
-                )
-                embed.add_field(
-                    name="Channel ID",
-                    value=str(channel_id),
-                    inline=True
-                )
-                embed.add_field(
-                    name="Guild ID",
-                    value=str(guild_id),
-                    inline=True
-                )
+                embed.add_field(name="Archived Link", value=discord_url, inline=False)
+                embed.add_field(name="Message ID", value=str(message_id), inline=True)
+                embed.add_field(name="Channel ID", value=str(channel_id), inline=True)
+                embed.add_field(name="Guild ID", value=str(guild_id), inline=True)
                 await handle_response(
-                    ctx,
-                    embed=embed,
-                    response_type=ResponseType.SUCCESS
+                    ctx, embed=embed, response_type=ResponseType.SUCCESS
                 )
             else:
                 embed = discord.Embed(
@@ -370,9 +348,7 @@ def setup_database_commands(cog: Any) -> Any:
                     color=discord.Color.red(),
                 )
                 await handle_response(
-                    ctx,
-                    embed=embed,
-                    response_type=ResponseType.WARNING
+                    ctx, embed=embed, response_type=ResponseType.WARNING
                 )
 
         except Exception as e:
@@ -384,8 +360,8 @@ def setup_database_commands(cog: Any) -> Any:
                     "DatabaseCommands",
                     "checkarchived",
                     {"guild_id": ctx.guild.id, "url": url},
-                    ErrorSeverity.MEDIUM
-                )
+                    ErrorSeverity.MEDIUM,
+                ),
             )
 
     @archivedb.command(name="status")
@@ -399,7 +375,7 @@ def setup_database_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             status = await check_database_status(cog)
-            
+
             # Get additional stats if database is enabled
             stats = {}
             if cog.db and status["connected"]:
@@ -410,53 +386,49 @@ def setup_database_commands(cog: Any) -> Any:
 
             embed = discord.Embed(
                 title="Database Status",
-                color=discord.Color.green() if status["connected"] else discord.Color.red()
+                color=(
+                    discord.Color.green()
+                    if status["connected"]
+                    else discord.Color.red()
+                ),
             )
             embed.add_field(
                 name="Status",
                 value="Enabled" if status["enabled"] else "Disabled",
-                inline=False
+                inline=False,
             )
             embed.add_field(
                 name="Connection",
                 value="Connected" if status["connected"] else "Disconnected",
-                inline=True
+                inline=True,
             )
             embed.add_field(
                 name="Initialization",
                 value="Initialized" if status["initialized"] else "Not Initialized",
-                inline=True
+                inline=True,
             )
 
             if stats:
                 embed.add_field(
                     name="Total Videos",
                     value=str(stats.get("total_videos", 0)),
-                    inline=True
+                    inline=True,
                 )
                 embed.add_field(
                     name="Total Size",
                     value=f"{stats.get('total_size', 0)} MB",
-                    inline=True
+                    inline=True,
                 )
                 embed.add_field(
                     name="Last Update",
                     value=stats.get("last_update", "Never"),
-                    inline=True
+                    inline=True,
                 )
 
             if status["error"]:
-                embed.add_field(
-                    name="Error",
-                    value=status["error"],
-                    inline=False
-                )
+                embed.add_field(name="Error", value=status["error"], inline=False)
 
-            await handle_response(
-                ctx,
-                embed=embed,
-                response_type=ResponseType.INFO
-            )
+            await handle_response(ctx, embed=embed, response_type=ResponseType.INFO)
 
         except Exception as e:
             error = f"Failed to get database status: {str(e)}"
@@ -467,8 +439,8 @@ def setup_database_commands(cog: Any) -> Any:
                     "DatabaseCommands",
                     "database_status",
                     {"guild_id": ctx.guild.id},
-                    ErrorSeverity.MEDIUM
-                )
+                    ErrorSeverity.MEDIUM,
+                ),
             )
 
     # Store commands in cog for access

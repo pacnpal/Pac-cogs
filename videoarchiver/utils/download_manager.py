@@ -3,21 +3,22 @@
 import os
 import logging
 import asyncio
-import yt_dlp
+import yt_dlp # type: ignore
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from pathlib import Path
 
-from .utils.verification_manager import VideoVerificationManager
-from .utils.compression_manager import CompressionManager
-from .utils import progress_tracker
+from ..ffmpeg.verification_manager import VerificationManager
+from ..utils.compression_manager import CompressionManager
+from ..utils import progress_tracker
 
 logger = logging.getLogger("DownloadManager")
 
+
 class CancellableYTDLLogger:
     """Custom yt-dlp logger that can be cancelled"""
-    
+
     def __init__(self):
         self.cancelled = False
 
@@ -36,6 +37,7 @@ class CancellableYTDLLogger:
             raise Exception("Download cancelled")
         logger.error(msg)
 
+
 class DownloadManager:
     """Manages video downloads and processing"""
 
@@ -53,40 +55,33 @@ class DownloadManager:
         max_file_size: int,
         enabled_sites: Optional[List[str]] = None,
         concurrent_downloads: int = 2,
-        ffmpeg_mgr = None
+        ffmpeg_mgr=None,
     ):
         self.download_path = Path(download_path)
         self.download_path.mkdir(parents=True, exist_ok=True)
         os.chmod(str(self.download_path), 0o755)
 
         # Initialize components
-        self.verification_manager = VideoVerificationManager(ffmpeg_mgr)
+        self.verification_manager = VerificationManager(ffmpeg_mgr)
         self.compression_manager = CompressionManager(ffmpeg_mgr, max_file_size)
-        
+
         # Create thread pool
         self.download_pool = ThreadPoolExecutor(
             max_workers=max(1, min(3, concurrent_downloads)),
-            thread_name_prefix="videoarchiver_download"
+            thread_name_prefix="videoarchiver_download",
         )
 
         # Initialize state
         self._shutting_down = False
         self.ytdl_logger = CancellableYTDLLogger()
-        
+
         # Configure yt-dlp options
         self.ydl_opts = self._configure_ydl_opts(
-            video_format,
-            max_quality,
-            max_file_size,
-            ffmpeg_mgr
+            video_format, max_quality, max_file_size, ffmpeg_mgr
         )
 
     def _configure_ydl_opts(
-        self,
-        video_format: str,
-        max_quality: int,
-        max_file_size: int,
-        ffmpeg_mgr
+        self, video_format: str, max_quality: int, max_file_size: int, ffmpeg_mgr
     ) -> Dict[str, Any]:
         """Configure yt-dlp options"""
         return {
@@ -124,7 +119,9 @@ class DownloadManager:
             try:
                 size = os.path.getsize(info["filepath"])
                 if size > self.compression_manager.max_file_size:
-                    logger.info(f"File exceeds size limit, will compress: {info['filepath']}")
+                    logger.info(
+                        f"File exceeds size limit, will compress: {info['filepath']}"
+                    )
             except OSError as e:
                 logger.error(f"Error checking file size: {str(e)}")
 
@@ -155,30 +152,24 @@ class DownloadManager:
         progress_tracker.clear_progress()
 
     async def download_video(
-        self,
-        url: str,
-        progress_callback: Optional[Callable[[float], None]] = None
+        self, url: str, progress_callback: Optional[Callable[[float], None]] = None
     ) -> Tuple[bool, str, str]:
         """Download and process a video"""
         if self._shutting_down:
             return False, "", "Downloader is shutting down"
 
         progress_tracker.start_download(url)
-        
+
         try:
             # Download video
             success, file_path, error = await self._safe_download(
-                url,
-                progress_callback
+                url, progress_callback
             )
             if not success:
                 return False, "", error
 
             # Verify and compress if needed
-            return await self._process_downloaded_file(
-                file_path,
-                progress_callback
-            )
+            return await self._process_downloaded_file(file_path, progress_callback)
 
         except Exception as e:
             logger.error(f"Download error: {str(e)}")
@@ -188,18 +179,14 @@ class DownloadManager:
             progress_tracker.end_download(url)
 
     async def _safe_download(
-        self,
-        url: str,
-        progress_callback: Optional[Callable[[float], None]]
+        self, url: str, progress_callback: Optional[Callable[[float], None]]
     ) -> Tuple[bool, str, str]:
         """Safely download video with retries"""
         # Implementation moved to separate method for clarity
         pass  # Implementation would be similar to original but using new components
 
     async def _process_downloaded_file(
-        self,
-        file_path: str,
-        progress_callback: Optional[Callable[[float], None]]
+        self, file_path: str, progress_callback: Optional[Callable[[float], None]]
     ) -> Tuple[bool, str, str]:
         """Process a downloaded file (verify and compress if needed)"""
         # Implementation moved to separate method for clarity

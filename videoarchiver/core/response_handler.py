@@ -4,10 +4,10 @@ import logging
 from enum import Enum, auto
 from typing import Optional, Union, Dict, Any, TypedDict, ClassVar
 from datetime import datetime
-import discord
-from redbot.core.commands import Context
+import discord # type: ignore
+from redbot.core.commands import Context # type: ignore
 
-from .utils.exceptions import ErrorSeverity
+from ..utils.exceptions import ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 

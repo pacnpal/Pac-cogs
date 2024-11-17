@@ -7,23 +7,24 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, ClassVar, List
 
-import discord
+import discord # type: ignore
 
-from .processor.constants import REACTIONS
-from .processor.reactions import handle_archived_reaction
-from .core.guild import initialize_guild_components, cleanup_guild_components
-from .core.error_handler import error_manager
-from .core.response_handler import response_manager
-from .utils.exceptions import EventError, ErrorContext, ErrorSeverity
+from ..processor.constants import REACTIONS
+from ..processor.reactions import handle_archived_reaction
+from ..core.guild import initialize_guild_components, cleanup_guild_components
+from ..core.error_handler import error_manager
+from ..core.response_handler import response_manager
+from ..utils.exceptions import EventError, ErrorContext, ErrorSeverity
 
 if TYPE_CHECKING:
-    from .core.base import VideoArchiver
+    from ..core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 
 
 class EventType(Enum):
     """Types of Discord events"""
+
     GUILD_JOIN = auto()
     GUILD_REMOVE = auto()
     MESSAGE = auto()
@@ -34,6 +35,7 @@ class EventType(Enum):
 
 class EventStats(TypedDict):
     """Type definition for event statistics"""
+
     counts: Dict[str, int]
     last_events: Dict[str, str]
     errors: Dict[str, int]
@@ -43,6 +45,7 @@ class EventStats(TypedDict):
 
 class EventHistory(TypedDict):
     """Type definition for event history entry"""
+
     event_type: str
     timestamp: str
     guild_id: Optional[int]
@@ -94,7 +97,7 @@ class EventTracker:
 
         # Cleanup old history
         if len(self.history) > self.MAX_HISTORY:
-            self.history = self.history[-self.MAX_HISTORY:]
+            self.history = self.history[-self.MAX_HISTORY :]
 
     def record_error(
         self, event_type: EventType, error: str, duration: float = 0.0

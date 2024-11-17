@@ -3,9 +3,9 @@
 import logging
 from typing import Dict, Any, List
 from datetime import datetime
-import discord
+import discord # type: ignore
 
-from .config.exceptions import ConfigurationError as ConfigError
+from ..config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("SettingsFormatter")
 

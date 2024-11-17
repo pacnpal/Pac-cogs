@@ -1,7 +1,7 @@
 """Module for queue health checks"""
 
 import logging
-import psutil
+import psutil # type: ignore
 import time
 from enum import Enum
 from dataclasses import dataclass, field
