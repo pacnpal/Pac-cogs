@@ -14,9 +14,9 @@ from .persistence import QueuePersistenceManager
 from .monitoring import QueueMonitor, MonitoringLevel
 from .cleanup import QueueCleaner
 from .models import QueueItem, QueueError, CleanupError
+from .types import ProcessingStrategy
 
 logger = logging.getLogger("QueueManager")
-
 
 class QueueState(Enum):
     """Queue operational states"""
@@ -28,14 +28,12 @@ class QueueState(Enum):
     STOPPED = "stopped"
     ERROR = "error"
 
-
 class QueueMode(Enum):
     """Queue processing modes"""
     NORMAL = "normal"  # Standard processing
     BATCH = "batch"  # Batch processing
     PRIORITY = "priority"  # Priority-based processing
     MAINTENANCE = "maintenance"  # Maintenance mode
-
 
 @dataclass
 class QueueConfig:
@@ -52,7 +50,6 @@ class QueueConfig:
     persistence_enabled: bool = True
     monitoring_level: MonitoringLevel = MonitoringLevel.NORMAL
 
-
 @dataclass
 class QueueStats:
     """Queue statistics"""
@@ -63,7 +60,6 @@ class QueueStats:
     peak_queue_size: int = 0
     peak_memory_usage: float = 0.0
     state_changes: List[Dict[str, Any]] = field(default_factory=list)
-
 
 class QueueCoordinator:
     """Coordinates queue operations"""
@@ -100,7 +96,6 @@ class QueueCoordinator:
         """Wait if queue is paused"""
         await self._paused.wait()
 
-
 class EnhancedVideoQueueManager:
     """Enhanced queue manager with improved organization and maintainability"""
 
@@ -128,10 +123,11 @@ class EnhancedVideoQueueManager:
             QueuePersistenceManager() if self.config.persistence_enabled else None
         )
 
-        # Initialize processor
+        # Initialize processor with strategy
         self.processor = QueueProcessor(
             state_manager=self.state_manager,
             monitor=self.monitor,
+            strategy=ProcessingStrategy.CONCURRENT,
             max_retries=self.config.max_retries,
             retry_delay=self.config.retry_delay,
             batch_size=self.config.batch_size,

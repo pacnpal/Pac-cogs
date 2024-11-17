@@ -2,37 +2,13 @@
 
 import logging
 import asyncio
-from enum import Enum, auto
-from typing import List, Optional, Dict, Any, Set, Union, TypedDict, ClassVar
+from typing import List, Optional, Dict, Any, Set, ClassVar
 from datetime import datetime
-import discord  # type: ignore
 
+from ..queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
 from ..queue.models import QueueItem
-from ..queue.manager import EnhancedVideoQueueManager
-from ..processor.constants import REACTIONS
-from ..processor.url_extractor import URLMetadata
-from ..utils.exceptions import QueueProcessingError
 
 logger = logging.getLogger("VideoArchiver")
-
-
-class QueuePriority(Enum):
-    """Priority levels for queue processing"""
-
-    HIGH = auto()
-    NORMAL = auto()
-    LOW = auto()
-
-
-class QueueMetrics(TypedDict):
-    """Type definition for queue metrics"""
-
-    total_items: int
-    processing_time: float
-    success_rate: float
-    error_rate: float
-    average_size: float
-
 
 class QueueProcessor:
     """Handles processing of video queue items"""
@@ -40,14 +16,8 @@ class QueueProcessor:
     _active_items: ClassVar[Set[int]] = set()
     _processing_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
-    def __init__(self, queue_manager: EnhancedVideoQueueManager):
-        self.queue_manager = queue_manager
-        self._metrics: Dict[str, Any] = {
-            "processed_count": 0,
-            "error_count": 0,
-            "total_size": 0,
-            "total_time": 0,
-        }
+    def __init__(self):
+        self._metrics = ProcessingMetrics()
 
     async def process_item(self, item: QueueItem) -> bool:
         """
@@ -85,18 +55,14 @@ class QueueProcessor:
 
     def _update_metrics(self, processing_time: float, success: bool, size: int) -> None:
         """Update processing metrics"""
-        self._metrics["processed_count"] += 1
-        self._metrics["total_time"] += processing_time
-
-        if not success:
-            self._metrics["error_count"] += 1
-
-        if size > 0:
-            self._metrics["total_size"] += size
+        if success:
+            self._metrics.record_success(processing_time)
+        else:
+            self._metrics.record_failure("Processing error")
 
     def get_metrics(self) -> QueueMetrics:
         """Get current processing metrics"""
-        total = self._metrics["processed_count"]
+        total = self._metrics.total_processed
         if total == 0:
             return QueueMetrics(
                 total_items=0,
@@ -108,8 +74,8 @@ class QueueProcessor:
 
         return QueueMetrics(
             total_items=total,
-            processing_time=self._metrics["total_time"],
-            success_rate=(total - self._metrics["error_count"]) / total,
-            error_rate=self._metrics["error_count"] / total,
-            average_size=self._metrics["total_size"] / total,
+            processing_time=self._metrics.avg_processing_time,
+            success_rate=self._metrics.successful / total,
+            error_rate=self._metrics.failed / total,
+            average_size=0,  # This would need to be tracked separately if needed
         )
