@@ -2,9 +2,16 @@
 
 import logging
 from typing import Any, Dict, List, Union
-from .exceptions import ConfigurationError as ConfigError
+
+try:
+    # Try relative imports first
+    from .exceptions import ConfigurationError as ConfigError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("ConfigValidation")
+
 
 class ValidationManager:
     """Manages validation of configuration settings"""
