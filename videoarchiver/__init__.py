@@ -7,11 +7,16 @@ import importlib
 from typing import Optional
 from redbot.core.bot import Red
 
-# Remove modules to force reload
+# Force reload of all modules
 modules_to_reload = [
     'videoarchiver.utils.exceptions',
-    'videoarchiver.utils'
+    'videoarchiver.utils',
+    'videoarchiver.core.commands.settings_commands',
+    'videoarchiver.core.commands.archiver_commands',
+    'videoarchiver.core.commands.database_commands'
 ]
+
+# Remove modules to force fresh import
 for module in modules_to_reload:
     if module in sys.modules:
         del sys.modules[module]
