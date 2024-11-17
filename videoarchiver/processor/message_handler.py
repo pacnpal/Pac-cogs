@@ -8,13 +8,13 @@ from datetime import datetime, timedelta
 import discord
 from discord.ext import commands
 
-from videoarchiver.processor.url_extractor import URLExtractor, URLMetadata
-from videoarchiver.processor.message_validator import MessageValidator, ValidationError
-from videoarchiver.processor.queue_processor import QueueProcessor, QueuePriority
-from videoarchiver.processor.constants import REACTIONS
-from videoarchiver.queue.manager import EnhancedVideoQueueManager
-from videoarchiver.config_manager import ConfigManager
-from videoarchiver.utils.exceptions import MessageHandlerError
+from .processor.url_extractor import URLExtractor, URLMetadata
+from .processor.message_validator import MessageValidator, ValidationError
+from .processor.queue_processor import QueueProcessor, QueuePriority
+from .processor.constants import REACTIONS
+from .queue.manager import EnhancedVideoQueueManager
+from .config_manager import ConfigManager
+from .utils.exceptions import MessageHandlerError
 
 logger = logging.getLogger("VideoArchiver")
 

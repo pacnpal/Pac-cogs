@@ -1,6 +1,6 @@
 """Configuration management module"""
 
-from videoarchiver.config.exceptions import (
+from .exceptions import (
     ConfigurationError,
     ValidationError,
     PermissionError,
@@ -10,10 +10,10 @@ from videoarchiver.config.exceptions import (
     SchemaError,
     DiscordAPIError,
 )
-from videoarchiver.config.channel_manager import ChannelManager
-from videoarchiver.config.role_manager import RoleManager
-from videoarchiver.config.settings_formatter import SettingsFormatter
-from videoarchiver.config.validation_manager import ValidationManager
+from .channel_manager import ChannelManager
+from .role_manager import RoleManager
+from .settings_formatter import SettingsFormatter
+from .validation_manager import ValidationManager
 
 __all__ = [
     'ConfigurationError',

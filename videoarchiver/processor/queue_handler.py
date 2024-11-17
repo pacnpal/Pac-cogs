@@ -8,14 +8,14 @@ from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, C
 from datetime import datetime
 import discord
 
-from videoarchiver.utils import progress_tracker
-from videoarchiver.database.video_archive_db import VideoArchiveDB
-from videoarchiver.utils.download_manager import DownloadManager
-from videoarchiver.utils.message_manager import MessageManager
-from videoarchiver.utils.exceptions import QueueHandlerError
-from videoarchiver.queue.models import QueueItem
-from videoarchiver.config_manager import ConfigManager
-from videoarchiver.processor.constants import REACTIONS
+from .utils import progress_tracker
+from .database.video_archive_db import VideoArchiveDB
+from .utils.download_manager import DownloadManager
+from .utils.message_manager import MessageManager
+from .utils.exceptions import QueueHandlerError
+from .queue.models import QueueItem
+from .config_manager import ConfigManager
+from .processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 

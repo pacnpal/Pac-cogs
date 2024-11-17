@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional, TypedDict, ClassVar, Union
 from enum import Enum, auto
 from datetime import datetime
 
-from videoarchiver.utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
+from ..utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("DBSchemaManager")
 

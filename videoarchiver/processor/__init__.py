@@ -3,8 +3,8 @@
 from typing import Dict, Any, Optional, Union, List, Tuple
 import discord
 
-from videoarchiver.processor.core import VideoProcessor
-from videoarchiver.processor.constants import (
+from .processor.core import VideoProcessor
+from .processor.constants import (
     REACTIONS,
     ReactionType,
     ReactionEmojis,
@@ -12,7 +12,7 @@ from videoarchiver.processor.constants import (
     get_reaction,
     get_progress_emoji
 )
-from videoarchiver.processor.url_extractor import (
+from .processor.url_extractor import (
     URLExtractor,
     URLMetadata,
     URLPattern,
@@ -21,7 +21,7 @@ from videoarchiver.processor.url_extractor import (
     URLValidator,
     URLMetadataExtractor
 )
-from videoarchiver.processor.message_validator import (
+from .processor.message_validator import (
     MessageValidator,
     ValidationContext,
     ValidationRule,
@@ -32,15 +32,15 @@ from videoarchiver.processor.message_validator import (
     ValidationCacheEntry,
     ValidationError
 )
-from videoarchiver.processor.message_handler import MessageHandler
-from videoarchiver.processor.queue_handler import QueueHandler
-from videoarchiver.processor.reactions import (
+from .processor.message_handler import MessageHandler
+from .processor.queue_handler import QueueHandler
+from .processor.reactions import (
     handle_archived_reaction,
     update_queue_position_reaction,
     update_progress_reaction,
     update_download_progress_reaction
 )
-from videoarchiver.utils import progress_tracker
+from .utils import progress_tracker
 
 # Export public classes and constants
 __all__ = [

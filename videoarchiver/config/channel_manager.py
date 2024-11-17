@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 import discord
 
-from videoarchiver.config.exceptions import (
+from .exceptions import (
     ConfigurationError as ConfigError,
     DiscordAPIError,
 )

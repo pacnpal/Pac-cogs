@@ -15,7 +15,7 @@ import tempfile
 import os
 import shutil
 
-from videoarchiver.exceptions import UpdateError
+from .exceptions import UpdateError
 
 logger = logging.getLogger('VideoArchiver')
 

@@ -1,6 +1,6 @@
 """Re-export video processing components from processor module"""
 
-from videoarchiver.processor import (
+from .processor import (
     VideoProcessor,
     REACTIONS,
     MessageHandler,

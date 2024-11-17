@@ -2,27 +2,36 @@
 
 import logging
 import asyncio
-from typing import Dict, Any, Optional, Set, List, TypedDict, ClassVar, Type, Union, Protocol
+from typing import (
+    Dict,
+    Any,
+    Optional,
+    Set,
+    List,
+    TypedDict,
+    ClassVar,
+    Type,
+    Union,
+    Protocol,
+)
 from enum import Enum, auto
 from datetime import datetime
 from pathlib import Path
 import importlib
 
-from videoarchiver.utils.exceptions import (
-    ComponentError,
-    ErrorContext,
-    ErrorSeverity
-)
-from videoarchiver.utils.path_manager import ensure_directory
-from videoarchiver.config_manager import ConfigManager
-from videoarchiver.processor.core import Processor
-from videoarchiver.queue.manager import EnhancedVideoQueueManager
-from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+from .utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+from .utils.path_manager import ensure_directory
+from .config_manager import ConfigManager
+from .processor.core import Processor
+from .queue.manager import EnhancedVideoQueueManager
+from .ffmpeg.ffmpeg_manager import FFmpegManager
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class ComponentState(Enum):
     """Possible states of a component"""
+
     UNREGISTERED = auto()
     REGISTERED = auto()
     INITIALIZING = auto()
@@ -30,16 +39,20 @@ class ComponentState(Enum):
     ERROR = auto()
     SHUTDOWN = auto()
 
+
 class ComponentHistory(TypedDict):
     """Type definition for component history entry"""
+
     component: str
     state: str
     timestamp: str
     error: Optional[str]
     duration: float
 
+
 class ComponentStatus(TypedDict):
     """Type definition for component status"""
+
     state: str
     registration_time: Optional[str]
     initialization_time: Optional[str]
@@ -48,8 +61,10 @@ class ComponentStatus(TypedDict):
     error: Optional[str]
     health: bool
 
+
 class Initializable(Protocol):
     """Protocol for initializable components"""
+
     async def initialize(self) -> None:
         """Initialize the component"""
         ...
@@ -57,6 +72,7 @@ class Initializable(Protocol):
     async def shutdown(self) -> None:
         """Shutdown the component"""
         ...
+
 
 class Component:
     """Base class for managed components"""
@@ -74,7 +90,7 @@ class Component:
     async def initialize(self) -> None:
         """
         Initialize the component.
-        
+
         Raises:
             ComponentError: If initialization fails
         """
@@ -83,7 +99,7 @@ class Component:
     async def shutdown(self) -> None:
         """
         Shutdown the component.
-        
+
         Raises:
             ComponentError: If shutdown fails
         """
@@ -98,6 +114,7 @@ class Component:
         """Check if component is healthy"""
         return self.state == ComponentState.READY and not self.error
 
+
 class ComponentTracker:
     """Tracks component states and relationships"""
 
@@ -108,14 +125,11 @@ class ComponentTracker:
         self.history: List[ComponentHistory] = []
 
     def update_state(
-        self,
-        name: str,
-        state: ComponentState,
-        error: Optional[str] = None
+        self, name: str, state: ComponentState, error: Optional[str] = None
     ) -> None:
         """Update component state"""
         self.states[name] = state
-        
+
         # Add history entry
         now = datetime.utcnow()
         duration = 0.0
@@ -124,24 +138,24 @@ class ComponentTracker:
             last_time = datetime.fromisoformat(last_entry["timestamp"])
             duration = (now - last_time).total_seconds()
 
-        self.history.append(ComponentHistory(
-            component=name,
-            state=state.name,
-            timestamp=now.isoformat(),
-            error=error,
-            duration=duration
-        ))
+        self.history.append(
+            ComponentHistory(
+                component=name,
+                state=state.name,
+                timestamp=now.isoformat(),
+                error=error,
+                duration=duration,
+            )
+        )
 
         # Cleanup old history
         if len(self.history) > self.MAX_HISTORY:
-            self.history = self.history[-self.MAX_HISTORY:]
+            self.history = self.history[-self.MAX_HISTORY :]
 
     def get_component_history(self, name: str) -> List[ComponentHistory]:
         """Get state history for a component"""
-        return [
-            entry for entry in self.history
-            if entry["component"] == name
-        ]
+        return [entry for entry in self.history if entry["component"] == name]
+
 
 class DependencyManager:
     """Manages component dependencies"""
@@ -153,11 +167,11 @@ class DependencyManager:
     def add_dependency(self, component: str, dependency: str) -> None:
         """
         Add a dependency relationship.
-        
+
         Args:
             component: Component name
             dependency: Dependency name
-            
+
         Raises:
             ComponentError: If dependency cycle is detected
         """
@@ -169,8 +183,8 @@ class DependencyManager:
                     "DependencyManager",
                     "add_dependency",
                     {"component": component, "dependency": dependency},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
         if component not in self.dependencies:
@@ -192,8 +206,7 @@ class DependencyManager:
                 return False
             visited.add(start)
             return any(
-                has_path(dep, end)
-                for dep in self.dependencies.get(start, set())
+                has_path(dep, end) for dep in self.dependencies.get(start, set())
             )
 
         return has_path(dependency, component)
@@ -209,10 +222,10 @@ class DependencyManager:
     def get_initialization_order(self) -> List[str]:
         """
         Get components in dependency order.
-        
+
         Returns:
             List of component names in initialization order
-            
+
         Raises:
             ComponentError: If dependency cycle is detected
         """
@@ -223,8 +236,7 @@ class DependencyManager:
         def visit(component: str) -> None:
             if component in temp_visited:
                 cycle = " -> ".join(
-                    name for name in self.dependencies
-                    if name in temp_visited
+                    name for name in self.dependencies if name in temp_visited
                 )
                 raise ComponentError(
                     f"Dependency cycle detected: {cycle}",
@@ -232,8 +244,8 @@ class DependencyManager:
                         "DependencyManager",
                         "get_initialization_order",
                         {"cycle": cycle},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
             if component in visited:
                 return
@@ -256,11 +268,12 @@ class DependencyManager:
                     "DependencyManager",
                     "get_initialization_order",
                     None,
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
         return order
+
 
 class ComponentManager:
     """Manages VideoArchiver components"""
@@ -269,7 +282,7 @@ class ComponentManager:
         "config_manager": (ConfigManager, set()),
         "processor": (Processor, {"config_manager"}),
         "queue_manager": (EnhancedVideoQueueManager, {"config_manager"}),
-        "ffmpeg_mgr": (FFmpegManager, set())
+        "ffmpeg_mgr": (FFmpegManager, set()),
     }
 
     def __init__(self, cog: Any) -> None:
@@ -282,16 +295,16 @@ class ComponentManager:
         self,
         name: str,
         component: Union[Component, Any],
-        dependencies: Optional[Set[str]] = None
+        dependencies: Optional[Set[str]] = None,
     ) -> None:
         """
         Register a component with dependencies.
-        
+
         Args:
             name: Component name
             component: Component instance
             dependencies: Optional set of dependency names
-            
+
         Raises:
             ComponentError: If registration fails
         """
@@ -314,8 +327,8 @@ class ComponentManager:
                                 "ComponentManager",
                                 "register",
                                 {"component": name, "dependency": dep},
-                                ErrorSeverity.HIGH
-                            )
+                                ErrorSeverity.HIGH,
+                            ),
                         )
                     self.dependency_manager.add_dependency(name, dep)
 
@@ -335,29 +348,29 @@ class ComponentManager:
                     "ComponentManager",
                     "register",
                     {"component": name},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     async def initialize_components(self) -> None:
         """
         Initialize all components in dependency order.
-        
+
         Raises:
             ComponentError: If initialization fails
         """
         try:
             # Initialize core components first
             await self._initialize_core_components()
-            
+
             # Get initialization order
             init_order = self.dependency_manager.get_initialization_order()
-            
+
             # Initialize remaining components
             for name in init_order:
                 if name not in self._components:
                     continue
-                    
+
                 component = self._components[name]
                 try:
                     self.tracker.update_state(name, ComponentState.INITIALIZING)
@@ -374,8 +387,8 @@ class ComponentManager:
                             "ComponentManager",
                             "initialize_components",
                             {"component": name},
-                            ErrorSeverity.HIGH
-                        )
+                            ErrorSeverity.HIGH,
+                        ),
                     )
 
         except Exception as e:
@@ -387,14 +400,14 @@ class ComponentManager:
                     "ComponentManager",
                     "initialize_components",
                     None,
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     async def _initialize_core_components(self) -> None:
         """
         Initialize core system components.
-        
+
         Raises:
             ComponentError: If core component initialization fails
         """
@@ -421,14 +434,14 @@ class ComponentManager:
                     "ComponentManager",
                     "_initialize_core_components",
                     None,
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
     async def _initialize_paths(self) -> None:
         """
         Initialize required paths.
-        
+
         Raises:
             ComponentError: If path initialization fails
         """
@@ -450,11 +463,8 @@ class ComponentManager:
             raise ComponentError(
                 error,
                 context=ErrorContext(
-                    "ComponentManager",
-                    "_initialize_paths",
-                    None,
-                    ErrorSeverity.HIGH
-                )
+                    "ComponentManager", "_initialize_paths", None, ErrorSeverity.HIGH
+                ),
             )
 
     def get(self, name: str) -> Optional[Component]:
@@ -464,17 +474,19 @@ class ComponentManager:
     async def shutdown_components(self) -> None:
         """
         Shutdown components in reverse dependency order.
-        
+
         Raises:
             ComponentError: If shutdown fails
         """
         try:
-            shutdown_order = reversed(self.dependency_manager.get_initialization_order())
-            
+            shutdown_order = reversed(
+                self.dependency_manager.get_initialization_order()
+            )
+
             for name in shutdown_order:
                 if name not in self._components:
                     continue
-                    
+
                 component = self._components[name]
                 try:
                     await component.shutdown()
@@ -489,8 +501,8 @@ class ComponentManager:
                             "ComponentManager",
                             "shutdown_components",
                             {"component": name},
-                            ErrorSeverity.HIGH
-                        )
+                            ErrorSeverity.HIGH,
+                        ),
                     )
 
         except Exception as e:
@@ -499,11 +511,8 @@ class ComponentManager:
             raise ComponentError(
                 error,
                 context=ErrorContext(
-                    "ComponentManager",
-                    "shutdown_components",
-                    None,
-                    ErrorSeverity.HIGH
-                )
+                    "ComponentManager", "shutdown_components", None, ErrorSeverity.HIGH
+                ),
             )
 
     def clear(self) -> None:
@@ -514,19 +523,27 @@ class ComponentManager:
     def get_component_status(self) -> Dict[str, ComponentStatus]:
         """
         Get status of all components.
-        
+
         Returns:
             Dictionary mapping component names to their status
         """
         return {
             name: ComponentStatus(
                 state=self.tracker.states.get(name, ComponentState.UNREGISTERED).name,
-                registration_time=component.registration_time.isoformat() if component.registration_time else None,
-                initialization_time=component.initialization_time.isoformat() if component.initialization_time else None,
+                registration_time=(
+                    component.registration_time.isoformat()
+                    if component.registration_time
+                    else None
+                ),
+                initialization_time=(
+                    component.initialization_time.isoformat()
+                    if component.initialization_time
+                    else None
+                ),
                 dependencies=self.dependency_manager.get_dependencies(name),
                 dependents=self.dependency_manager.get_dependents(name),
                 error=component.error,
-                health=component.is_healthy()
+                health=component.is_healthy(),
             )
             for name, component in self._components.items()
         }

@@ -7,16 +7,16 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Set, Optional, Any, Tuple
 from datetime import datetime, timedelta
 
-from videoarchiver.queue.models import QueueItem, QueueMetrics
-from videoarchiver.queue.cleaners.history_cleaner import (
+from .models import QueueItem, QueueMetrics
+from .cleaners.history_cleaner import (
     HistoryCleaner,
     CleanupStrategy as HistoryStrategy
 )
-from videoarchiver.queue.cleaners.guild_cleaner import (
+from .cleaners.guild_cleaner import (
     GuildCleaner,
     GuildCleanupStrategy
 )
-from videoarchiver.queue.cleaners.tracking_cleaner import (
+from .cleaners.tracking_cleaner import (
     TrackingCleaner,
     TrackingCleanupStrategy
 )

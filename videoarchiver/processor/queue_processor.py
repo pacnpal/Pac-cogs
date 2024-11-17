@@ -7,11 +7,11 @@ from typing import List, Optional, Dict, Any, Set, Union, TypedDict, ClassVar
 from datetime import datetime
 import discord
 
-from videoarchiver.queue.models import QueueItem
-from videoarchiver.queue.manager import EnhancedVideoQueueManager
-from videoarchiver.processor.constants import REACTIONS
-from videoarchiver.processor.url_extractor import URLMetadata
-from videoarchiver.utils.exceptions import QueueProcessingError
+from .queue.models import QueueItem
+from .queue.manager import EnhancedVideoQueueManager
+from .processor.constants import REACTIONS
+from .processor.url_extractor import URLMetadata
+from .utils.exceptions import QueueProcessingError
 
 logger = logging.getLogger("VideoArchiver")
 

@@ -9,8 +9,8 @@ import subprocess
 from typing import Tuple
 from pathlib import Path
 
-from videoarchiver.utils.exceptions import VideoVerificationError
-from videoarchiver.utils.file_deletion import secure_delete_file
+from .utils.exceptions import VideoVerificationError
+from .utils.file_deletion import secure_delete_file
 
 logger = logging.getLogger("VideoArchiver")
 

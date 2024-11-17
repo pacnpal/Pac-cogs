@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Set, Tuple, Optional, Any
 import discord
 
-from videoarchiver.config.exceptions import ConfigurationError as ConfigError
+from .exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("RoleManager")
 

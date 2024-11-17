@@ -10,8 +10,8 @@ import time
 from typing import Generator, List, Optional
 from pathlib import Path
 
-from videoarchiver.utils.exceptions import FileCleanupError
-from videoarchiver.utils.permission_manager import PermissionManager
+from .utils.exceptions import FileCleanupError
+from .utils.permission_manager import PermissionManager
 
 logger = logging.getLogger("PathManager")
 

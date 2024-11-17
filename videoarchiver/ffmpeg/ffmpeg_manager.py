@@ -6,17 +6,17 @@ import multiprocessing
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from videoarchiver.ffmpeg.exceptions import (
+from .exceptions import (
     FFmpegError,
     AnalysisError,
     FFmpegNotFoundError
 )
-from videoarchiver.ffmpeg.gpu_detector import GPUDetector
-from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
-from videoarchiver.ffmpeg.encoder_params import EncoderParams
-from videoarchiver.ffmpeg.process_manager import ProcessManager
-from videoarchiver.ffmpeg.verification_manager import VerificationManager
-from videoarchiver.ffmpeg.binary_manager import BinaryManager
+from .gpu_detector import GPUDetector
+from .video_analyzer import VideoAnalyzer
+from .encoder_params import EncoderParams
+from .process_manager import ProcessManager
+from .verification_manager import VerificationManager
+from .binary_manager import BinaryManager
 
 logger = logging.getLogger("VideoArchiver")
 

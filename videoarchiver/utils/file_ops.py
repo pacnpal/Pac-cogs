@@ -4,10 +4,10 @@ import logging
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from videoarchiver.utils.exceptions import FileCleanupError
-from videoarchiver.utils.file_deletion import SecureFileDeleter
-from videoarchiver.utils.directory_manager import DirectoryManager
-from videoarchiver.utils.permission_manager import PermissionManager
+from .utils.exceptions import FileCleanupError
+from .utils.file_deletion import SecureFileDeleter
+from .utils.directory_manager import DirectoryManager
+from .utils.permission_manager import PermissionManager
 
 logger = logging.getLogger("VideoArchiver")
 

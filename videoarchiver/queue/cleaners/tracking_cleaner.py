@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Any, Optional
 from datetime import datetime
 
-from videoarchiver.queue.models import QueueItem
+from ..models import QueueItem
 
 logger = logging.getLogger("TrackingCleaner")
 

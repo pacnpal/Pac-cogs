@@ -8,15 +8,15 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, ClassVar
 
-from videoarchiver.utils.file_ops import cleanup_downloads
-from videoarchiver.utils.exceptions import (
+from .utils.file_ops import cleanup_downloads
+from .utils.exceptions import (
     CleanupError,
     ErrorContext,
     ErrorSeverity
 )
 
 if TYPE_CHECKING:
-    from videoarchiver.core.base import VideoArchiver
+    from .base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 

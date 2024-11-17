@@ -4,13 +4,13 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Any, Optional
 
-from videoarchiver.utils.download_core import DownloadCore
-from videoarchiver.utils.message_manager import MessageManager
-from videoarchiver.utils.file_ops import cleanup_downloads
-from videoarchiver.utils.exceptions import VideoArchiverError as ProcessingError
+from .utils.download_core import DownloadCore
+from .utils.message_manager import MessageManager
+from .utils.file_ops import cleanup_downloads
+from .utils.exceptions import VideoArchiverError as ProcessingError
 
 if TYPE_CHECKING:
-    from videoarchiver.core.base import VideoArchiver
+    from .core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 

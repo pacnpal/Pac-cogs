@@ -9,9 +9,9 @@ from discord import app_commands
 from redbot.core import commands
 from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions
 
-from videoarchiver.core.settings import VideoFormat, VideoQuality
-from videoarchiver.core.response_handler import handle_response, ResponseType
-from videoarchiver.utils.exceptions import (
+from .core.settings import VideoFormat, VideoQuality
+from .core.response_handler import handle_response, ResponseType
+from .utils.exceptions import (
     CommandError,
     ErrorContext,
     ErrorSeverity

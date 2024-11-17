@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional, Union, TypedDict, ClassVar
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from videoarchiver.utils.exceptions import (
+from .utils.exceptions import (
     ConfigurationError,
     ErrorContext,
     ErrorSeverity

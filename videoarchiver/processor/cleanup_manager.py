@@ -18,9 +18,9 @@ from typing import (
 )
 from datetime import datetime, timedelta
 
-from videoarchiver.processor.queue_handler import QueueHandler
-from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
-from videoarchiver.utils.exceptions import CleanupError
+from .processor.queue_handler import QueueHandler
+from .ffmpeg.ffmpeg_manager import FFmpegManager
+from .utils.exceptions import CleanupError
 
 logger = logging.getLogger("VideoArchiver")
 

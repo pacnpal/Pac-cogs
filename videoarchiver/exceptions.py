@@ -1,6 +1,6 @@
 """Base exceptions for VideoArchiver"""
 
-from videoarchiver.utils.exceptions import (
+from .utils.exceptions import (
     VideoArchiverError,
     ConfigurationError,
     VideoVerificationError,
@@ -23,24 +23,24 @@ from videoarchiver.utils.exceptions import (
 
 # Re-export all exceptions
 __all__ = [
-    'VideoArchiverError',
-    'ConfigurationError',
-    'VideoVerificationError',
-    'QueueError',
-    'FileCleanupError',
-    'ResourceExhaustedError',
-    'ProcessingError',
-    'CleanupError',
-    'FileOperationError',
-    'VideoDownloadError',
-    'VideoProcessingError',
-    'VideoUploadError',
-    'VideoCleanupError',
-    'PermissionError',
-    'NetworkError',
-    'ResourceError',
-    'ComponentError',
-    'DiscordAPIError',
+    "VideoArchiverError",
+    "ConfigurationError",
+    "VideoVerificationError",
+    "QueueError",
+    "FileCleanupError",
+    "ResourceExhaustedError",
+    "ProcessingError",
+    "CleanupError",
+    "FileOperationError",
+    "VideoDownloadError",
+    "VideoProcessingError",
+    "VideoUploadError",
+    "VideoCleanupError",
+    "PermissionError",
+    "NetworkError",
+    "ResourceError",
+    "ComponentError",
+    "DiscordAPIError",
 ]
 
 # Alias exceptions for backward compatibility

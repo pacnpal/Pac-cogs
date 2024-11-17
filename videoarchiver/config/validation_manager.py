@@ -2,7 +2,7 @@
 
 import logging
 from typing import Any, Dict, List, Union
-from videoarchiver.config.exceptions import ConfigurationError as ConfigError
+from .exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("ConfigValidation")
 

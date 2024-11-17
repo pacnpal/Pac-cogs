@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Union, List
 
-from videoarchiver.utils.exceptions import FileCleanupError
+from .utils.exceptions import FileCleanupError
 
 logger = logging.getLogger("PermissionManager")
 

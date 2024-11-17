@@ -14,7 +14,7 @@ from redbot.core.commands import (
     CommandError
 )
 
-from videoarchiver.utils.exceptions import (
+from .utils.exceptions import (
     VideoArchiverError,
     ErrorSeverity,
     ErrorContext,
@@ -33,7 +33,7 @@ from videoarchiver.utils.exceptions import (
     ResourceExhaustedError,
     ConfigurationError
 )
-from videoarchiver.core.response_handler import response_manager
+from .core.response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 

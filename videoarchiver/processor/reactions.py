@@ -7,8 +7,8 @@ from typing import List, Optional
 import discord
 from urllib.parse import urlparse
 
-from videoarchiver.processor.constants import REACTIONS, ReactionType, get_reaction, get_progress_emoji
-from videoarchiver.database.video_archive_db import VideoArchiveDB
+from .processor.constants import REACTIONS, ReactionType, get_reaction, get_progress_emoji
+from .database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 

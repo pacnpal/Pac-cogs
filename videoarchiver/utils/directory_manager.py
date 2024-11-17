@@ -6,8 +6,8 @@ import asyncio
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from videoarchiver.utils.exceptions import FileCleanupError
-from videoarchiver.utils.file_deletion import SecureFileDeleter
+from .utils.exceptions import FileCleanupError
+from .utils.file_deletion import SecureFileDeleter
 
 logger = logging.getLogger("DirectoryManager")
 

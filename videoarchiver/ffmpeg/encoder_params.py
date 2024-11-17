@@ -3,7 +3,7 @@
 import os
 import logging
 from typing import Dict, Any
-from videoarchiver.ffmpeg.exceptions import CompressionError, QualityError, BitrateError
+from .exceptions import CompressionError, QualityError, BitrateError
 
 logger = logging.getLogger("VideoArchiver")
 

@@ -7,13 +7,13 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List, Set, Callable
 from datetime import datetime, timedelta
 
-from videoarchiver.queue.state_manager import QueueStateManager
-from videoarchiver.queue.processor import QueueProcessor
-from videoarchiver.queue.metrics_manager import QueueMetricsManager
-from videoarchiver.queue.persistence import QueuePersistenceManager
-from videoarchiver.queue.monitoring import QueueMonitor, MonitoringLevel
-from videoarchiver.queue.cleanup import QueueCleaner
-from videoarchiver.queue.models import QueueItem, QueueError, CleanupError
+from .state_manager import QueueStateManager
+from .processor import QueueProcessor
+from .metrics_manager import QueueMetricsManager
+from .persistence import QueuePersistenceManager
+from .monitoring import QueueMonitor, MonitoringLevel
+from .cleanup import QueueCleaner
+from .models import QueueItem, QueueError, CleanupError
 
 logger = logging.getLogger("QueueManager")
 
