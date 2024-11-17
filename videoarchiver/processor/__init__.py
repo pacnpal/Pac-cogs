@@ -3,88 +3,58 @@
 from typing import Dict, Any, Optional, Union, List, Tuple
 import discord # type: ignore
 
-try:
-    # Try relative imports first
-    from .core import VideoProcessor
-    from .constants import (
-        REACTIONS,
-        ReactionType,
-        ReactionEmojis,
-        ProgressEmojis,
-        get_reaction,
-        get_progress_emoji,
-    )
-    from .url_extractor import (
-        URLExtractor,
-        URLMetadata,
-        URLPattern,
-        URLType,
-        URLPatternManager,
-        URLValidator,
-        URLMetadataExtractor,
-    )
-    from .message_validator import (
-        MessageValidator,
-        ValidationContext,
-        ValidationRule,
-        ValidationResult,
-        ValidationRuleManager,
-        ValidationCache,
-        ValidationStats,
-        ValidationCacheEntry,
-        ValidationError,
-    )
-    from .message_handler import MessageHandler
-    from .queue_handler import QueueHandler
-    from .queue_processor import QueueProcessor  # Added import
-    from .reactions import (
-        handle_archived_reaction,
-        update_queue_position_reaction,
-        update_progress_reaction,
-        update_download_progress_reaction,
-    )
-    from ..utils.progress_tracker import progress_tracker
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    from videoarchiver.processor.core import VideoProcessor
-    from videoarchiver.processor.constants import (
-        REACTIONS,
-        ReactionType,
-        ReactionEmojis,
-        ProgressEmojis,
-        get_reaction,
-        get_progress_emoji,
-    )
-    from videoarchiver.processor.url_extractor import (
-        URLExtractor,
-        URLMetadata,
-        URLPattern,
-        URLType,
-        URLPatternManager,
-        URLValidator,
-        URLMetadataExtractor,
-    )
-    from videoarchiver.processor.message_validator import (
-        MessageValidator,
-        ValidationContext,
-        ValidationRule,
-        ValidationResult,
-        ValidationRuleManager,
-        ValidationCache,
-        ValidationStats,
-        ValidationCacheEntry,
-        ValidationError,
-    )
-    from videoarchiver.processor.message_handler import MessageHandler
-    from videoarchiver.processor.queue_handler import QueueHandler
-    from videoarchiver.processor.queue_processor import QueueProcessor  # Added import
-    from videoarchiver.processor.reactions import (
-        handle_archived_reaction,
-        update_queue_position_reaction,
-        update_progress_reaction,
-        update_download_progress_reaction,
-    )
-    from videoarchiver.utils.progress_tracker import progress_tracker
+# Import constants first since they have no dependencies
+from .constants import (
+    REACTIONS,
+    ReactionType,
+    ReactionEmojis,
+    ProgressEmojis,
+    get_reaction,
+    get_progress_emoji,
+)
+
+# Import core components
+from .core import VideoProcessor
+
+# Import URL related components
+from .url_extractor import (
+    URLExtractor,
+    URLMetadata,
+    URLPattern,
+    URLType,
+    URLPatternManager,
+    URLValidator,
+    URLMetadataExtractor,
+)
+
+# Import validation components
+from .message_validator import (
+    MessageValidator,
+    ValidationContext,
+    ValidationRule,
+    ValidationResult,
+    ValidationRuleManager,
+    ValidationCache,
+    ValidationStats,
+    ValidationCacheEntry,
+    ValidationError,
+)
+
+# Import reaction handlers
+from .reactions import (
+    handle_archived_reaction,
+    update_queue_position_reaction,
+    update_progress_reaction,
+    update_download_progress_reaction,
+)
+
+# Import progress tracking
+from ..utils.progress_tracker import progress_tracker
+
+# Import handlers after other dependencies are loaded
+from .message_handler import MessageHandler
+from .queue_handler import QueueHandler
+from .queue_processor import QueueProcessor
 
 # Export public classes and constants
 __all__ = [
@@ -92,7 +62,7 @@ __all__ = [
     "VideoProcessor",
     "MessageHandler",
     "QueueHandler",
-    "QueueProcessor",  # Added export
+    "QueueProcessor",
     # URL Extraction
     "URLExtractor",
     "URLMetadata",
