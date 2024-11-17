@@ -40,7 +40,7 @@ from .reactions import (
     update_progress_reaction,
     update_download_progress_reaction,
 )
-from ..utils import progress_tracker
+from ..utils.progress_tracker import progress_tracker
 
 # Export public classes and constants
 __all__ = [
