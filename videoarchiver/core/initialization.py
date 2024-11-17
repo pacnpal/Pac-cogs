@@ -4,17 +4,23 @@ from typing import TYPE_CHECKING, Optional, Dict, Any
 import asyncio
 import logging
 
-from ..utils.exceptions import (
-    ComponentError,
-    ErrorContext,
-    ErrorSeverity
-)
-from ..core.lifecycle import LifecycleState
+try:
+    # Try relative imports first
+    from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+    from .lifecycle import LifecycleState
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+    from videoarchiver.core.lifecycle import LifecycleState
 
 if TYPE_CHECKING:
-    from ..core.base import VideoArchiver
+    try:
+        from .base import VideoArchiver
+    except ImportError:
+        from videoarchiver.core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
+
 
 async def initialize_cog(cog: "VideoArchiver") -> None:
     """
@@ -46,6 +52,7 @@ async def initialize_cog(cog: "VideoArchiver") -> None:
             )
         )
 
+
 def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
     """
     Handle initialization task completion.
@@ -73,6 +80,7 @@ def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
     except Exception as e:
         logger.error(f"Error in initialization callback: {str(e)}", exc_info=True)
         # We don't raise here since this is a callback
+
 
 def get_init_status(cog: "VideoArchiver") -> Dict[str, Any]:
     """
