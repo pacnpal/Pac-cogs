@@ -4,7 +4,7 @@ import logging
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Any, List, Optional, Callable, TypeVar, Union, TypedDict, ClassVar
+from typing import Dict, Any, List, Optional, Callable, TypeVar, Union, TypedDict, ClassVar, Tuple
 import discord
 
 from ..utils.exceptions import DisplayError
