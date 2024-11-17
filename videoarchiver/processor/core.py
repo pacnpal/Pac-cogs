@@ -8,10 +8,18 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-from ..core.types import ComponentState, ProcessorState, ComponentStatus
-from .constants import REACTIONS
-from ..utils import progress_tracker
-from ..utils.exceptions import ProcessorError
+try:
+    # Try relative imports first
+    from ..core.types import ComponentState, ProcessorState, ComponentStatus
+    from .constants import REACTIONS
+    from ..utils import progress_tracker
+    from ..utils.exceptions import ProcessorError
+except ImportError:
+    # Fall back to absolute imports if relative imports fail
+    from videoarchiver.core.types import ComponentState, ProcessorState, ComponentStatus
+    from videoarchiver.processor.constants import REACTIONS
+    from videoarchiver.utils import progress_tracker
+    from videoarchiver.utils.exceptions import ProcessorError
 
 if TYPE_CHECKING:
     from .cleanup_manager import CleanupManager
