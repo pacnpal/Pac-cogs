@@ -1,11 +1,37 @@
-"""Core module for VideoArchiver cog"""
+"""Core module for VideoArchiver"""
 
-# try:
-# Try relative imports first
-from base import VideoArchiver
+from .base import VideoArchiver
+from .commands import (
+    ArchiverCommands,
+    DatabaseCommands,
+    SettingsCommands
+)
+from .component_manager import ComponentManager
+from .error_handler import ErrorHandler
+from .events import EventHandler
+from .initialization import initialize_cog
+from .lifecycle import LifecycleManager
+from .response_handler import ResponseHandler
+from .settings import Settings
+from .c_types import (
+    IQueueManager,
+    QueueState,
+    ComponentStatus
+)
 
-# except ImportError:
-# Fall back to absolute imports if relative imports fail
-# from videoarchiver.core.base import VideoArchiver
-
-__all__ = ["VideoArchiver"]
+__all__ = [
+    "VideoArchiver",
+    "ArchiverCommands",
+    "DatabaseCommands",
+    "SettingsCommands",
+    "ComponentManager",
+    "ErrorHandler",
+    "EventHandler",
+    "initialize_cog",
+    "LifecycleManager",
+    "ResponseHandler",
+    "Settings",
+    "IQueueManager",
+    "QueueState",
+    "ComponentStatus"
+]

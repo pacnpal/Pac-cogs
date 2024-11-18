@@ -7,15 +7,15 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List, Set, Callable
 from datetime import datetime, timedelta
 
-from core.c_types import IQueueManager, QueueState, ComponentStatus
-from state_manager import QueueStateManager
-from processor import QueueProcessor
-from metrics_manager import QueueMetricsManager
-from persistence import QueuePersistenceManager, QueueError
-from monitoring import QueueMonitor, MonitoringLevel
-from cleanup import QueueCleaner, CleanupError
-from models import QueueItem, QueueError
-from q_types import ProcessingStrategy
+from ..core.c_types import IQueueManager, QueueState, ComponentStatus
+from .state_manager import QueueStateManager
+from .processor import QueueProcessor
+from .metrics_manager import QueueMetricsManager
+from .persistence import QueuePersistenceManager, QueueError
+from .monitoring import QueueMonitor, MonitoringLevel
+from .cleanup import QueueCleaner, CleanupError
+from .models import QueueItem, QueueError
+from .q_types import ProcessingStrategy
 
 logger = logging.getLogger("QueueManager")
 
