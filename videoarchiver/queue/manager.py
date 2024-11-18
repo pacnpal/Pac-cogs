@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List, Set, Callable
 from datetime import datetime, timedelta
 
-from ..core.c_types import IQueueManager, QueueState, ComponentStatus
+from videoarchiver.core.c_types import IQueueManager, QueueState, ComponentStatus
 from .state_manager import QueueStateManager
 from .processor import QueueProcessor
 from .metrics_manager import QueueMetricsManager

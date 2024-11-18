@@ -16,12 +16,12 @@ from .health_checker import HealthChecker
 from .cleaners import GuildCleaner, HistoryCleaner, TrackingCleaner
 
 # Corrected relative imports from utils
-from ..utils.compression_handler import CompressionHandler
-from ..utils.directory_manager import DirectoryManager
-from ..utils.download_manager import DownloadManager
-from ..utils.file_operations import FileOperations
-from ..utils.progress_tracker import ProgressTracker
-from ..processor.url_extractor import URLValidator
+from videoarchiver.utils.compression_handler import CompressionHandler
+from videoarchiver.utils.directory_manager import DirectoryManager
+from videoarchiver.utils.download_manager import DownloadManager
+from videoarchiver.utils.file_operations import FileOperations
+from videoarchiver.utils.progress_tracker import ProgressTracker
+from videoarchiver.processor.url_extractor import URLValidator
 
 __all__ = [
     # Queue models and types
