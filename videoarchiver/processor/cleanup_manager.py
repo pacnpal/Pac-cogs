@@ -22,14 +22,14 @@ from datetime import datetime, timedelta
 if TYPE_CHECKING:
     from .queue_handler import QueueHandler
 
-try:
+    # try:
     # Try relative imports first
     from ..ffmpeg.ffmpeg_manager import FFmpegManager
     from ..utils.exceptions import CleanupError
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
-    from videoarchiver.utils.exceptions import CleanupError
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+#   from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+#  from videoarchiver.utils.exceptions import CleanupError
 
 logger = logging.getLogger("VideoArchiver")
 
