@@ -8,13 +8,13 @@ from typing import Dict, Any, Optional
 
 # try:
 # Try relative imports first
-from .exceptions import FFmpegError, AnalysisError, FFmpegNotFoundError
-from .gpu_detector import GPUDetector
-from .video_analyzer import VideoAnalyzer
-from .encoder_params import EncoderParams
-from .process_manager import ProcessManager
-from .verification_manager import VerificationManager
-from .binary_manager import BinaryManager
+from exceptions import FFmpegError, AnalysisError, FFmpegNotFoundError
+from gpu_detector import GPUDetector
+from video_analyzer import VideoAnalyzer
+from encoder_params import EncoderParams
+from process_manager import ProcessManager
+from verification_manager import VerificationManager
+from binary_manager import BinaryManager
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

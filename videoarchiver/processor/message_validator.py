@@ -9,7 +9,7 @@ import discord # type: ignore
 
 #try:
     # Try relative imports first
-from ..utils.exceptions import ValidationError
+from utils.exceptions import ValidationError
 #except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.utils.exceptions import ValidationError

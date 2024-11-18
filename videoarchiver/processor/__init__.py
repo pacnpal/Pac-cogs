@@ -1,10 +1,10 @@
 """Video processing module for VideoArchiver"""
 
 from typing import Dict, Any, Optional, Union, List, Tuple
-import discord # type: ignore
+import discord  # type: ignore
 
 # Import constants first since they have no dependencies
-from .constants import (
+from constants import (
     REACTIONS,
     ReactionType,
     ReactionEmojis,
@@ -14,10 +14,10 @@ from .constants import (
 )
 
 # Import core components
-from .core import VideoProcessor
+from core import VideoProcessor
 
 # Import URL related components
-from .url_extractor import (
+from url_extractor import (
     URLExtractor,
     URLMetadata,
     URLPattern,
@@ -28,7 +28,7 @@ from .url_extractor import (
 )
 
 # Import validation components
-from .message_validator import (
+from message_validator import (
     MessageValidator,
     ValidationContext,
     ValidationRule,
@@ -41,7 +41,7 @@ from .message_validator import (
 )
 
 # Import reaction handlers
-from .reactions import (
+from reactions import (
     handle_archived_reaction,
     update_queue_position_reaction,
     update_progress_reaction,
@@ -49,12 +49,12 @@ from .reactions import (
 )
 
 # Import progress tracking
-from ..utils.progress_tracker import ProgressTracker
+from utils.progress_tracker import ProgressTracker
 
 # Import handlers after other dependencies are loaded
-from .message_handler import MessageHandler
-from .queue_handler import QueueHandler
-from .queue_processor import QueueProcessor
+from message_handler import MessageHandler
+from queue_handler import QueueHandler
+from queue_processor import QueueProcessor
 
 # Export public classes and constants
 __all__ = [

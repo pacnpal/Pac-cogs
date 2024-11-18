@@ -8,11 +8,11 @@ from redbot.core import Config  # type: ignore
 
 # try:
 # Try relative imports first
-from .config.validation_manager import ValidationManager
-from .config.settings_formatter import SettingsFormatter
-from .config.channel_manager import ChannelManager
-from .config.role_manager import RoleManager
-from .utils.exceptions import ConfigurationError as ConfigError
+from config.validation_manager import ValidationManager
+from config.settings_formatter import SettingsFormatter
+from config.channel_manager import ChannelManager
+from config.role_manager import RoleManager
+from utils.exceptions import ConfigurationError as ConfigError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

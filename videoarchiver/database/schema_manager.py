@@ -7,12 +7,13 @@ from typing import List, Dict, Any, Optional, TypedDict, ClassVar, Union
 from enum import Enum, auto
 from datetime import datetime
 
-#try:
-    # Try relative imports first
-from ..utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
-#except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
+# try:
+# Try relative imports first
+from utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("DBSchemaManager")
 

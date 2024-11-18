@@ -2,10 +2,10 @@
 
 # try:
 # Try relative imports first
-from .connection_manager import DatabaseConnectionManager
-from .query_manager import DatabaseQueryManager
-from .schema_manager import DatabaseSchemaManager
-from .video_archive_db import VideoArchiveDB
+from connection_manager import DatabaseConnectionManager
+from query_manager import DatabaseQueryManager
+from schema_manager import DatabaseSchemaManager
+from video_archive_db import VideoArchiveDB
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

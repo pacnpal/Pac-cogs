@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from ..utils.exceptions import FileCleanupError
+from utils.exceptions import FileCleanupError
 
 logger = logging.getLogger("FileDeleter")
 

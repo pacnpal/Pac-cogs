@@ -6,7 +6,7 @@ from enum import Enum, auto
 
 # try:
 # Try relative imports first
-from ..utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+from utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

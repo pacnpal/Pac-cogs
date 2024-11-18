@@ -18,7 +18,7 @@ import lzma
 
 # try:
 # Try relative imports first
-from .exceptions import DownloadError
+from exceptions import DownloadError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

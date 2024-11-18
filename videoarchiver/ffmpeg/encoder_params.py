@@ -6,7 +6,7 @@ from typing import Dict, Any
 
 #try:
     # Try relative imports first
-from .exceptions import CompressionError, QualityError, BitrateError
+from exceptions import CompressionError, QualityError, BitrateError
 #except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.ffmpeg.exceptions import CompressionError, QualityError, BitrateError

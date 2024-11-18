@@ -4,19 +4,19 @@ import logging
 import traceback
 from typing import Dict, Optional, Tuple, Type, TypedDict, ClassVar
 from enum import Enum, auto
-import discord # type: ignore
-from redbot.core.commands import ( # type: ignore
+import discord  # type: ignore
+from redbot.core.commands import (  # type: ignore
     Context,
     MissingPermissions,
     BotMissingPermissions,
     MissingRequiredArgument,
     BadArgument,
-    CommandError
+    CommandError,
 )
 
-#try:
-    # Try relative imports first
-from ..utils.exceptions import (
+# try:
+# Try relative imports first
+from utils.exceptions import (
     VideoArchiverError,
     ErrorSeverity,
     ErrorContext,
@@ -33,9 +33,10 @@ from ..utils.exceptions import (
     TrackingError,
     NetworkError,
     ResourceExhaustedError,
-    ConfigurationError
+    ConfigurationError,
 )
-from ..core.response_handler import response_manager
+from core.response_handler import response_manager
+
 # except ImportError:
 #     # Fall back to absolute imports if relative imports fail
 #     # from videoarchiver.utils.exceptions import (
@@ -57,12 +58,14 @@ from ..core.response_handler import response_manager
 #         ResourceExhaustedError,
 #         ConfigurationError
 #     )
-    # from videoarchiver.core.response_handler import response_manager
+# from videoarchiver.core.response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class ErrorCategory(Enum):
     """Categories of errors"""
+
     PERMISSION = auto()
     ARGUMENT = auto()
     CONFIGURATION = auto()
@@ -76,17 +79,22 @@ class ErrorCategory(Enum):
     HEALTH = auto()
     UNEXPECTED = auto()
 
+
 class ErrorStats(TypedDict):
     """Type definition for error statistics"""
+
     counts: Dict[str, int]
     patterns: Dict[str, Dict[str, int]]
     severities: Dict[str, Dict[str, int]]
+
 
 class ErrorFormatter:
     """Formats error messages for display"""
 
     @staticmethod
-    def format_error_message(error: Exception, context: Optional[ErrorContext] = None) -> str:
+    def format_error_message(
+        error: Exception, context: Optional[ErrorContext] = None
+    ) -> str:
         """Format error message with context"""
         base_message = str(error)
         if context:
@@ -110,16 +118,18 @@ class ErrorFormatter:
             return "An unexpected error occurred. Please check the logs for details."
         return str(error)
 
+
 class ErrorCategorizer:
     """Categorizes errors and determines handling strategy"""
 
-    ERROR_MAPPING: ClassVar[Dict[Type[Exception], Tuple[ErrorCategory, ErrorSeverity]]] = {
+    ERROR_MAPPING: ClassVar[
+        Dict[Type[Exception], Tuple[ErrorCategory, ErrorSeverity]]
+    ] = {
         # Discord command errors
         MissingPermissions: (ErrorCategory.PERMISSION, ErrorSeverity.MEDIUM),
         BotMissingPermissions: (ErrorCategory.PERMISSION, ErrorSeverity.HIGH),
         MissingRequiredArgument: (ErrorCategory.ARGUMENT, ErrorSeverity.LOW),
         BadArgument: (ErrorCategory.ARGUMENT, ErrorSeverity.LOW),
-        
         # VideoArchiver errors
         ProcessorError: (ErrorCategory.PROCESSING, ErrorSeverity.HIGH),
         ValidationError: (ErrorCategory.VALIDATION, ErrorSeverity.MEDIUM),
@@ -134,17 +144,17 @@ class ErrorCategorizer:
         TrackingError: (ErrorCategory.PROCESSING, ErrorSeverity.MEDIUM),
         NetworkError: (ErrorCategory.NETWORK, ErrorSeverity.MEDIUM),
         ResourceExhaustedError: (ErrorCategory.RESOURCE, ErrorSeverity.HIGH),
-        ConfigurationError: (ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH)
+        ConfigurationError: (ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH),
     }
 
     @classmethod
     def categorize_error(cls, error: Exception) -> Tuple[ErrorCategory, ErrorSeverity]:
         """
         Categorize an error and determine its severity.
-        
+
         Args:
             error: Exception to categorize
-            
+
         Returns:
             Tuple of (Error category, Severity level)
         """
@@ -152,6 +162,7 @@ class ErrorCategorizer:
             if isinstance(error, error_type):
                 return category, severity
         return ErrorCategory.UNEXPECTED, ErrorSeverity.HIGH
+
 
 class ErrorTracker:
     """Tracks error occurrences and patterns"""
@@ -162,31 +173,28 @@ class ErrorTracker:
         self.error_severities: Dict[str, Dict[str, int]] = {}
 
     def track_error(
-        self,
-        error: Exception,
-        category: ErrorCategory,
-        severity: ErrorSeverity
+        self, error: Exception, category: ErrorCategory, severity: ErrorSeverity
     ) -> None:
         """
         Track an error occurrence.
-        
+
         Args:
             error: Exception that occurred
             category: Error category
             severity: Error severity
         """
         error_type = type(error).__name__
-        
+
         # Track error counts
         self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
-        
+
         # Track error patterns by category
         if category.value not in self.error_patterns:
             self.error_patterns[category.value] = {}
         self.error_patterns[category.value][error_type] = (
             self.error_patterns[category.value].get(error_type, 0) + 1
         )
-        
+
         # Track error severities
         if severity.value not in self.error_severities:
             self.error_severities[severity.value] = {}
@@ -197,15 +205,16 @@ class ErrorTracker:
     def get_error_stats(self) -> ErrorStats:
         """
         Get error statistics.
-        
+
         Returns:
             Dictionary containing error statistics
         """
         return ErrorStats(
             counts=self.error_counts.copy(),
             patterns=self.error_patterns.copy(),
-            severities=self.error_severities.copy()
+            severities=self.error_severities.copy(),
         )
+
 
 class ErrorManager:
     """Manages error handling and reporting"""
@@ -215,14 +224,10 @@ class ErrorManager:
         self.categorizer = ErrorCategorizer()
         self.tracker = ErrorTracker()
 
-    async def handle_error(
-        self,
-        ctx: Context,
-        error: Exception
-    ) -> None:
+    async def handle_error(self, ctx: Context, error: Exception) -> None:
         """
         Handle a command error.
-        
+
         Args:
             ctx: Command context
             error: The error that occurred
@@ -230,7 +235,7 @@ class ErrorManager:
         try:
             # Categorize error
             category, severity = self.categorizer.categorize_error(error)
-            
+
             # Create error context
             context = ErrorContext(
                 component=ctx.command.qualified_name if ctx.command else "unknown",
@@ -238,26 +243,24 @@ class ErrorManager:
                 details={
                     "guild_id": str(ctx.guild.id) if ctx.guild else "DM",
                     "channel_id": str(ctx.channel.id),
-                    "user_id": str(ctx.author.id)
+                    "user_id": str(ctx.author.id),
                 },
-                severity=severity
+                severity=severity,
             )
-            
+
             # Track error
             self.tracker.track_error(error, category, severity)
-            
+
             # Format error messages
             log_message = self.formatter.format_error_message(error, context)
             user_message = self.formatter.format_user_message(error, category)
-            
+
             # Log error details
             self._log_error(log_message, severity)
-            
+
             # Send response
             await response_manager.send_response(
-                ctx,
-                content=user_message,
-                response_type=severity.name.lower()
+                ctx, content=user_message, response_type=severity.name.lower()
             )
 
         except Exception as e:
@@ -269,19 +272,15 @@ class ErrorManager:
                 await response_manager.send_response(
                     ctx,
                     content="An error occurred while handling another error. Please check the logs.",
-                    response_type="error"
+                    response_type="error",
                 )
             except Exception:
                 pass
 
-    def _log_error(
-        self,
-        message: str,
-        severity: ErrorSeverity
-    ) -> None:
+    def _log_error(self, message: str, severity: ErrorSeverity) -> None:
         """
         Log error details.
-        
+
         Args:
             message: Error message to log
             severity: Error severity
@@ -296,13 +295,15 @@ class ErrorManager:
         except Exception as e:
             logger.error(f"Error logging error details: {e}")
 
+
 # Global error manager instance
 error_manager = ErrorManager()
+
 
 async def handle_command_error(ctx: Context, error: Exception) -> None:
     """
     Helper function to handle command errors using the error manager.
-    
+
     Args:
         ctx: Command context
         error: Exception to handle

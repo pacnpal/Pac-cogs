@@ -7,15 +7,15 @@ from typing import Dict, Optional
 
 #try:
     # Try relative imports first
-from .exceptions import (
+from exceptions import (
     FFmpegError,
     DownloadError,
     VerificationError,
     PermissionError,
     FFmpegNotFoundError
 )
-from .ffmpeg_downloader import FFmpegDownloader
-from .verification_manager import VerificationManager
+from ffmpeg_downloader import FFmpegDownloader
+from verification_manager import VerificationManager
 #except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.ffmpeg.exceptions import (

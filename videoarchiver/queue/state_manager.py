@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Dict, Set, List, Optional, Any
 from datetime import datetime
 
-from .models import QueueItem, QueueMetrics
+from models import QueueItem, QueueMetrics
 
 logger = logging.getLogger("QueueStateManager")
 

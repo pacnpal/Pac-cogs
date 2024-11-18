@@ -9,58 +9,58 @@ from redbot.core.bot import Red  # type: ignore
 
 # Force reload of all modules
 modules_to_reload = [
-    ".utils.exceptions",
-    ".utils",
-    ".processor",
-    ".processor.core",
-    ".processor.queue_processor",
-    ".queue",
-    ".queue.types",  # Added types module
-    ".queue.models",
-    ".queue.manager",
-    ".queue.cleaners",
-    ".queue.cleaners.guild_cleaner",
-    ".queue.cleaners.history_cleaner",
-    ".queue.cleaners.tracking_cleaner",
-    ".queue.monitoring",
-    ".queue.recovery_manager",
-    ".queue.state_manager",
-    ".ffmpeg",
-    ".ffmpeg.binary_manager",
-    ".ffmpeg.encoder_params",
-    ".ffmpeg.exceptions",
-    ".ffmpeg.ffmpeg_downloader",
-    ".ffmpeg.ffmpeg_manager",
-    ".ffmpeg.gpu_detector",
-    ".ffmpeg.process_manager",
-    ".ffmpeg.verification_manager",
-    ".ffmpeg.video_analyzer",
-    ".database",
-    ".database.connection_manager",
-    ".database.query_manager",
-    ".database.schema_manager",
-    ".database.video_archive_db",
-    ".config",
-    ".config.channel_manager",
-    ".config.exceptions",
-    ".config.role_manager",
-    ".config.settings_formatter",
-    ".config.validation_manager",
-    ".core",
-    ".core.base",
-    ".core.cleanup",
-    ".core.commands",
-    ".core.commands.archiver_commands",
-    ".core.commands.database_commands",
-    ".core.commands.settings_commands",
-    ".core.component_manager",
-    ".core.error_handler",
-    ".core.events",
-    ".core.guild",
-    ".core.initialization",
-    ".core.lifecycle",
-    ".core.response_handler",
-    ".core.settings",
+    "utils.exceptions",
+    "utils",
+    "processor",
+    "processor.core",
+    "processor.queue_processor",
+    "queue",
+    "queue.types",  # Added types module
+    "queue.models",
+    "queue.manager",
+    "queue.cleaners",
+    "queue.cleaners.guild_cleaner",
+    "queue.cleaners.history_cleaner",
+    "queue.cleaners.tracking_cleaner",
+    "queue.monitoring",
+    "queue.recovery_manager",
+    "queue.state_manager",
+    "ffmpeg",
+    "ffmpeg.binary_manager",
+    "ffmpeg.encoder_params",
+    "ffmpeg.exceptions",
+    "ffmpeg.ffmpeg_downloader",
+    "ffmpeg.ffmpeg_manager",
+    "ffmpeg.gpu_detector",
+    "ffmpeg.process_manager",
+    "ffmpeg.verification_manager",
+    "ffmpeg.video_analyzer",
+    "database",
+    "database.connection_manager",
+    "database.query_manager",
+    "database.schema_manager",
+    "database.video_archive_db",
+    "config",
+    "config.channel_manager",
+    "config.exceptions",
+    "config.role_manager",
+    "config.settings_formatter",
+    "config.validation_manager",
+    "core",
+    "core.base",
+    "core.cleanup",
+    "core.commands",
+    "core.commands.archiver_commands",
+    "core.commands.database_commands",
+    "core.commands.settings_commands",
+    "core.component_manager",
+    "core.error_handler",
+    "core.events",
+    "core.guild",
+    "core.initialization",
+    "core.lifecycle",
+    "core.response_handler",
+    "core.settings",
 ]
 
 # Remove modules to force fresh import
@@ -68,7 +68,7 @@ for module in modules_to_reload:
     if module in sys.modules:
         del sys.modules[module]
 
-try:
+    # try:
     # Try relative imports first
     from . import utils
     from . import processor
@@ -89,7 +89,8 @@ try:
         ErrorSeverity,
         ProcessingError,
     )
-except ImportError:
+
+    # except ImportError:
     # Fall back to absolute imports if relative imports fail
     #  from videoarchiver import utils
     #  from videoarchiver import processor
@@ -121,17 +122,17 @@ except ImportError:
     importlib.reload(core)
 
 # Import all submodules
-from .database import *
-from .ffmpeg import *
-from .queue import *
-from .processor import *
-from .config_manager import *
-from .update_checker import *
-from .queue.cleaners import *
-from .database import *
-from .utils import *
-from .core import *
-from .config import *
+from database import *
+from ffmpeg import *
+from queue import *
+from processor import *
+from config_manager import *
+from update_checker import *
+from queue.cleaners import *
+from database import *
+from utils import *
+from core import *
+from config import *
 
 logger = logging.getLogger("VideoArchiver")
 

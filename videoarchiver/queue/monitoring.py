@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Set
 from datetime import datetime, timedelta
 
-from .health_checker import HealthChecker, HealthStatus, HealthCategory
-from .recovery_manager import RecoveryManager, RecoveryStrategy
+from health_checker import HealthChecker, HealthStatus, HealthCategory
+from recovery_manager import RecoveryManager, RecoveryStrategy
 
 logger = logging.getLogger("QueueMonitoring")
 

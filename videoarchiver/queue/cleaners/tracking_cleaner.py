@@ -7,34 +7,42 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Set, Tuple, Any, Optional
 from datetime import datetime
 
-from ..models import QueueItem
+from models import QueueItem
 
 logger = logging.getLogger("TrackingCleaner")
 
+
 class TrackingCleanupStrategy(Enum):
     """Tracking cleanup strategies"""
-    AGGRESSIVE = "aggressive"    # Remove all invalid entries
+
+    AGGRESSIVE = "aggressive"  # Remove all invalid entries
     CONSERVATIVE = "conservative"  # Keep recent invalid entries
-    BALANCED = "balanced"       # Balance between cleanup and retention
+    BALANCED = "balanced"  # Balance between cleanup and retention
+
 
 class TrackingType(Enum):
     """Types of tracking data"""
+
     GUILD = "guild"
     CHANNEL = "channel"
     URL = "url"
 
+
 @dataclass
 class TrackingCleanupConfig:
     """Configuration for tracking cleanup"""
+
     batch_size: int = 100
     retention_period: int = 3600  # 1 hour
     validate_urls: bool = True
     cleanup_empty: bool = True
     max_invalid_ratio: float = 0.5  # 50% invalid threshold
 
+
 @dataclass
 class TrackingCleanupResult:
     """Result of a tracking cleanup operation"""
+
     timestamp: datetime
     strategy: TrackingCleanupStrategy
     items_cleaned: int
@@ -44,6 +52,7 @@ class TrackingCleanupResult:
     initial_counts: Dict[str, int]
     final_counts: Dict[str, int]
     error: Optional[str] = None
+
 
 class TrackingValidator:
     """Validates tracking data"""
@@ -63,6 +72,7 @@ class TrackingValidator:
             return bool(isinstance(id_value, int) and id_value > 0)
         except Exception:
             return False
+
 
 class TrackingCleanupTracker:
     """Tracks cleanup operations"""
@@ -94,9 +104,7 @@ class TrackingCleanupTracker:
             "total_guilds_cleaned": self.total_guilds_cleaned,
             "total_channels_cleaned": self.total_channels_cleaned,
             "last_cleanup": (
-                self.last_cleanup.isoformat()
-                if self.last_cleanup
-                else None
+                self.last_cleanup.isoformat() if self.last_cleanup else None
             ),
             "recent_cleanups": [
                 {
@@ -105,11 +113,12 @@ class TrackingCleanupTracker:
                     "items_cleaned": r.items_cleaned,
                     "guilds_cleaned": r.guilds_cleaned,
                     "channels_cleaned": r.channels_cleaned,
-                    "duration": r.duration
+                    "duration": r.duration,
                 }
                 for r in self.history[-5:]  # Last 5 cleanups
-            ]
+            ],
         }
+
 
 class TrackingCleaner:
     """Handles cleanup of queue tracking data"""
@@ -117,7 +126,7 @@ class TrackingCleaner:
     def __init__(
         self,
         strategy: TrackingCleanupStrategy = TrackingCleanupStrategy.BALANCED,
-        config: Optional[TrackingCleanupConfig] = None
+        config: Optional[TrackingCleanupConfig] = None,
     ):
         self.strategy = strategy
         self.config = config or TrackingCleanupConfig()
@@ -129,17 +138,14 @@ class TrackingCleaner:
         guild_queues: Dict[int, Set[str]],
         channel_queues: Dict[int, Set[str]],
         queue: List[QueueItem],
-        processing: Dict[str, QueueItem]
+        processing: Dict[str, QueueItem],
     ) -> Tuple[int, Dict[str, int]]:
         """Clean up tracking data"""
         start_time = datetime.utcnow()
-        
+
         try:
             # Get initial counts
-            initial_counts = self._get_tracking_counts(
-                guild_queues,
-                channel_queues
-            )
+            initial_counts = self._get_tracking_counts(guild_queues, channel_queues)
 
             # Get valid URLs
             valid_urls = self._get_valid_urls(queue, processing)
@@ -151,21 +157,15 @@ class TrackingCleaner:
 
             if self.strategy == TrackingCleanupStrategy.AGGRESSIVE:
                 cleaned = await self._aggressive_cleanup(
-                    guild_queues,
-                    channel_queues,
-                    valid_urls
+                    guild_queues, channel_queues, valid_urls
                 )
             elif self.strategy == TrackingCleanupStrategy.CONSERVATIVE:
                 cleaned = await self._conservative_cleanup(
-                    guild_queues,
-                    channel_queues,
-                    valid_urls
+                    guild_queues, channel_queues, valid_urls
                 )
             else:  # BALANCED
                 cleaned = await self._balanced_cleanup(
-                    guild_queues,
-                    channel_queues,
-                    valid_urls
+                    guild_queues, channel_queues, valid_urls
                 )
 
             items_cleaned = cleaned[0]
@@ -173,10 +173,7 @@ class TrackingCleaner:
             channels_cleaned = cleaned[2]
 
             # Get final counts
-            final_counts = self._get_tracking_counts(
-                guild_queues,
-                channel_queues
-            )
+            final_counts = self._get_tracking_counts(guild_queues, channel_queues)
 
             # Record cleanup result
             duration = (datetime.utcnow() - start_time).total_seconds()
@@ -188,37 +185,39 @@ class TrackingCleaner:
                 channels_cleaned=channels_cleaned,
                 duration=duration,
                 initial_counts=initial_counts,
-                final_counts=final_counts
+                final_counts=final_counts,
             )
             self.tracker.record_cleanup(result)
 
-            logger.info(self.format_tracking_cleanup_report(
-                initial_counts,
-                final_counts,
-                duration
-            ))
+            logger.info(
+                self.format_tracking_cleanup_report(
+                    initial_counts, final_counts, duration
+                )
+            )
             return items_cleaned, initial_counts
 
         except Exception as e:
             logger.error(f"Error cleaning tracking data: {e}")
-            self.tracker.record_cleanup(TrackingCleanupResult(
-                timestamp=datetime.utcnow(),
-                strategy=self.strategy,
-                items_cleaned=0,
-                guilds_cleaned=0,
-                channels_cleaned=0,
-                duration=0,
-                initial_counts={},
-                final_counts={},
-                error=str(e)
-            ))
+            self.tracker.record_cleanup(
+                TrackingCleanupResult(
+                    timestamp=datetime.utcnow(),
+                    strategy=self.strategy,
+                    items_cleaned=0,
+                    guilds_cleaned=0,
+                    channels_cleaned=0,
+                    duration=0,
+                    initial_counts={},
+                    final_counts={},
+                    error=str(e),
+                )
+            )
             raise
 
     async def _aggressive_cleanup(
         self,
         guild_queues: Dict[int, Set[str]],
         channel_queues: Dict[int, Set[str]],
-        valid_urls: Set[str]
+        valid_urls: Set[str],
     ) -> Tuple[int, int, int]:
         """Perform aggressive cleanup"""
         items_cleaned = 0
@@ -227,18 +226,14 @@ class TrackingCleaner:
 
         # Clean guild tracking
         guild_cleaned = await self._cleanup_guild_tracking(
-            guild_queues,
-            valid_urls,
-            validate_all=True
+            guild_queues, valid_urls, validate_all=True
         )
         items_cleaned += guild_cleaned[0]
         guilds_cleaned += guild_cleaned[1]
 
         # Clean channel tracking
         channel_cleaned = await self._cleanup_channel_tracking(
-            channel_queues,
-            valid_urls,
-            validate_all=True
+            channel_queues, valid_urls, validate_all=True
         )
         items_cleaned += channel_cleaned[0]
         channels_cleaned += channel_cleaned[1]
@@ -249,7 +244,7 @@ class TrackingCleaner:
         self,
         guild_queues: Dict[int, Set[str]],
         channel_queues: Dict[int, Set[str]],
-        valid_urls: Set[str]
+        valid_urls: Set[str],
     ) -> Tuple[int, int, int]:
         """Perform conservative cleanup"""
         items_cleaned = 0
@@ -261,9 +256,7 @@ class TrackingCleaner:
             invalid_ratio = len(urls - valid_urls) / len(urls) if urls else 0
             if invalid_ratio > self.config.max_invalid_ratio:
                 cleaned = await self._cleanup_guild_tracking(
-                    {guild_id: urls},
-                    valid_urls,
-                    validate_all=False
+                    {guild_id: urls}, valid_urls, validate_all=False
                 )
                 items_cleaned += cleaned[0]
                 guilds_cleaned += cleaned[1]
@@ -272,9 +265,7 @@ class TrackingCleaner:
             invalid_ratio = len(urls - valid_urls) / len(urls) if urls else 0
             if invalid_ratio > self.config.max_invalid_ratio:
                 cleaned = await self._cleanup_channel_tracking(
-                    {channel_id: urls},
-                    valid_urls,
-                    validate_all=False
+                    {channel_id: urls}, valid_urls, validate_all=False
                 )
                 items_cleaned += cleaned[0]
                 channels_cleaned += cleaned[1]
@@ -285,7 +276,7 @@ class TrackingCleaner:
         self,
         guild_queues: Dict[int, Set[str]],
         channel_queues: Dict[int, Set[str]],
-        valid_urls: Set[str]
+        valid_urls: Set[str],
     ) -> Tuple[int, int, int]:
         """Perform balanced cleanup"""
         items_cleaned = 0
@@ -294,18 +285,14 @@ class TrackingCleaner:
 
         # Clean guild tracking with validation
         guild_cleaned = await self._cleanup_guild_tracking(
-            guild_queues,
-            valid_urls,
-            validate_all=self.config.validate_urls
+            guild_queues, valid_urls, validate_all=self.config.validate_urls
         )
         items_cleaned += guild_cleaned[0]
         guilds_cleaned += guild_cleaned[1]
 
         # Clean channel tracking with validation
         channel_cleaned = await self._cleanup_channel_tracking(
-            channel_queues,
-            valid_urls,
-            validate_all=self.config.validate_urls
+            channel_queues, valid_urls, validate_all=self.config.validate_urls
         )
         items_cleaned += channel_cleaned[0]
         channels_cleaned += channel_cleaned[1]
@@ -316,7 +303,7 @@ class TrackingCleaner:
         self,
         guild_queues: Dict[int, Set[str]],
         valid_urls: Set[str],
-        validate_all: bool
+        validate_all: bool,
     ) -> Tuple[int, int]:
         """Clean up guild tracking data"""
         items_cleaned = 0
@@ -331,14 +318,15 @@ class TrackingCleaner:
 
             original_size = len(guild_queues[guild_id])
             guild_queues[guild_id] = {
-                url for url in guild_queues[guild_id]
+                url
+                for url in guild_queues[guild_id]
                 if (
-                    (not validate_all or self.validator.validate_url(url)) and
-                    url in valid_urls
+                    (not validate_all or self.validator.validate_url(url))
+                    and url in valid_urls
                 )
             }
             items_cleaned += original_size - len(guild_queues[guild_id])
-            
+
             if self.config.cleanup_empty and not guild_queues[guild_id]:
                 guild_queues.pop(guild_id)
                 guilds_cleaned += 1
@@ -355,7 +343,7 @@ class TrackingCleaner:
         self,
         channel_queues: Dict[int, Set[str]],
         valid_urls: Set[str],
-        validate_all: bool
+        validate_all: bool,
     ) -> Tuple[int, int]:
         """Clean up channel tracking data"""
         items_cleaned = 0
@@ -370,14 +358,15 @@ class TrackingCleaner:
 
             original_size = len(channel_queues[channel_id])
             channel_queues[channel_id] = {
-                url for url in channel_queues[channel_id]
+                url
+                for url in channel_queues[channel_id]
                 if (
-                    (not validate_all or self.validator.validate_url(url)) and
-                    url in valid_urls
+                    (not validate_all or self.validator.validate_url(url))
+                    and url in valid_urls
                 )
             }
             items_cleaned += original_size - len(channel_queues[channel_id])
-            
+
             if self.config.cleanup_empty and not channel_queues[channel_id]:
                 channel_queues.pop(channel_id)
                 channels_cleaned += 1
@@ -391,9 +380,7 @@ class TrackingCleaner:
         return items_cleaned, channels_cleaned
 
     def _get_valid_urls(
-        self,
-        queue: List[QueueItem],
-        processing: Dict[str, QueueItem]
+        self, queue: List[QueueItem], processing: Dict[str, QueueItem]
     ) -> Set[str]:
         """Get set of valid URLs"""
         valid_urls = {item.url for item in queue}
@@ -401,30 +388,27 @@ class TrackingCleaner:
         return valid_urls
 
     def _get_tracking_counts(
-        self,
-        guild_queues: Dict[int, Set[str]],
-        channel_queues: Dict[int, Set[str]]
+        self, guild_queues: Dict[int, Set[str]], channel_queues: Dict[int, Set[str]]
     ) -> Dict[str, int]:
         """Get tracking data counts"""
         return {
-            'guilds': len(guild_queues),
-            'channels': len(channel_queues),
-            'guild_urls': sum(len(urls) for urls in guild_queues.values()),
-            'channel_urls': sum(len(urls) for urls in channel_queues.values())
+            "guilds": len(guild_queues),
+            "channels": len(channel_queues),
+            "guild_urls": sum(len(urls) for urls in guild_queues.values()),
+            "channel_urls": sum(len(urls) for urls in channel_queues.values()),
         }
 
     def format_tracking_cleanup_report(
         self,
         initial_counts: Dict[str, int],
         final_counts: Dict[str, int],
-        duration: float
+        duration: float,
     ) -> str:
         """Format a tracking cleanup report"""
-        total_cleaned = (
-            (initial_counts['guild_urls'] - final_counts['guild_urls']) +
-            (initial_counts['channel_urls'] - final_counts['channel_urls'])
+        total_cleaned = (initial_counts["guild_urls"] - final_counts["guild_urls"]) + (
+            initial_counts["channel_urls"] - final_counts["channel_urls"]
         )
-        
+
         return (
             f"Tracking Cleanup Results:\n"
             f"Strategy: {self.strategy.value}\n"
@@ -446,7 +430,7 @@ class TrackingCleaner:
                 "retention_period": self.config.retention_period,
                 "validate_urls": self.config.validate_urls,
                 "cleanup_empty": self.config.cleanup_empty,
-                "max_invalid_ratio": self.config.max_invalid_ratio
+                "max_invalid_ratio": self.config.max_invalid_ratio,
             },
-            "tracker": self.tracker.get_stats()
+            "tracker": self.tracker.get_stats(),
         }

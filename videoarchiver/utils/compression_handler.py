@@ -7,11 +7,11 @@ import subprocess
 from datetime import datetime
 from typing import Dict, Optional, Callable, Set, Tuple
 
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
-from ..ffmpeg.exceptions import CompressionError
-from ..utils.exceptions import VideoVerificationError
-from ..utils.file_operations import FileOperations
-from ..utils.progress_handler import ProgressHandler
+from ffmpeg.ffmpeg_manager import FFmpegManager
+from ffmpeg.exceptions import CompressionError
+from utils.exceptions import VideoVerificationError
+from utils.file_operations import FileOperations
+from utils.progress_handler import ProgressHandler
 
 logger = logging.getLogger("VideoArchiver")
 

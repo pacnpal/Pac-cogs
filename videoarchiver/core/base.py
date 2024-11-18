@@ -14,21 +14,21 @@ from redbot.core.commands import GroupCog, Context  # type: ignore
 
 # try:
 # Try relative imports first
-from .settings import Settings
-from .lifecycle import LifecycleManager, LifecycleState
-from .component_manager import ComponentManager, ComponentState
-from .error_handler import error_manager, handle_command_error
-from .response_handler import ResponseManager
-from .commands.archiver_commands import setup_archiver_commands
-from .commands.database_commands import setup_database_commands
-from .commands.settings_commands import setup_settings_commands
-from .events import setup_events, EventManager
-from ..processor.core import VideoProcessor
-from ..queue.manager import EnhancedVideoQueueManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
-from ..database.video_archive_db import VideoArchiveDB
-from ..config_manager import ConfigManager
-from ..utils.exceptions import CogError, ErrorContext, ErrorSeverity
+from settings import Settings
+from lifecycle import LifecycleManager, LifecycleState
+from component_manager import ComponentManager, ComponentState
+from error_handler import error_manager, handle_command_error
+from response_handler import ResponseManager
+from commands.archiver_commands import setup_archiver_commands
+from commands.database_commands import setup_database_commands
+from commands.settings_commands import setup_settings_commands
+from events import setup_events, EventManager
+from processor.core import VideoProcessor
+from queue.manager import EnhancedVideoQueueManager
+from ffmpeg.ffmpeg_manager import FFmpegManager
+from database.video_archive_db import VideoArchiveDB
+from config_manager import ConfigManager
+from utils.exceptions import CogError, ErrorContext, ErrorSeverity
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

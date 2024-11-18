@@ -6,9 +6,9 @@ from typing import Optional, Dict, Any, List
 
 # try:
 # Try relative imports first
-from .schema_manager import DatabaseSchemaManager
-from .query_manager import DatabaseQueryManager
-from .connection_manager import DatabaseConnectionManager
+from schema_manager import DatabaseSchemaManager
+from query_manager import DatabaseQueryManager
+from connection_manager import DatabaseConnectionManager
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

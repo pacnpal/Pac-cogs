@@ -10,15 +10,16 @@ import discord  # type: ignore
 
 # try:
 # Try relative imports first
-from .. import utils
-from ..database.video_archive_db import VideoArchiveDB
-from ..utils.download_manager import DownloadManager
-from ..utils.message_manager import MessageManager
-from ..utils.exceptions import QueueHandlerError
-from ..queue.models import QueueItem
-from ..config_manager import ConfigManager
-from . import progress_tracker  # Import from processor package
-from .constants import REACTIONS
+# from . import utils
+from database.video_archive_db import VideoArchiveDB
+from utils.download_manager import DownloadManager
+from utils.message_manager import MessageManager
+from utils.exceptions import QueueHandlerError
+from queue.models import QueueItem
+from config_manager import ConfigManager
+
+from utils.progress_tracker import ProgressTracker  # Import from processor package
+from constants import REACTIONS
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -66,11 +67,13 @@ class QueueHandler:
         self,
         bot: discord.Client,
         config_manager: ConfigManager,
+        progress_tracker: ProgressTracker,
         components: Dict[int, Dict[str, Any]],
         db: Optional[VideoArchiveDB] = None,
     ) -> None:
         self.bot = bot
         self.config_manager = config_manager
+        self.progress_tracker = progress_tracker
         self.components = components
         self.db = db
         self._unloading = False
@@ -392,11 +395,13 @@ class QueueHandler:
                         return
 
                     # Update progress tracking
-                    progress_tracker.update_download_progress(
+                    ProgressTracker.update_download_progress(
                         url,
                         {
                             "percent": progress,
-                            "last_update": datetime.utcnow().isoformat(),
+                            "last_update": datetime.now(
+                                datetime.timezone.utc
+                            )().isoformat(),
                         },
                     )
 
@@ -439,9 +444,9 @@ class QueueHandler:
                 download_task, timeout=self.DOWNLOAD_TIMEOUT
             )
             if success:
-                progress_tracker.complete_download(url)
+                ProgressTracker.complete_download(url)
             else:
-                progress_tracker.increment_download_retries(url)
+                ProgressTracker.increment_download_retries(url)
             return success, file_path, error
 
         except asyncio.TimeoutError:

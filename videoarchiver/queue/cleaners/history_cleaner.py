@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional, List, Any, Set
 from datetime import datetime, timedelta
 
-from ..models import QueueItem
+from models import QueueItem
 
 logger = logging.getLogger("HistoryCleaner")
 

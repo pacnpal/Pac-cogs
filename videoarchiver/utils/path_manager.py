@@ -11,8 +11,8 @@ import time
 from typing import List, Optional, AsyncGenerator
 from pathlib import Path
 
-from ..utils.exceptions import FileCleanupError
-from ..utils.permission_manager import PermissionManager
+from utils.exceptions import FileCleanupError
+from utils.permission_manager import PermissionManager
 
 logger = logging.getLogger("PathManager")
 

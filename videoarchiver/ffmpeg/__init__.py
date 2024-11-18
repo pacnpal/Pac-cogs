@@ -20,12 +20,12 @@ logger = logging.getLogger("VideoArchiver")
 # Import components after logging is configured
 #try:
     # Try relative imports first
-from .ffmpeg_manager import FFmpegManager
-from .video_analyzer import VideoAnalyzer
-from .gpu_detector import GPUDetector
-from .encoder_params import EncoderParams
-from .ffmpeg_downloader import FFmpegDownloader
-from .exceptions import (
+from ffmpeg_manager import FFmpegManager
+from video_analyzer import VideoAnalyzer
+from gpu_detector import GPUDetector
+from encoder_params import EncoderParams
+from ffmpeg_downloader import FFmpegDownloader
+from exceptions import (
     FFmpegError,
     DownloadError,
     VerificationError,

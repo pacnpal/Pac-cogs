@@ -2,7 +2,7 @@
 
 # try:
 # Try relative imports first
-from .base import VideoArchiver
+from base import VideoArchiver
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

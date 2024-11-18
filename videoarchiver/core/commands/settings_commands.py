@@ -9,9 +9,9 @@ from discord import app_commands  # type: ignore
 from redbot.core import commands  # type: ignore
 from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_permissions  # type: ignore
 
-from ...core.settings import VideoFormat, VideoQuality
-from ...core.response_handler import handle_response, ResponseType
-from ...utils.exceptions import CommandError, ErrorContext, ErrorSeverity
+from core.settings import VideoFormat, VideoQuality
+from core.response_handler import handle_response, ResponseType
+from utils.exceptions import CommandError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 

@@ -21,12 +21,12 @@ from discord.ext import commands  # type: ignore
 
 # try:
 # Try relative imports first
-from ..config_manager import ConfigManager
-from .constants import REACTIONS
-from .message_validator import MessageValidator, ValidationError
-from .url_extractor import URLExtractor, URLMetadata
-from ..queue.types import QueuePriority
-from ..utils.exceptions import MessageHandlerError
+from config_manager import ConfigManager
+from constants import REACTIONS
+from message_validator import MessageValidator, ValidationError
+from url_extractor import URLExtractor, URLMetadata
+from queue.q_types import QueuePriority
+from utils.exceptions import MessageHandlerError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

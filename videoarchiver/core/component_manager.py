@@ -22,12 +22,12 @@ import importlib
 
 # try:
 # Try relative imports first
-from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-from ..utils.path_manager import PathManager
-from ..config_manager import ConfigManager
-from ..processor.core import VideoProcessor
-from ..queue.manager import EnhancedVideoQueueManager
-from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+from utils.path_manager import PathManager
+from config_manager import ConfigManager
+from processor.core import VideoProcessor
+from queue.manager import EnhancedVideoQueueManager
+from ffmpeg.ffmpeg_manager import FFmpegManager
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

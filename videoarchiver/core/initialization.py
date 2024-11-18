@@ -6,8 +6,8 @@ import logging
 
 # try:
 # Try relative imports first
-from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-from .lifecycle import LifecycleState
+from utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+from lifecycle import LifecycleState
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -16,7 +16,7 @@ from .lifecycle import LifecycleState
 
 if TYPE_CHECKING:
     #   try:
-    from .base import VideoArchiver
+    from base import VideoArchiver
 #  except ImportError:
 # from videoarchiver.core.base import VideoArchiver
 

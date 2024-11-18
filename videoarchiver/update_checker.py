@@ -18,7 +18,7 @@ import shutil
 
 # try:
 # Try relative imports first
-from .utils.exceptions import UpdateError
+from utils.exceptions import UpdateError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

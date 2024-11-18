@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-from ..core.types import (
+from core.c_types import (
     ComponentState,
     ProcessorState,
     ComponentStatus,
@@ -16,9 +16,9 @@ from ..core.types import (
     IConfigManager,
     IQueueManager,
 )
-from .constants import REACTIONS
-from ..utils.progress_tracker import ProgressTracker
-from ..utils.exceptions import ProcessorError
+from constants import REACTIONS
+from utils.progress_tracker import ProgressTracker
+from utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
 

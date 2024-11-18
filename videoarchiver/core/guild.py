@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Dict, Any, Optional
 
 # try:
 # Try relative imports first
-from ..utils.download_core import DownloadCore
-from ..utils.message_manager import MessageManager
-from ..utils.file_ops import cleanup_downloads
-from ..utils.exceptions import VideoArchiverError as ProcessingError
+from utils.download_core import DownloadCore
+from utils.message_manager import MessageManager
+from utils.file_ops import cleanup_downloads
+from utils.exceptions import VideoArchiverError as ProcessingError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -20,7 +20,7 @@ from ..utils.exceptions import VideoArchiverError as ProcessingError
 
 if TYPE_CHECKING:
     # try:
-    from .base import VideoArchiver
+    from base import VideoArchiver
 # except ImportError:
 # from videoarchiver.core.base import VideoArchiver
 

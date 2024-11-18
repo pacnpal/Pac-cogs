@@ -1,97 +1,110 @@
-"""Queue processing functionality for video processing"""
-
 import logging
 import asyncio
 from typing import List, Optional, Dict, Any, Set, ClassVar
 from datetime import datetime
+import sys
+from pathlib import Path
 
-#try:
-    # Try relative imports first
-from ..queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
-from ..queue.models import QueueItem
-#except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
-    # from videoarchiver.queue.models import QueueItem
+# Get the parent directory (videoarchiver root)
+BASE_DIR = Path(__file__).resolve().parent.parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+# Use non-relative imports
+from queue.q_types import QueuePriority, QueueMetrics, ProcessingMetrics
+from queue.models import QueueItem
 
 logger = logging.getLogger("VideoArchiver")
 
+
 class QueueProcessor:
-    """Handles processing of video queue items"""
+    """
+    Handles the processing of queue items with priority-based scheduling.
+    """
 
-    _active_items: ClassVar[Set[int]] = set()
-    _processing_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
+    # Class variables for tracking global state
+    active_items: ClassVar[Set[str]] = set()
+    processing_metrics: ClassVar[Dict[str, ProcessingMetrics]] = {}
 
-    def __init__(self, queue_manager):
-        """Initialize queue processor
-        
-        Args:
-            queue_manager: Queue manager instance to handle queue operations
+    def __init__(self):
+        self.queue_metrics = QueueMetrics()
+        self.processing_lock = asyncio.Lock()
+        self.is_running = False
+        self._current_item: Optional[QueueItem] = None
+        self._priority_queues: Dict[QueuePriority, List[QueueItem]] = {
+            priority: [] for priority in QueuePriority
+        }
+
+    @property
+    def current_item(self) -> Optional[QueueItem]:
+        """Get the currently processing item."""
+        return self._current_item
+
+    def add_item(self, item: QueueItem) -> bool:
         """
-        self.queue_manager = queue_manager
-        self._metrics = ProcessingMetrics()
-
-    async def process_urls(self, message, urls, priority: QueuePriority = QueuePriority.NORMAL) -> None:
-        """Process URLs from a message
-        
-        Args:
-            message: Discord message containing URLs
-            urls: List of URLs to process
-            priority: Processing priority level
-        """
-        for url_metadata in urls:
-            await self.queue_manager.add_to_queue(
-                url=url_metadata.url,
-                message_id=message.id,
-                channel_id=message.channel.id,
-                guild_id=message.guild.id,
-                author_id=message.author.id,
-                priority=priority.value
-            )
-
-    async def process_item(self, item: QueueItem) -> bool:
-        """Process a single queue item
+        Add an item to the appropriate priority queue.
 
         Args:
-            item: Queue item to process
+            item: QueueItem to add
 
         Returns:
-            bool: Success status
+            bool: True if item was added successfully
         """
-        if item.id in self._active_items:
-            logger.warning(f"Item {item.id} is already being processed")
+        if item.id in self.active_items:
+            logger.warning(f"Item {item.id} is already in queue")
             return False
 
-        try:
-            self._active_items.add(item.id)
-            start_time = datetime.now()
+        self._priority_queues[item.priority].append(item)
+        self.active_items.add(item.id)
+        self.queue_metrics.total_items += 1
+        logger.info(f"Added item {item.id} to {item.priority.name} priority queue")
+        return True
 
-            # Process item logic here
-            # Placeholder for actual video processing
-            await asyncio.sleep(1)
+    def remove_item(self, item_id: str) -> Optional[QueueItem]:
+        """
+        Remove an item from any priority queue.
 
-            processing_time = (datetime.now() - start_time).total_seconds()
-            self._update_metrics(processing_time, True, item.size)
-            return True
+        Args:
+            item_id: ID of item to remove
 
-        except Exception as e:
-            logger.error(f"Error processing item {item.id}: {str(e)}")
-            self._update_metrics(0, False, 0)
-            return False
-
-        finally:
-            self._active_items.remove(item.id)
+        Returns:
+            Optional[QueueItem]: Removed item if found, None otherwise
+        """
+        for priority in QueuePriority:
+            queue = self._priority_queues[priority]
+            for item in queue:
+                if item.id == item_id:
+                    queue.remove(item)
+                    self.active_items.discard(item_id)
+                    self.queue_metrics.total_items -= 1
+                    logger.info(
+                        f"Removed item {item_id} from {priority.name} priority queue"
+                    )
+                    return item
+        return None
 
     def _update_metrics(self, processing_time: float, success: bool, size: int) -> None:
-        """Update processing metrics"""
+        """
+        Update processing metrics.
+
+        Args:
+            processing_time: Time taken to process the item
+            success: Whether processing was successful
+            size: Size of the processed item
+        """
         if success:
-            self._metrics.record_success(processing_time)
+            self.queue_metrics.record_success(processing_time)
         else:
-            self._metrics.record_failure("Processing error")
+            self.queue_metrics.record_failure("Processing error")
 
     def get_metrics(self) -> QueueMetrics:
-        """Get current processing metrics"""
-        total = self._metrics.total_processed
+        """
+        Get current processing metrics.
+
+        Returns:
+            QueueMetrics: Current queue processing metrics
+        """
+        total = self.queue_metrics.total_processed
         if total == 0:
             return QueueMetrics(
                 total_items=0,
@@ -103,8 +116,8 @@ class QueueProcessor:
 
         return QueueMetrics(
             total_items=total,
-            processing_time=self._metrics.avg_processing_time,
-            success_rate=self._metrics.successful / total,
-            error_rate=self._metrics.failed / total,
+            processing_time=self.queue_metrics.avg_processing_time,
+            success_rate=self.queue_metrics.successful / total,
+            error_rate=self.queue_metrics.failed / total,
             average_size=0,  # This would need to be tracked separately if needed
         )

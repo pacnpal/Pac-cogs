@@ -2,7 +2,7 @@
 
 # try:
 # Try relative imports first
-from .exceptions import (
+from exceptions import (
     ConfigurationError,
     ValidationError,
     PermissionError,
@@ -12,10 +12,10 @@ from .exceptions import (
     SchemaError,
     DiscordAPIError,
 )
-from .channel_manager import ChannelManager
-from .role_manager import RoleManager
-from .settings_formatter import SettingsFormatter
-from .validation_manager import ValidationManager
+from channel_manager import ChannelManager
+from role_manager import RoleManager
+from settings_formatter import SettingsFormatter
+from validation_manager import ValidationManager
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

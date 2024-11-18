@@ -7,21 +7,22 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List, Set, Callable
 from datetime import datetime, timedelta
 
-from ..core.types import IQueueManager, QueueState, ComponentStatus
-from .state_manager import QueueStateManager
-from .processor import QueueProcessor
-from .metrics_manager import QueueMetricsManager
-from .persistence import QueuePersistenceManager
-from .monitoring import QueueMonitor, MonitoringLevel
-from .cleanup import QueueCleaner
-from .models import QueueItem, QueueError, CleanupError
-from .types import ProcessingStrategy
+from core.c_types import IQueueManager, QueueState, ComponentStatus
+from state_manager import QueueStateManager
+from processor import QueueProcessor
+from metrics_manager import QueueMetricsManager
+from persistence import QueuePersistenceManager, QueueError
+from monitoring import QueueMonitor, MonitoringLevel
+from cleanup import QueueCleaner, CleanupError
+from models import QueueItem, QueueError
+from q_types import ProcessingStrategy
 
 logger = logging.getLogger("QueueManager")
 
 
 class QueueMode(Enum):
     """Queue processing modes"""
+
     NORMAL = "normal"  # Standard processing
     BATCH = "batch"  # Batch processing
     PRIORITY = "priority"  # Priority-based processing
@@ -31,6 +32,7 @@ class QueueMode(Enum):
 @dataclass
 class QueueConfig:
     """Queue configuration settings"""
+
     max_retries: int = 3
     retry_delay: int = 5
     max_queue_size: int = 1000
@@ -47,6 +49,7 @@ class QueueConfig:
 @dataclass
 class QueueStats:
     """Queue statistics"""
+
     start_time: datetime = field(default_factory=datetime.utcnow)
     total_processed: int = 0
     total_failed: int = 0
@@ -230,7 +233,8 @@ class EnhancedVideoQueueManager(IQueueManager):
                 "monitoring": monitor_stats,
                 "state": self.coordinator.state.value,
                 "mode": self.coordinator.mode.value,
-                "active": self.coordinator.state == QueueState.RUNNING and bool(processor_stats["active_tasks"]),
+                "active": self.coordinator.state == QueueState.RUNNING
+                and bool(processor_stats["active_tasks"]),
                 "stalled": monitor_stats.get("stalled", False),
                 "stats": {
                     "uptime": self.stats.uptime.total_seconds(),
@@ -301,7 +305,7 @@ class EnhancedVideoQueueManager(IQueueManager):
                     "total_processed": self.stats.total_processed,
                     "total_failed": self.stats.total_failed,
                 },
-            }
+            },
         )
 
     # Helper methods below...

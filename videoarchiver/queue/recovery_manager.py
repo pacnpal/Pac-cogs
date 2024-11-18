@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Any, Set
 from datetime import datetime, timedelta
 
-from .models import QueueItem
+from models import QueueItem
 
 logger = logging.getLogger("QueueRecoveryManager")
 

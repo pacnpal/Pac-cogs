@@ -6,7 +6,7 @@ import discord  # type: ignore
 
 # try:
 # Try relative imports first
-from .exceptions import (
+from exceptions import (
     ConfigurationError as ConfigError,
     DiscordAPIError,
 )

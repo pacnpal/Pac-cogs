@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Union
 
 # try:
 # Try relative imports first
-from .exceptions import ConfigurationError as ConfigError
+from exceptions import ConfigurationError as ConfigError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
