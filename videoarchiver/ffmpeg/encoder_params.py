@@ -9,7 +9,7 @@ try:
     from .exceptions import CompressionError, QualityError, BitrateError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.exceptions import CompressionError, QualityError, BitrateError
+    # from videoarchiver.ffmpeg.exceptions import CompressionError, QualityError, BitrateError
 
 logger = logging.getLogger("VideoArchiver")
 

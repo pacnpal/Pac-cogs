@@ -98,10 +98,10 @@ except ImportError:
     from videoarchiver import database
     from videoarchiver import config
     from videoarchiver import core
-    from videoarchiver.core.base import VideoArchiver
-    from videoarchiver.core.initialization import initialize_cog, init_callback
-    from videoarchiver.core.cleanup import cleanup_resources
-    from videoarchiver.utils.exceptions import (
+    # from videoarchiver.core.base import VideoArchiver
+    # from videoarchiver.core.initialization import initialize_cog, init_callback
+    # from videoarchiver.core.cleanup import cleanup_resources
+    # from videoarchiver.utils.exceptions import (
         VideoArchiverError,
         CommandError,
         EventError,

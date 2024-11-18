@@ -12,7 +12,7 @@ try:
     from ..utils.exceptions import ErrorSeverity
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import ErrorSeverity
+    # from videoarchiver.utils.exceptions import ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 

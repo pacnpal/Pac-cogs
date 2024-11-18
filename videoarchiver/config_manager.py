@@ -15,11 +15,11 @@ try:
     from .utils.exceptions import ConfigurationError as ConfigError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.config.validation_manager import ValidationManager
-    from videoarchiver.config.settings_formatter import SettingsFormatter
-    from videoarchiver.config.channel_manager import ChannelManager
-    from videoarchiver.config.role_manager import RoleManager
-    from videoarchiver.utils.exceptions import ConfigurationError as ConfigError
+    # from videoarchiver.config.validation_manager import ValidationManager
+    # from videoarchiver.config.settings_formatter import SettingsFormatter
+    # from videoarchiver.config.channel_manager import ChannelManager
+    # from videoarchiver.config.role_manager import RoleManager
+    # from videoarchiver.utils.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("VideoArchiver")
 

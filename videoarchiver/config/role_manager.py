@@ -9,7 +9,7 @@ try:
     from .exceptions import ConfigurationError as ConfigError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.config.exceptions import ConfigurationError as ConfigError
+    # from videoarchiver.config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("RoleManager")
 

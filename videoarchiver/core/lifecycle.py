@@ -19,8 +19,8 @@ try:
     )
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.core.cleanup import cleanup_resources, force_cleanup_resources
-    from videoarchiver.utils.exceptions import (
+    # from videoarchiver.core.cleanup import cleanup_resources, force_cleanup_resources
+    # from videoarchiver.utils.exceptions import (
         VideoArchiverError,
         ErrorContext,
         ErrorSeverity,

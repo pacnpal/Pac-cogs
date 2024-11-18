@@ -21,7 +21,7 @@ try:
     from .utils.exceptions import UpdateError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import UpdateError
+    # from videoarchiver.utils.exceptions import UpdateError
 
 logger = logging.getLogger("VideoArchiver")
 

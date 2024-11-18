@@ -21,7 +21,7 @@ try:
     from .exceptions import DownloadError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.exceptions import DownloadError
+    # from videoarchiver.ffmpeg.exceptions import DownloadError
 
 logger = logging.getLogger("VideoArchiver")
 

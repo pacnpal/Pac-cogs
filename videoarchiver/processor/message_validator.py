@@ -12,7 +12,7 @@ try:
     from ..utils.exceptions import ValidationError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import ValidationError
+    # from videoarchiver.utils.exceptions import ValidationError
 
 logger = logging.getLogger("VideoArchiver")
 

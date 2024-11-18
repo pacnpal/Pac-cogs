@@ -19,18 +19,18 @@ try:
     from ..utils.exceptions import MessageHandlerError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.config_manager import ConfigManager
-    from videoarchiver.processor.constants import REACTIONS
-    from videoarchiver.processor.message_validator import MessageValidator, ValidationError
-    from videoarchiver.processor.url_extractor import URLExtractor, URLMetadata
-    from videoarchiver.queue.types import QueuePriority
-    from videoarchiver.utils.exceptions import MessageHandlerError
+    # from videoarchiver.config_manager import ConfigManager
+    # from videoarchiver.processor.constants import REACTIONS
+    # from videoarchiver.processor.message_validator import MessageValidator, ValidationError
+    # from videoarchiver.processor.url_extractor import URLExtractor, URLMetadata
+    # from videoarchiver.queue.types import QueuePriority
+    # from videoarchiver.utils.exceptions import MessageHandlerError
 
 if TYPE_CHECKING:
     try:
         from ..queue.manager import EnhancedVideoQueueManager
     except ImportError:
-        from videoarchiver.queue.manager import EnhancedVideoQueueManager
+        # from videoarchiver.queue.manager import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 

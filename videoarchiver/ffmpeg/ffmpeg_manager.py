@@ -21,17 +21,17 @@ try:
     from .binary_manager import BinaryManager
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.exceptions import (
+    # from videoarchiver.ffmpeg.exceptions import (
         FFmpegError,
         AnalysisError,
         FFmpegNotFoundError
     )
-    from videoarchiver.ffmpeg.gpu_detector import GPUDetector
-    from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
-    from videoarchiver.ffmpeg.encoder_params import EncoderParams
-    from videoarchiver.ffmpeg.process_manager import ProcessManager
-    from videoarchiver.ffmpeg.verification_manager import VerificationManager
-    from videoarchiver.ffmpeg.binary_manager import BinaryManager
+    # from videoarchiver.ffmpeg.gpu_detector import GPUDetector
+    # from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
+    # from videoarchiver.ffmpeg.encoder_params import EncoderParams
+    # from videoarchiver.ffmpeg.process_manager import ProcessManager
+    # from videoarchiver.ffmpeg.verification_manager import VerificationManager
+    # from videoarchiver.ffmpeg.binary_manager import BinaryManager
 
 logger = logging.getLogger("VideoArchiver")
 

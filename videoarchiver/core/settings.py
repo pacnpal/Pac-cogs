@@ -9,7 +9,7 @@ try:
     from ..utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+    # from videoarchiver.utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
 
 
 class VideoFormat(Enum):

@@ -8,10 +8,10 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-from videoarchiver.core.types import ComponentState, ProcessorState, ComponentStatus, IComponent, IConfigManager, IQueueManager
-from videoarchiver.processor.constants import REACTIONS
-from videoarchiver.utils.progress_tracker import ProgressTracker
-from videoarchiver.utils.exceptions import ProcessorError
+# from videoarchiver.core.types import ComponentState, ProcessorState, ComponentStatus, IComponent, IConfigManager, IQueueManager
+# from videoarchiver.processor.constants import REACTIONS
+# from videoarchiver.utils.progress_tracker import ProgressTracker
+# from videoarchiver.utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
 

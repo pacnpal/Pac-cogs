@@ -19,18 +19,18 @@ try:
     from ..utils.exceptions import EventError, ErrorContext, ErrorSeverity
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.processor.constants import REACTIONS
-    from videoarchiver.processor.reactions import handle_archived_reaction
-    from videoarchiver.core.guild import initialize_guild_components, cleanup_guild_components
-    from videoarchiver.core.error_handler import ErrorManager
-    from videoarchiver.core.response_handler import response_manager
-    from videoarchiver.utils.exceptions import EventError, ErrorContext, ErrorSeverity
+    # from videoarchiver.processor.constants import REACTIONS
+    # from videoarchiver.processor.reactions import handle_archived_reaction
+    # from videoarchiver.core.guild import initialize_guild_components, cleanup_guild_components
+    # from videoarchiver.core.error_handler import ErrorManager
+    # from videoarchiver.core.response_handler import response_manager
+    # from videoarchiver.utils.exceptions import EventError, ErrorContext, ErrorSeverity
 
 if TYPE_CHECKING:
     try:
         from .base import VideoArchiver
     except ImportError:
-        from videoarchiver.core.base import VideoArchiver
+        # from videoarchiver.core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 

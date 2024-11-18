@@ -38,7 +38,7 @@ try:
     from ..core.response_handler import response_manager
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import (
+    # from videoarchiver.utils.exceptions import (
         VideoArchiverError,
         ErrorSeverity,
         ErrorContext,
@@ -57,7 +57,7 @@ except ImportError:
         ResourceExhaustedError,
         ConfigurationError
     )
-    from videoarchiver.core.response_handler import response_manager
+    # from videoarchiver.core.response_handler import response_manager
 
 logger = logging.getLogger("VideoArchiver")
 

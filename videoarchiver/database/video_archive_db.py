@@ -11,9 +11,9 @@ try:
     from .connection_manager import DatabaseConnectionManager
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.database.schema_manager import DatabaseSchemaManager
-    from videoarchiver.database.query_manager import DatabaseQueryManager
-    from videoarchiver.database.connection_manager import DatabaseConnectionManager
+    # from videoarchiver.database.schema_manager import DatabaseSchemaManager
+    # from videoarchiver.database.query_manager import DatabaseQueryManager
+    # from videoarchiver.database.connection_manager import DatabaseConnectionManager
 
 logger = logging.getLogger("VideoArchiverDB")
 

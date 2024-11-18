@@ -10,14 +10,14 @@ try:
     from .lifecycle import LifecycleState
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-    from videoarchiver.core.lifecycle import LifecycleState
+    # from videoarchiver.utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+    # from videoarchiver.core.lifecycle import LifecycleState
 
 if TYPE_CHECKING:
     try:
         from .base import VideoArchiver
     except ImportError:
-        from videoarchiver.core.base import VideoArchiver
+        # from videoarchiver.core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 

@@ -8,10 +8,10 @@ try:
     from .video_archive_db import VideoArchiveDB
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.database.connection_manager import DatabaseConnectionManager
-    from videoarchiver.database.query_manager import DatabaseQueryManager
-    from videoarchiver.database.schema_manager import DatabaseSchemaManager
-    from videoarchiver.database.video_archive_db import VideoArchiveDB
+    # from videoarchiver.database.connection_manager import DatabaseConnectionManager
+    # from videoarchiver.database.query_manager import DatabaseQueryManager
+    # from videoarchiver.database.schema_manager import DatabaseSchemaManager
+    # from videoarchiver.database.video_archive_db import VideoArchiveDB
 
 __all__ = [
     'DatabaseConnectionManager',

@@ -18,13 +18,13 @@ try:
     from ..database.video_archive_db import VideoArchiveDB
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.processor.constants import (
+    # from videoarchiver.processor.constants import (
         REACTIONS,
         ReactionType,
         get_reaction,
         get_progress_emoji,
     )
-    from videoarchiver.database.video_archive_db import VideoArchiveDB
+    # from videoarchiver.database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 

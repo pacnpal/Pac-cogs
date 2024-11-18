@@ -16,7 +16,7 @@ try:
     )
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.exceptions import (
+    # from videoarchiver.ffmpeg.exceptions import (
         TimeoutError,
         VerificationError,
         EncodingError,

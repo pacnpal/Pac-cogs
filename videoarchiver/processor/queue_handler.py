@@ -21,14 +21,14 @@ try:
     from .constants import REACTIONS
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.database.video_archive_db import VideoArchiveDB
-    from videoarchiver.utils.download_manager import DownloadManager
-    from videoarchiver.utils.message_manager import MessageManager
-    from videoarchiver.utils.exceptions import QueueHandlerError
-    from videoarchiver.queue.models import QueueItem
-    from videoarchiver.config_manager import ConfigManager
-    from videoarchiver.processor import progress_tracker  # Import from processor package
-    from videoarchiver.processor.constants import REACTIONS
+    # from videoarchiver.database.video_archive_db import VideoArchiveDB
+    # from videoarchiver.utils.download_manager import DownloadManager
+    # from videoarchiver.utils.message_manager import MessageManager
+    # from videoarchiver.utils.exceptions import QueueHandlerError
+    # from videoarchiver.queue.models import QueueItem
+    # from videoarchiver.config_manager import ConfigManager
+    # from videoarchiver.processor import progress_tracker  # Import from processor package
+    # from videoarchiver.processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
 

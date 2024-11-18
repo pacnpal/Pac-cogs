@@ -46,12 +46,12 @@ try:
     )
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
-    from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
-    from videoarchiver.ffmpeg.gpu_detector import GPUDetector
-    from videoarchiver.ffmpeg.encoder_params import EncoderParams
-    from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
-    from videoarchiver.ffmpeg.exceptions import (
+    # from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
+    # from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
+    # from videoarchiver.ffmpeg.gpu_detector import GPUDetector
+    # from videoarchiver.ffmpeg.encoder_params import EncoderParams
+    # from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
+    # from videoarchiver.ffmpeg.exceptions import (
         FFmpegError,
         DownloadError,
         VerificationError,

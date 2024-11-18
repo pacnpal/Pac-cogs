@@ -23,7 +23,7 @@ try:
     from ..utils.exceptions import DisplayError
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver.utils.exceptions import DisplayError
+    # from videoarchiver.utils.exceptions import DisplayError
 
 logger = logging.getLogger("VideoArchiver")
 
