@@ -85,6 +85,9 @@ from .exceptions import (
     TrackingError
 )
 
+# Import progress_tracker from processor
+from ..processor import progress_tracker
+
 __all__ = [
     # File Operations
     'cleanup_downloads',
@@ -186,7 +189,6 @@ directory_manager = DirectoryManager()
 permission_manager = PermissionManager()
 download_manager = DownloadManager()
 compression_manager = CompressionManager()
-progress_tracker = ProgressTracker()
 path_manager = PathManager()
 
 # Progress tracking helper functions

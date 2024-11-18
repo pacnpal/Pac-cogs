@@ -49,7 +49,7 @@ from .reactions import (
 )
 
 # Import progress tracking
-from ..utils.progress_tracker import progress_tracker
+from ..utils.progress_tracker import ProgressTracker
 
 # Import handlers after other dependencies are loaded
 from .message_handler import MessageHandler
@@ -113,6 +113,7 @@ __description__ = "Video processing module for archiving Discord videos"
 # Create shared instances for module-level access
 url_extractor = URLExtractor()
 message_validator = MessageValidator()
+progress_tracker = ProgressTracker()  # Create singleton instance
 
 
 # URL extraction helper functions

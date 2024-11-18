@@ -10,7 +10,7 @@ from discord.ext import commands  # type: ignore
 
 from videoarchiver.core.types import ComponentState, ProcessorState, ComponentStatus, IComponent, IConfigManager, IQueueManager
 from videoarchiver.processor.constants import REACTIONS
-from videoarchiver.utils import progress_tracker
+from videoarchiver.utils.progress_tracker import ProgressTracker
 from videoarchiver.utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
@@ -90,6 +90,7 @@ class HealthMonitor:
         self.last_check: Optional[datetime] = None
         self.health_status: Dict[str, bool] = {}
         self._monitor_task: Optional[asyncio.Task] = None
+        self.progress_tracker = ProgressTracker()  # Initialize ProgressTracker instance
 
     async def start_monitoring(self) -> None:
         """Start health monitoring"""
@@ -116,7 +117,7 @@ class HealthMonitor:
                 self.health_status.update({
                     "queue_handler": self.processor.queue_handler.is_healthy(),
                     "message_handler": self.processor.message_handler.is_healthy(),
-                    "progress_tracker": progress_tracker.is_healthy(),
+                    "progress_tracker": self.progress_tracker.is_healthy(),
                 })
 
                 # Check operation health

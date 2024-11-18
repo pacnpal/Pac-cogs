@@ -17,6 +17,7 @@ try:
     from ..utils.exceptions import QueueHandlerError
     from ..queue.models import QueueItem
     from ..config_manager import ConfigManager
+    from . import progress_tracker  # Import from processor package
     from .constants import REACTIONS
 except ImportError:
     # Fall back to absolute imports if relative imports fail
@@ -27,6 +28,7 @@ except ImportError:
     from videoarchiver.utils.exceptions import QueueHandlerError
     from videoarchiver.queue.models import QueueItem
     from videoarchiver.config_manager import ConfigManager
+    from videoarchiver.processor import progress_tracker  # Import from processor package
     from videoarchiver.processor.constants import REACTIONS
 
 logger = logging.getLogger("VideoArchiver")
@@ -390,7 +392,7 @@ class QueueHandler:
                         return
 
                     # Update progress tracking
-                    utils.progress_tracker.update_download_progress(
+                    progress_tracker.update_download_progress(
                         url,
                         {
                             "percent": progress,
@@ -437,9 +439,9 @@ class QueueHandler:
                 download_task, timeout=self.DOWNLOAD_TIMEOUT
             )
             if success:
-                utils.progress_tracker.complete_download(url)
+                progress_tracker.complete_download(url)
             else:
-                utils.progress_tracker.increment_download_retries(url)
+                progress_tracker.increment_download_retries(url)
             return success, file_path, error
 
         except asyncio.TimeoutError:

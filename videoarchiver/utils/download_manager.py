@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..ffmpeg.verification_manager import VerificationManager
 from ..utils.compression_manager import CompressionManager
-from ..utils import progress_tracker
+from ..processor import progress_tracker  # Import from processor instead of utils
 
 logger = logging.getLogger("DownloadManager")
 
