@@ -16,12 +16,13 @@ from typing import Optional, Dict, List
 import time
 import lzma
 
-try:
-    # Try relative imports first
-    from .exceptions import DownloadError
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.ffmpeg.exceptions import DownloadError
+# try:
+# Try relative imports first
+from .exceptions import DownloadError
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.ffmpeg.exceptions import DownloadError
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -249,14 +250,16 @@ class FFmpegDownloader:
                 binary_files = [
                     f
                     for f in zip_ref.namelist()
-                    if f.endswith(f"/bin/{binary_name}") or f.endswith(f"\\bin\\{binary_name}")
+                    if f.endswith(f"/bin/{binary_name}")
+                    or f.endswith(f"\\bin\\{binary_name}")
                 ]
                 if not binary_files:
                     # Fallback to old structure
                     binary_files = [
                         f
                         for f in zip_ref.namelist()
-                        if f.endswith(f"/{binary_name}") or f.endswith(f"\\{binary_name}")
+                        if f.endswith(f"/{binary_name}")
+                        or f.endswith(f"\\{binary_name}")
                     ]
                 if not binary_files:
                     raise DownloadError(f"{binary_name} not found in archive")
@@ -271,10 +274,10 @@ class FFmpegDownloader:
         """Extract from tar archive (Linux/macOS)"""
         try:
             # First decompress the .xz file in chunks to prevent blocking
-            decompressed_path = archive_path.with_suffix('')
+            decompressed_path = archive_path.with_suffix("")
             chunk_size = 1024 * 1024  # 1MB chunks
-            with lzma.open(archive_path, 'rb') as compressed:
-                with open(decompressed_path, 'wb') as decompressed:
+            with lzma.open(archive_path, "rb") as compressed:
+                with open(decompressed_path, "wb") as decompressed:
                     while True:
                         chunk = compressed.read(chunk_size)
                         if not chunk:
@@ -289,12 +292,16 @@ class FFmpegDownloader:
                 for binary_name in binary_names:
                     # BtbN's builds have binaries in bin directory
                     binary_files = [
-                        f for f in tar_ref.getnames() if f.endswith(f"/bin/{binary_name}")
+                        f
+                        for f in tar_ref.getnames()
+                        if f.endswith(f"/bin/{binary_name}")
                     ]
                     if not binary_files:
                         # Fallback to old structure
                         binary_files = [
-                            f for f in tar_ref.getnames() if f.endswith(f"/{binary_name}")
+                            f
+                            for f in tar_ref.getnames()
+                            if f.endswith(f"/{binary_name}")
                         ]
                     if not binary_files:
                         raise DownloadError(f"{binary_name} not found in archive")
@@ -304,9 +311,11 @@ class FFmpegDownloader:
                     tar_ref.extract(member, temp_dir)
                     extracted_path = Path(temp_dir) / binary_files[0]
                     target_path = self.base_dir / binary_name
-                    
+
                     # Copy file in chunks
-                    with open(extracted_path, 'rb') as src, open(target_path, 'wb') as dst:
+                    with open(extracted_path, "rb") as src, open(
+                        target_path, "wb"
+                    ) as dst:
                         while True:
                             chunk = src.read(chunk_size)
                             if not chunk:
@@ -314,7 +323,7 @@ class FFmpegDownloader:
                             dst.write(chunk)
                             # Allow other tasks to run
                             time.sleep(0)
-                    
+
                     logger.info(f"Extracted {binary_name} to {target_path}")
 
             # Clean up decompressed file
@@ -350,7 +359,7 @@ class FFmpegDownloader:
                     timeout=5,
                     text=True,
                     check=False,  # Don't raise on non-zero return code
-                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
+                    env={"PATH": os.environ.get("PATH", "")},  # Ensure PATH is set
                 )
             except subprocess.TimeoutExpired:
                 logger.error("FFmpeg verification timed out")
@@ -368,7 +377,7 @@ class FFmpegDownloader:
                     timeout=5,
                     text=True,
                     check=False,  # Don't raise on non-zero return code
-                    env={"PATH": os.environ.get("PATH", "")}  # Ensure PATH is set
+                    env={"PATH": os.environ.get("PATH", "")},  # Ensure PATH is set
                 )
             except subprocess.TimeoutExpired:
                 logger.error("FFprobe verification timed out")

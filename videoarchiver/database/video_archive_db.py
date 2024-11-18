@@ -4,16 +4,17 @@ import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-try:
-    # Try relative imports first
-    from .schema_manager import DatabaseSchemaManager
-    from .query_manager import DatabaseQueryManager
-    from .connection_manager import DatabaseConnectionManager
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.database.schema_manager import DatabaseSchemaManager
-    # from videoarchiver.database.query_manager import DatabaseQueryManager
-    # from videoarchiver.database.connection_manager import DatabaseConnectionManager
+# try:
+# Try relative imports first
+from .schema_manager import DatabaseSchemaManager
+from .query_manager import DatabaseQueryManager
+from .connection_manager import DatabaseConnectionManager
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.database.schema_manager import DatabaseSchemaManager
+# from videoarchiver.database.query_manager import DatabaseQueryManager
+# from videoarchiver.database.connection_manager import DatabaseConnectionManager
 
 logger = logging.getLogger("VideoArchiverDB")
 

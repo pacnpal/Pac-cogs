@@ -8,10 +8,17 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, TYPE_CHECKING
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-# from videoarchiver.core.types import ComponentState, ProcessorState, ComponentStatus, IComponent, IConfigManager, IQueueManager
-# from videoarchiver.processor.constants import REACTIONS
-# from videoarchiver.utils.progress_tracker import ProgressTracker
-# from videoarchiver.utils.exceptions import ProcessorError
+from ..core.types import (
+    ComponentState,
+    ProcessorState,
+    ComponentStatus,
+    IComponent,
+    IConfigManager,
+    IQueueManager,
+)
+from .constants import REACTIONS
+from ..utils.progress_tracker import ProgressTracker
+from ..utils.exceptions import ProcessorError
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -45,11 +52,13 @@ class OperationTracker:
     ) -> None:
         """End tracking an operation"""
         if op_id in self.operations:
-            self.operations[op_id].update({
-                "end_time": datetime.utcnow(),
-                "status": "success" if success else "error",
-                "error": error,
-            })
+            self.operations[op_id].update(
+                {
+                    "end_time": datetime.utcnow(),
+                    "status": "success" if success else "error",
+                    "error": error,
+                }
+            )
             # Move to history
             self.operation_history.append(self.operations.pop(op_id))
             # Update counts
@@ -60,7 +69,7 @@ class OperationTracker:
 
             # Cleanup old history if needed
             if len(self.operation_history) > self.MAX_HISTORY:
-                self.operation_history = self.operation_history[-self.MAX_HISTORY:]
+                self.operation_history = self.operation_history[-self.MAX_HISTORY :]
 
     def get_active_operations(self) -> Dict[str, Dict[str, Any]]:
         """Get currently active operations"""
@@ -114,11 +123,13 @@ class HealthMonitor:
                 self.last_check = datetime.utcnow()
 
                 # Check component health
-                self.health_status.update({
-                    "queue_handler": self.processor.queue_handler.is_healthy(),
-                    "message_handler": self.processor.message_handler.is_healthy(),
-                    "progress_tracker": self.progress_tracker.is_healthy(),
-                })
+                self.health_status.update(
+                    {
+                        "queue_handler": self.processor.queue_handler.is_healthy(),
+                        "message_handler": self.processor.message_handler.is_healthy(),
+                        "progress_tracker": self.progress_tracker.is_healthy(),
+                    }
+                )
 
                 # Check operation health
                 op_stats = self.processor.operation_tracker.get_operation_stats()
@@ -168,8 +179,12 @@ class VideoProcessor(IComponent):
             from .cleanup_manager import CleanupManager, CleanupStrategy
 
             # Initialize handlers
-            self.queue_handler: "QueueHandler" = QueueHandler(bot, config_manager, components)
-            self.message_handler: "MessageHandler" = MessageHandler(bot, config_manager, queue_manager)
+            self.queue_handler: "QueueHandler" = QueueHandler(
+                bot, config_manager, components
+            )
+            self.message_handler: "MessageHandler" = MessageHandler(
+                bot, config_manager, queue_manager
+            )
             self.cleanup_manager: "CleanupManager" = CleanupManager(
                 self.queue_handler, ffmpeg_mgr, CleanupStrategy.NORMAL
             )
@@ -243,9 +258,7 @@ class VideoProcessor(IComponent):
 
     async def cleanup(self) -> None:
         """Clean up resources and stop processing"""
-        op_id = self.operation_tracker.start_operation(
-            "cleanup", {"type": "normal"}
-        )
+        op_id = self.operation_tracker.start_operation("cleanup", {"type": "normal"})
 
         try:
             self._state = ProcessorState.SHUTDOWN
@@ -260,9 +273,7 @@ class VideoProcessor(IComponent):
 
     async def force_cleanup(self) -> None:
         """Force cleanup of resources"""
-        op_id = self.operation_tracker.start_operation(
-            "cleanup", {"type": "force"}
-        )
+        op_id = self.operation_tracker.start_operation("cleanup", {"type": "force"})
 
         try:
             self._state = ProcessorState.SHUTDOWN
@@ -321,5 +332,5 @@ class VideoProcessor(IComponent):
                 "operations": self.operation_tracker.get_operation_stats(),
                 "active_operations": self.operation_tracker.get_active_operations(),
                 "health_status": self.health_monitor.health_status,
-            }
+            },
         )

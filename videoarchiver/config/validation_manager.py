@@ -3,12 +3,13 @@
 import logging
 from typing import Any, Dict, List, Union
 
-try:
-    # Try relative imports first
-    from .exceptions import ConfigurationError as ConfigError
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.config.exceptions import ConfigurationError as ConfigError
+# try:
+# Try relative imports first
+from .exceptions import ConfigurationError as ConfigError
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.config.exceptions import ConfigurationError as ConfigError
 
 logger = logging.getLogger("ConfigValidation")
 
@@ -27,11 +28,11 @@ class ValidationManager:
 
     def validate_setting(self, setting: str, value: Any) -> None:
         """Validate a setting value against constraints
-        
+
         Args:
             setting: Name of the setting to validate
             value: Value to validate
-            
+
         Raises:
             ConfigError: If validation fails
         """
@@ -72,7 +73,9 @@ class ValidationManager:
 
     def _validate_concurrent_downloads(self, value: int) -> None:
         """Validate concurrent downloads setting"""
-        if not isinstance(value, int) or not (1 <= value <= self.MAX_CONCURRENT_DOWNLOADS):
+        if not isinstance(value, int) or not (
+            1 <= value <= self.MAX_CONCURRENT_DOWNLOADS
+        ):
             raise ConfigError(
                 f"Concurrent downloads must be between 1 and {self.MAX_CONCURRENT_DOWNLOADS}"
             )
@@ -87,9 +90,7 @@ class ValidationManager:
     def _validate_max_retries(self, value: int) -> None:
         """Validate max retries setting"""
         if not isinstance(value, int) or not (0 <= value <= self.MAX_RETRIES):
-            raise ConfigError(
-                f"Max retries must be between 0 and {self.MAX_RETRIES}"
-            )
+            raise ConfigError(f"Max retries must be between 0 and {self.MAX_RETRIES}")
 
     def _validate_retry_delay(self, value: int) -> None:
         """Validate retry delay setting"""
@@ -124,17 +125,22 @@ class ValidationManager:
         if setting.endswith("_channel") and value is not None:
             if not isinstance(value, int):
                 raise ConfigError(f"{setting} must be a channel ID (int) or None")
-        elif setting in ["enabled", "delete_after_repost", "disable_update_check", "use_database"]:
+        elif setting in [
+            "enabled",
+            "delete_after_repost",
+            "disable_update_check",
+            "use_database",
+        ]:
             self._validate_boolean(value)
         elif setting in ["monitored_channels", "allowed_roles", "enabled_sites"]:
             self._validate_list(value)
 
     def validate_all_settings(self, settings: Dict[str, Any]) -> None:
         """Validate all settings in a configuration dictionary
-        
+
         Args:
             settings: Dictionary of settings to validate
-            
+
         Raises:
             ConfigError: If any validation fails
         """

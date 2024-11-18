@@ -4,29 +4,35 @@ from typing import Dict, Any, List, Optional, Union, TypedDict, ClassVar
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-try:
-    # Try relative imports first
-    from ..utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+# try:
+# Try relative imports first
+from ..utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.utils.exceptions import ConfigurationError, ErrorContext, ErrorSeverity
 
 
 class VideoFormat(Enum):
     """Supported video formats"""
+
     MP4 = "mp4"
     WEBM = "webm"
     MKV = "mkv"
 
+
 class VideoQuality(Enum):
     """Video quality presets"""
-    LOW = "low"      # 480p
+
+    LOW = "low"  # 480p
     MEDIUM = "medium"  # 720p
-    HIGH = "high"    # 1080p
+    HIGH = "high"  # 1080p
     ULTRA = "ultra"  # 4K
+
 
 class SettingCategory(Enum):
     """Setting categories"""
+
     GENERAL = auto()
     CHANNELS = auto()
     PERMISSIONS = auto()
@@ -35,15 +41,19 @@ class SettingCategory(Enum):
     PERFORMANCE = auto()
     FEATURES = auto()
 
+
 class ValidationResult(TypedDict):
     """Type definition for validation result"""
+
     valid: bool
     error: Optional[str]
     details: Dict[str, Any]
 
+
 @dataclass
 class SettingDefinition:
     """Defines a setting's properties"""
+
     name: str
     category: SettingCategory
     default_value: Any
@@ -66,8 +76,8 @@ class SettingDefinition:
                     "Settings",
                     "definition_validation",
                     {"setting": self.name},
-                    ErrorSeverity.HIGH
-                )
+                    ErrorSeverity.HIGH,
+                ),
             )
 
         if self.min_value is not None and self.max_value is not None:
@@ -78,9 +88,10 @@ class SettingDefinition:
                         "Settings",
                         "definition_validation",
                         {"setting": self.name},
-                        ErrorSeverity.HIGH
-                    )
+                        ErrorSeverity.HIGH,
+                    ),
                 )
+
 
 class Settings:
     """Manages VideoArchiver settings"""
@@ -92,7 +103,7 @@ class Settings:
             category=SettingCategory.GENERAL,
             default_value=False,
             description="Whether the archiver is enabled for this guild",
-            data_type=bool
+            data_type=bool,
         ),
         "archive_channel": SettingDefinition(
             name="archive_channel",
@@ -101,7 +112,7 @@ class Settings:
             description="Channel where archived videos are posted",
             data_type=int,
             required=False,
-            error_message="Archive channel must be a valid channel ID"
+            error_message="Archive channel must be a valid channel ID",
         ),
         "log_channel": SettingDefinition(
             name="log_channel",
@@ -110,7 +121,7 @@ class Settings:
             description="Channel for logging archiver actions",
             data_type=int,
             required=False,
-            error_message="Log channel must be a valid channel ID"
+            error_message="Log channel must be a valid channel ID",
         ),
         "enabled_channels": SettingDefinition(
             name="enabled_channels",
@@ -118,7 +129,7 @@ class Settings:
             default_value=[],
             description="Channels to monitor (empty means all channels)",
             data_type=list,
-            error_message="Enabled channels must be a list of valid channel IDs"
+            error_message="Enabled channels must be a list of valid channel IDs",
         ),
         "allowed_roles": SettingDefinition(
             name="allowed_roles",
@@ -126,7 +137,7 @@ class Settings:
             default_value=[],
             description="Roles allowed to use archiver (empty means all roles)",
             data_type=list,
-            error_message="Allowed roles must be a list of valid role IDs"
+            error_message="Allowed roles must be a list of valid role IDs",
         ),
         "video_format": SettingDefinition(
             name="video_format",
@@ -135,7 +146,7 @@ class Settings:
             description="Format for archived videos",
             data_type=str,
             choices=[format.value for format in VideoFormat],
-            error_message=f"Video format must be one of: {', '.join(f.value for f in VideoFormat)}"
+            error_message=f"Video format must be one of: {', '.join(f.value for f in VideoFormat)}",
         ),
         "video_quality": SettingDefinition(
             name="video_quality",
@@ -144,7 +155,7 @@ class Settings:
             description="Quality preset for archived videos",
             data_type=str,
             choices=[quality.value for quality in VideoQuality],
-            error_message=f"Video quality must be one of: {', '.join(q.value for q in VideoQuality)}"
+            error_message=f"Video quality must be one of: {', '.join(q.value for q in VideoQuality)}",
         ),
         "max_file_size": SettingDefinition(
             name="max_file_size",
@@ -154,7 +165,7 @@ class Settings:
             data_type=int,
             min_value=1,
             max_value=100,
-            error_message="Max file size must be between 1 and 100 MB"
+            error_message="Max file size must be between 1 and 100 MB",
         ),
         "message_duration": SettingDefinition(
             name="message_duration",
@@ -164,7 +175,7 @@ class Settings:
             data_type=int,
             min_value=5,
             max_value=300,
-            error_message="Message duration must be between 5 and 300 seconds"
+            error_message="Message duration must be between 5 and 300 seconds",
         ),
         "message_template": SettingDefinition(
             name="message_template",
@@ -172,7 +183,7 @@ class Settings:
             default_value="{author} archived a video from {channel}",
             description="Template for archive messages",
             data_type=str,
-            error_message="Message template must contain {author} and {channel} placeholders"
+            error_message="Message template must contain {author} and {channel} placeholders",
         ),
         "concurrent_downloads": SettingDefinition(
             name="concurrent_downloads",
@@ -182,7 +193,7 @@ class Settings:
             data_type=int,
             min_value=1,
             max_value=5,
-            error_message="Concurrent downloads must be between 1 and 5"
+            error_message="Concurrent downloads must be between 1 and 5",
         ),
         "enabled_sites": SettingDefinition(
             name="enabled_sites",
@@ -191,14 +202,14 @@ class Settings:
             description="Sites to enable archiving for (None means all sites)",
             data_type=list,
             required=False,
-            error_message="Enabled sites must be a list of valid site identifiers"
+            error_message="Enabled sites must be a list of valid site identifiers",
         ),
         "use_database": SettingDefinition(
             name="use_database",
             category=SettingCategory.FEATURES,
             default_value=False,
             description="Enable database tracking of archived videos",
-            data_type=bool
+            data_type=bool,
         ),
     }
 
@@ -206,23 +217,25 @@ class Settings:
     def get_setting_definition(cls, setting: str) -> Optional[SettingDefinition]:
         """
         Get definition for a setting.
-        
+
         Args:
             setting: Setting name
-            
+
         Returns:
             Setting definition or None if not found
         """
         return cls.SETTINGS.get(setting)
 
     @classmethod
-    def get_settings_by_category(cls, category: SettingCategory) -> Dict[str, SettingDefinition]:
+    def get_settings_by_category(
+        cls, category: SettingCategory
+    ) -> Dict[str, SettingDefinition]:
         """
         Get all settings in a category.
-        
+
         Args:
             category: Setting category
-            
+
         Returns:
             Dictionary of settings in the category
         """
@@ -236,14 +249,14 @@ class Settings:
     def validate_setting(cls, setting: str, value: Any) -> ValidationResult:
         """
         Validate a setting value.
-        
+
         Args:
             setting: Setting name
             value: Value to validate
-            
+
         Returns:
             Validation result dictionary
-            
+
         Raises:
             ConfigurationError: If setting definition is not found
         """
@@ -252,18 +265,15 @@ class Settings:
             raise ConfigurationError(
                 f"Unknown setting: {setting}",
                 context=ErrorContext(
-                    "Settings",
-                    "validation",
-                    {"setting": setting},
-                    ErrorSeverity.HIGH
-                )
+                    "Settings", "validation", {"setting": setting}, ErrorSeverity.HIGH
+                ),
             )
 
         details = {
             "setting": setting,
             "value": value,
             "type": type(value).__name__,
-            "expected_type": definition.data_type.__name__
+            "expected_type": definition.data_type.__name__,
         }
 
         # Check type
@@ -271,15 +281,13 @@ class Settings:
             return ValidationResult(
                 valid=False,
                 error=f"Invalid type: expected {definition.data_type.__name__}, got {type(value).__name__}",
-                details=details
+                details=details,
             )
 
         # Check required
         if definition.required and value is None:
             return ValidationResult(
-                valid=False,
-                error="Required setting cannot be None",
-                details=details
+                valid=False, error="Required setting cannot be None", details=details
             )
 
         # Check choices
@@ -287,7 +295,7 @@ class Settings:
             return ValidationResult(
                 valid=False,
                 error=f"Value must be one of: {', '.join(map(str, definition.choices))}",
-                details=details
+                details=details,
             )
 
         # Check numeric bounds
@@ -296,13 +304,13 @@ class Settings:
                 return ValidationResult(
                     valid=False,
                     error=f"Value must be at least {definition.min_value}",
-                    details=details
+                    details=details,
                 )
             if definition.max_value is not None and value > definition.max_value:
                 return ValidationResult(
                     valid=False,
                     error=f"Value must be at most {definition.max_value}",
-                    details=details
+                    details=details,
                 )
 
         # Custom validation
@@ -313,42 +321,33 @@ class Settings:
                     return ValidationResult(
                         valid=False,
                         error=definition.error_message or "Validation failed",
-                        details=details
+                        details=details,
                     )
             except Exception as e:
-                return ValidationResult(
-                    valid=False,
-                    error=str(e),
-                    details=details
-                )
+                return ValidationResult(valid=False, error=str(e), details=details)
 
-        return ValidationResult(
-            valid=True,
-            error=None,
-            details=details
-        )
+        return ValidationResult(valid=True, error=None, details=details)
 
     @property
     def default_guild_settings(self) -> Dict[str, Any]:
         """
         Default settings for guild configuration.
-        
+
         Returns:
             Dictionary of default settings
         """
         return {
-            name: definition.default_value
-            for name, definition in self.SETTINGS.items()
+            name: definition.default_value for name, definition in self.SETTINGS.items()
         }
 
     @classmethod
     def get_setting_help(cls, setting: str) -> Optional[str]:
         """
         Get help text for a setting.
-        
+
         Args:
             setting: Setting name
-            
+
         Returns:
             Help text or None if setting not found
         """
@@ -362,7 +361,7 @@ class Settings:
             f"Description: {definition.description}",
             f"Type: {definition.data_type.__name__}",
             f"Required: {definition.required}",
-            f"Default: {definition.default_value}"
+            f"Default: {definition.default_value}",
         ]
 
         if definition.choices:

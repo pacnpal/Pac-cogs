@@ -18,33 +18,33 @@ logging.basicConfig(
 logger = logging.getLogger("VideoArchiver")
 
 # Import components after logging is configured
-try:
+#try:
     # Try relative imports first
-    from .ffmpeg_manager import FFmpegManager
-    from .video_analyzer import VideoAnalyzer
-    from .gpu_detector import GPUDetector
-    from .encoder_params import EncoderParams
-    from .ffmpeg_downloader import FFmpegDownloader
-    from .exceptions import (
-        FFmpegError,
-        DownloadError,
-        VerificationError,
-        EncodingError,
-        AnalysisError,
-        GPUError,
-        HardwareAccelerationError,
-        FFmpegNotFoundError,
-        FFprobeError,
-        CompressionError,
-        FormatError,
-        PermissionError,
-        TimeoutError,
-        ResourceError,
-        QualityError,
-        AudioError,
-        BitrateError,
-    )
-except ImportError:
+from .ffmpeg_manager import FFmpegManager
+from .video_analyzer import VideoAnalyzer
+from .gpu_detector import GPUDetector
+from .encoder_params import EncoderParams
+from .ffmpeg_downloader import FFmpegDownloader
+from .exceptions import (
+    FFmpegError,
+    DownloadError,
+    VerificationError,
+    EncodingError,
+    AnalysisError,
+    GPUError,
+    HardwareAccelerationError,
+    FFmpegNotFoundError,
+    FFprobeError,
+    CompressionError,
+    FormatError,
+    PermissionError,
+    TimeoutError,
+    ResourceError,
+    QualityError,
+    AudioError,
+    BitrateError,
+)
+#except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
     # from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
@@ -52,24 +52,24 @@ except ImportError:
     # from videoarchiver.ffmpeg.encoder_params import EncoderParams
     # from videoarchiver.ffmpeg.ffmpeg_downloader import FFmpegDownloader
     # from videoarchiver.ffmpeg.exceptions import (
-        FFmpegError,
-        DownloadError,
-        VerificationError,
-        EncodingError,
-        AnalysisError,
-        GPUError,
-        HardwareAccelerationError,
-        FFmpegNotFoundError,
-        FFprobeError,
-        CompressionError,
-        FormatError,
-        PermissionError,
-        TimeoutError,
-        ResourceError,
-        QualityError,
-        AudioError,
-        BitrateError,
-    )
+    #     FFmpegError,
+    #     DownloadError,
+    #     VerificationError,
+    #     EncodingError,
+    #     AnalysisError,
+    #     GPUError,
+    #     HardwareAccelerationError,
+    #     FFmpegNotFoundError,
+    #     FFprobeError,
+    #     CompressionError,
+    #     FormatError,
+    #     PermissionError,
+    #     TimeoutError,
+    #     ResourceError,
+    #     QualityError,
+    #     AudioError,
+    #     BitrateError,
+    # )
 
 
 class FFmpeg:

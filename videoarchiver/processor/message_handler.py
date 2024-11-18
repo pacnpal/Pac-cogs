@@ -4,33 +4,45 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from enum import auto, Enum
-from typing import Any, ClassVar, Dict, List, Optional, Set, Tuple, TypedDict, TYPE_CHECKING
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    TypedDict,
+    TYPE_CHECKING,
+)
 
 import discord  # type: ignore
 from discord.ext import commands  # type: ignore
 
-try:
-    # Try relative imports first
-    from ..config_manager import ConfigManager
-    from .constants import REACTIONS
-    from .message_validator import MessageValidator, ValidationError
-    from .url_extractor import URLExtractor, URLMetadata
-    from ..queue.types import QueuePriority
-    from ..utils.exceptions import MessageHandlerError
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.config_manager import ConfigManager
-    # from videoarchiver.processor.constants import REACTIONS
-    # from videoarchiver.processor.message_validator import MessageValidator, ValidationError
-    # from videoarchiver.processor.url_extractor import URLExtractor, URLMetadata
-    # from videoarchiver.queue.types import QueuePriority
-    # from videoarchiver.utils.exceptions import MessageHandlerError
+# try:
+# Try relative imports first
+from ..config_manager import ConfigManager
+from .constants import REACTIONS
+from .message_validator import MessageValidator, ValidationError
+from .url_extractor import URLExtractor, URLMetadata
+from ..queue.types import QueuePriority
+from ..utils.exceptions import MessageHandlerError
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.config_manager import ConfigManager
+# from videoarchiver.processor.constants import REACTIONS
+# from videoarchiver.processor.message_validator import MessageValidator, ValidationError
+# from videoarchiver.processor.url_extractor import URLExtractor, URLMetadata
+# from videoarchiver.queue.types import QueuePriority
+# from videoarchiver.utils.exceptions import MessageHandlerError
 
 if TYPE_CHECKING:
-    try:
-        from ..queue.manager import EnhancedVideoQueueManager
-    except ImportError:
-        # from videoarchiver.queue.manager import EnhancedVideoQueueManager
+    # try:
+    from ..queue.manager import EnhancedVideoQueueManager
+
+    # except ImportError:
+    # from videoarchiver.queue.manager import EnhancedVideoQueueManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -337,7 +349,7 @@ class MessageHandler:
                         channel_id=message.channel.id,
                         guild_id=message.guild.id,
                         author_id=message.author.id,
-                        priority=QueuePriority.NORMAL.value
+                        priority=QueuePriority.NORMAL.value,
                     )
             except Exception as e:
                 raise MessageHandlerError(f"Queue processing failed: {str(e)}")

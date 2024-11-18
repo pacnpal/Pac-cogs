@@ -4,20 +4,21 @@ from typing import TYPE_CHECKING, Optional, Dict, Any
 import asyncio
 import logging
 
-try:
-    # Try relative imports first
-    from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-    from .lifecycle import LifecycleState
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
-    # from videoarchiver.core.lifecycle import LifecycleState
+# try:
+# Try relative imports first
+from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+from .lifecycle import LifecycleState
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
+# from videoarchiver.core.lifecycle import LifecycleState
 
 if TYPE_CHECKING:
-    try:
-        from .base import VideoArchiver
-    except ImportError:
-        # from videoarchiver.core.base import VideoArchiver
+    #   try:
+    from .base import VideoArchiver
+#  except ImportError:
+# from videoarchiver.core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -25,13 +26,13 @@ logger = logging.getLogger("VideoArchiver")
 async def initialize_cog(cog: "VideoArchiver") -> None:
     """
     Initialize all components with proper error handling.
-    
+
     This is a re-export of lifecycle_manager.initialize_cog with additional
     error context and logging.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Raises:
         ComponentError: If initialization fails
     """
@@ -48,18 +49,18 @@ async def initialize_cog(cog: "VideoArchiver") -> None:
                 "Initialization",
                 "initialize_cog",
                 {"state": cog.lifecycle_manager.state_tracker.state.name},
-                ErrorSeverity.HIGH
-            )
+                ErrorSeverity.HIGH,
+            ),
         )
 
 
 def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
     """
     Handle initialization task completion.
-    
+
     This is a re-export of lifecycle_manager.init_callback with additional
     error context and logging.
-    
+
     Args:
         cog: VideoArchiver cog instance
         task: Initialization task
@@ -67,7 +68,7 @@ def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
     try:
         logger.debug("Processing initialization task completion...")
         cog.lifecycle_manager.init_callback(task)
-        
+
         # Log final state
         state = cog.lifecycle_manager.state_tracker.state
         if state == LifecycleState.READY:
@@ -76,7 +77,7 @@ def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
             logger.error("Initialization failed")
         else:
             logger.warning(f"Unexpected state after initialization: {state.name}")
-            
+
     except Exception as e:
         logger.error(f"Error in initialization callback: {str(e)}", exc_info=True)
         # We don't raise here since this is a callback
@@ -85,10 +86,10 @@ def init_callback(cog: "VideoArchiver", task: asyncio.Task) -> None:
 def get_init_status(cog: "VideoArchiver") -> Dict[str, Any]:
     """
     Get initialization status information.
-    
+
     Args:
         cog: VideoArchiver cog instance
-        
+
     Returns:
         Dictionary containing initialization status
     """
@@ -103,8 +104,8 @@ def get_init_status(cog: "VideoArchiver") -> Dict[str, Any]:
                 "update_checker",
                 "ffmpeg_mgr",
                 "components",
-                "db"
+                "db",
             ]
         ),
-        "history": cog.lifecycle_manager.state_tracker.get_state_history()
+        "history": cog.lifecycle_manager.state_tracker.get_state_history(),
     }

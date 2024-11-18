@@ -7,12 +7,13 @@ from datetime import datetime
 import discord  # type: ignore
 from redbot.core.commands import Context  # type: ignore
 
-try:
-    # Try relative imports first
-    from ..utils.exceptions import ErrorSeverity
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.utils.exceptions import ErrorSeverity
+# try:
+# Try relative imports first
+from ..utils.exceptions import ErrorSeverity
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.utils.exceptions import ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
 

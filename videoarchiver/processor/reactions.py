@@ -7,24 +7,25 @@ from typing import List, Optional
 import discord  # type: ignore
 from urllib.parse import urlparse
 
-try:
-    # Try relative imports first
-    from ..processor.constants import (
-        REACTIONS,
-        ReactionType,
-        get_reaction,
-        get_progress_emoji,
-    )
-    from ..database.video_archive_db import VideoArchiveDB
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.processor.constants import (
-        REACTIONS,
-        ReactionType,
-        get_reaction,
-        get_progress_emoji,
-    )
-    # from videoarchiver.database.video_archive_db import VideoArchiveDB
+# try:
+# Try relative imports first
+from ..processor.constants import (
+    REACTIONS,
+    ReactionType,
+    get_reaction,
+    get_progress_emoji,
+)
+from ..database.video_archive_db import VideoArchiveDB
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.processor.constants import (
+#     REACTIONS,
+#     ReactionType,
+#     get_reaction,
+#     get_progress_emoji,
+# )
+# from videoarchiver.database.video_archive_db import VideoArchiveDB
 
 logger = logging.getLogger("VideoArchiver")
 

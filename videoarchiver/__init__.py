@@ -5,7 +5,7 @@ import asyncio
 import logging
 import importlib
 from typing import Optional
-from redbot.core.bot import Red # type: ignore
+from redbot.core.bot import Red  # type: ignore
 
 # Force reload of all modules
 modules_to_reload = [
@@ -91,34 +91,34 @@ try:
     )
 except ImportError:
     # Fall back to absolute imports if relative imports fail
-    from videoarchiver import utils
-    from videoarchiver import processor
-    from videoarchiver import queue
-    from videoarchiver import ffmpeg
-    from videoarchiver import database
-    from videoarchiver import config
-    from videoarchiver import core
+    #  from videoarchiver import utils
+    #  from videoarchiver import processor
+    #  from videoarchiver import queue
+    #  from videoarchiver import ffmpeg
+    #  from videoarchiver import database
+    #  from videoarchiver import config
+    #  from videoarchiver import core
     # from videoarchiver.core.base import VideoArchiver
     # from videoarchiver.core.initialization import initialize_cog, init_callback
     # from videoarchiver.core.cleanup import cleanup_resources
     # from videoarchiver.utils.exceptions import (
-        VideoArchiverError,
-        CommandError,
-        EventError,
-        CogError,
-        ErrorContext,
-        ErrorSeverity,
-        ProcessingError,
-    )
+    #    VideoArchiverError,
+    #    CommandError,
+    #    EventError,
+    #    CogError,
+    #    ErrorContext,
+    #    ErrorSeverity,
+    #    ProcessingError,
+    # )
 
-# Reload all modules
-importlib.reload(utils)
-importlib.reload(processor)
-importlib.reload(queue)
-importlib.reload(ffmpeg)
-importlib.reload(database)
-importlib.reload(config)
-importlib.reload(core)
+    # Reload all modules
+    importlib.reload(utils)
+    importlib.reload(processor)
+    importlib.reload(queue)
+    importlib.reload(ffmpeg)
+    importlib.reload(database)
+    importlib.reload(config)
+    importlib.reload(core)
 
 # Import all submodules
 from .database import *

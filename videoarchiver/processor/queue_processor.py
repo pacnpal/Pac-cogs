@@ -5,11 +5,11 @@ import asyncio
 from typing import List, Optional, Dict, Any, Set, ClassVar
 from datetime import datetime
 
-try:
+#try:
     # Try relative imports first
-    from ..queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
-    from ..queue.models import QueueItem
-except ImportError:
+from ..queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
+from ..queue.models import QueueItem
+#except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.queue.types import QueuePriority, QueueMetrics, ProcessingMetrics
     # from videoarchiver.queue.models import QueueItem

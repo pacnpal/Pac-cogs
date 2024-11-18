@@ -6,32 +6,29 @@ import multiprocessing
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-try:
-    # Try relative imports first
-    from .exceptions import (
-        FFmpegError,
-        AnalysisError,
-        FFmpegNotFoundError
-    )
-    from .gpu_detector import GPUDetector
-    from .video_analyzer import VideoAnalyzer
-    from .encoder_params import EncoderParams
-    from .process_manager import ProcessManager
-    from .verification_manager import VerificationManager
-    from .binary_manager import BinaryManager
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.ffmpeg.exceptions import (
-        FFmpegError,
-        AnalysisError,
-        FFmpegNotFoundError
-    )
-    # from videoarchiver.ffmpeg.gpu_detector import GPUDetector
-    # from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
-    # from videoarchiver.ffmpeg.encoder_params import EncoderParams
-    # from videoarchiver.ffmpeg.process_manager import ProcessManager
-    # from videoarchiver.ffmpeg.verification_manager import VerificationManager
-    # from videoarchiver.ffmpeg.binary_manager import BinaryManager
+# try:
+# Try relative imports first
+from .exceptions import FFmpegError, AnalysisError, FFmpegNotFoundError
+from .gpu_detector import GPUDetector
+from .video_analyzer import VideoAnalyzer
+from .encoder_params import EncoderParams
+from .process_manager import ProcessManager
+from .verification_manager import VerificationManager
+from .binary_manager import BinaryManager
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.ffmpeg.exceptions import (
+#     FFmpegError,
+#     AnalysisError,
+#     FFmpegNotFoundError
+# )
+# from videoarchiver.ffmpeg.gpu_detector import GPUDetector
+# from videoarchiver.ffmpeg.video_analyzer import VideoAnalyzer
+# from videoarchiver.ffmpeg.encoder_params import EncoderParams
+# from videoarchiver.ffmpeg.process_manager import ProcessManager
+# from videoarchiver.ffmpeg.verification_manager import VerificationManager
+# from videoarchiver.ffmpeg.binary_manager import BinaryManager
 
 logger = logging.getLogger("VideoArchiver")
 
@@ -45,7 +42,7 @@ class FFmpegManager:
         module_dir = Path(__file__).parent.parent
         self.base_dir = module_dir / "bin"
         logger.info(f"FFmpeg base directory: {self.base_dir}")
-        
+
         # Initialize managers
         self.process_manager = ProcessManager()
         self.verification_manager = VerificationManager(self.process_manager)
@@ -53,15 +50,15 @@ class FFmpegManager:
             base_dir=self.base_dir,
             system=platform.system(),
             machine=platform.machine(),
-            verification_manager=self.verification_manager
+            verification_manager=self.verification_manager,
         )
-        
+
         # Initialize components
         self.gpu_detector = GPUDetector(self.get_ffmpeg_path)
         self.video_analyzer = VideoAnalyzer(self.get_ffmpeg_path)
         self._gpu_info = self.gpu_detector.detect_gpu()
         self._cpu_cores = multiprocessing.cpu_count()
-        
+
         # Initialize encoder params
         self.encoder_params = EncoderParams(self._cpu_cores, self._gpu_info)
 
@@ -87,22 +84,24 @@ class FFmpegManager:
                 raise
             raise AnalysisError(f"Failed to analyze video: {e}")
 
-    def get_compression_params(self, input_path: str, target_size_mb: int) -> Dict[str, str]:
+    def get_compression_params(
+        self, input_path: str, target_size_mb: int
+    ) -> Dict[str, str]:
         """Get optimal compression parameters for the given input file"""
         try:
             # Analyze video first
             video_info = self.analyze_video(input_path)
             if not video_info:
                 raise AnalysisError("Failed to analyze video")
-                
+
             # Convert target size to bytes
             target_size_bytes = target_size_mb * 1024 * 1024
-            
+
             # Get encoding parameters
             params = self.encoder_params.get_params(video_info, target_size_bytes)
             logger.info(f"Generated compression parameters: {params}")
             return params
-            
+
         except Exception as e:
             logger.error(f"Failed to get compression parameters: {e}")
             if isinstance(e, AnalysisError):
@@ -113,7 +112,7 @@ class FFmpegManager:
                 "preset": "medium",
                 "crf": "23",
                 "c:a": "aac",
-                "b:a": "128k"
+                "b:a": "128k",
             }
 
     def get_ffmpeg_path(self) -> str:

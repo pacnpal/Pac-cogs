@@ -6,9 +6,9 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    try:
-        from .base import VideoArchiver
-    except ImportError:
+    # try:
+     from .base import VideoArchiver
+    # except ImportError:
         # from videoarchiver.core.base import VideoArchiver
 
 def setup_commands(cog: "VideoArchiver") -> None:

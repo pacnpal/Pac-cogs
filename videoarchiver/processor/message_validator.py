@@ -7,10 +7,10 @@ from typing import Dict, Optional, Tuple, List, Any, Callable, Set, TypedDict, C
 from datetime import datetime
 import discord # type: ignore
 
-try:
+#try:
     # Try relative imports first
-    from ..utils.exceptions import ValidationError
-except ImportError:
+from ..utils.exceptions import ValidationError
+#except ImportError:
     # Fall back to absolute imports if relative imports fail
     # from videoarchiver.utils.exceptions import ValidationError
 

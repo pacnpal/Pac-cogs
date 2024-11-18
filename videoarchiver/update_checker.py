@@ -5,7 +5,7 @@ from importlib.metadata import version as get_package_version
 from datetime import datetime, timedelta
 import aiohttp
 from packaging import version
-import discord # type: ignore
+import discord  # type: ignore
 from typing import Optional, Tuple, Dict, Any
 import asyncio
 import sys
@@ -16,12 +16,13 @@ import tempfile
 import os
 import shutil
 
-try:
-    # Try relative imports first
-    from .utils.exceptions import UpdateError
-except ImportError:
-    # Fall back to absolute imports if relative imports fail
-    # from videoarchiver.utils.exceptions import UpdateError
+# try:
+# Try relative imports first
+from .utils.exceptions import UpdateError
+
+# except ImportError:
+# Fall back to absolute imports if relative imports fail
+# from videoarchiver.utils.exceptions import UpdateError
 
 logger = logging.getLogger("VideoArchiver")
 
