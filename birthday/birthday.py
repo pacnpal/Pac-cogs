@@ -116,7 +116,7 @@ async def remove_birthday_context_menu(interaction: discord.Interaction, member:
 
         birthday_role = interaction.guild.get_role(birthday_role_id)
         if not birthday_role:
-            logger.error(f"Birthday role {birthday_role_id} not found in guild {interaction.guild.id}")
+            logger.error("Birthday role not found in the guild")
             return await interaction.followup.send("The birthday role doesn't exist anymore.", ephemeral=True)
 
         if birthday_role not in member.roles:
@@ -126,10 +126,10 @@ async def remove_birthday_context_menu(interaction: discord.Interaction, member:
             await member.remove_roles(birthday_role, reason="Birthday role manually removed")
             logger.info(f"Birthday role manually removed from {member.id} in guild {interaction.guild.id}")
         except discord.Forbidden:
-            logger.error(f"Failed to remove birthday role from {member.id} in guild {interaction.guild.id}: Insufficient permissions")
+            logger.error("Failed to remove birthday role: Insufficient permissions")
             return await interaction.followup.send("I don't have permission to remove that role.", ephemeral=True)
         except discord.HTTPException as e:
-            logger.error(f"Failed to remove birthday role from {member.id} in guild {interaction.guild.id}: {str(e)}")
+            logger.error(f"Failed to remove birthday role: {str(e)}")
             return await interaction.followup.send("Failed to remove the birthday role due to a Discord error.", ephemeral=True)
 
         # Remove scheduled task if it exists
@@ -141,7 +141,7 @@ async def remove_birthday_context_menu(interaction: discord.Interaction, member:
 
         await interaction.followup.send(f"Birthday role removed from {member.display_name}!", ephemeral=True)
     except Exception as e:
-        logger.error(f"Unexpected error in remove birthday context menu: {str(e)}", exc_info=True)
+        logger.error(f"Unexpected error in remove birthday context menu", exc_info=True)
         try:
             await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
         except:
