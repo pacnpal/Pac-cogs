@@ -32,29 +32,73 @@ jobs:
           fi
 
       - name: Get PR details
-        if: github.event_name == 'workflow_dispatch'
         id: pr-details
         uses: actions/github-script@v7
         with:
           script: |
             try {
               const { owner, repo } = context.repo;
-              console.log(`Getting PR #${{ inputs.pr_number }} from ${owner}/${repo}`);
+              const prNumber = ${{ steps.pr-number.outputs.number }};
+              
+              console.log(`Getting PR #${prNumber} from ${owner}/${repo}`);
               
               const pr = await github.rest.pulls.get({
                 owner: owner,
                 repo: repo,
-                pull_number: parseInt(${{ inputs.pr_number }})
+                pull_number: prNumber
+              });
+              
+              console.log('PR Details:', {
+                base: pr.data.base.ref,
+                base_sha: pr.data.base.sha,
+                head: pr.data.head.ref,
+                head_sha: pr.data.head.sha
               });
               
               return {
                 base_sha: pr.data.base.sha,
-                head_sha: pr.data.head.sha
+                head_sha: pr.data.head.sha,
+                base_ref: pr.data.base.ref,
+                head_ref: pr.data.head.ref
               };
             } catch (error) {
               core.setFailed(`Failed to get PR details: ${error.message}`);
               throw error;
             }
+
+      - name: Generate diff
+        id: changed-files
+        run: |
+          # Configure git to fetch PR refs
+          git config --local --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch origin
+          
+          BASE_SHA="${{ fromJSON(steps.pr-details.outputs.result).base_sha }}"
+          HEAD_SHA="${{ fromJSON(steps.pr-details.outputs.result).head_sha }}"
+          
+          echo "Comparing $BASE_SHA..$HEAD_SHA"
+          
+          # Get the diff
+          git diff "$BASE_SHA" "$HEAD_SHA" > changes.diff
+          
+          # Filter the diff for specific file types
+          if [ -s changes.diff ]; then
+            cat changes.diff | grep -v -E '(package-lock.json|yarn.lock|node_modules|\.md$|\.json$)' | grep -E '\.(js|ts|py|cpp|h|java|cs)$' > filtered_changes.diff || true
+            
+            if [ -s filtered_changes.diff ]; then
+              DIFF_SIZE=$(wc -c < filtered_changes.diff)
+              echo "Found $DIFF_SIZE bytes of relevant changes"
+              echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+              echo "Preview of changes:"
+              head -n 5 filtered_changes.diff
+            else
+              echo "No relevant file changes found"
+              echo "diff_size=0" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No changes found"
+            echo "diff_size=0" >> $GITHUB_OUTPUT
+          fi
 
       - name: Analyze code with Claude
         if: steps.changed-files.outputs.diff_size != '0'
@@ -64,12 +108,9 @@ jobs:
         run: |
           DIFF_CONTENT=$(cat filtered_changes.diff)
           
-          # Escape the diff content for JSON
-          DIFF_CONTENT_ESCAPED=$(echo "$DIFF_CONTENT" | jq -Rs .)
-          
-          # Create the prompt with escaped content
-          PROMPT=$(cat << 'EOL'
-          You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
+          # Create the request body using jq
+          REQUEST_BODY=$(jq -n \
+            --arg content "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
 
           1. Potential conflicts with existing codebase
           2. Code correctness and potential bugs
@@ -89,21 +130,16 @@ jobs:
 
           Here is the code diff to review:
 
-          ```
-          EOL
-          )
-
-          # Prepare the API request body using jq
-          REQUEST_BODY=$(jq -n \
-            --arg prompt "$PROMPT" \
-            --arg diff "$DIFF_CONTENT" \
+          \`\`\`
+          $DIFF_CONTENT
+          \`\`\`" \
             '{
               "model": "claude-3-sonnet-20241022",
               "max_tokens": 4096,
               "temperature": 0.7,
               "messages": [{
                 "role": "user",
-                "content": ($prompt + $diff + "\n```")
+                "content": $content
               }]
             }')
 
@@ -114,22 +150,19 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -d "$REQUEST_BODY")
           
-          # Extract the review content from the response and handle potential errors
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
             REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text')
+            
+            # Escape the review content for GitHub Actions
+            REVIEW="${REVIEW//'%'/'%25'}"
+            REVIEW="${REVIEW//$'\n'/'%0A'}"
+            REVIEW="${REVIEW//$'\r'/'%0D'}"
+            
+            echo "review=$REVIEW" >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
-            echo "Request body was: $REQUEST_BODY"
             exit 1
           fi
-          
-          # Escape the review content for GitHub Actions
-          REVIEW="${REVIEW//'%'/'%25'}"
-          REVIEW="${REVIEW//$'\n'/'%0A'}"
-          REVIEW="${REVIEW//$'\r'/'%0D'}"
-          
-          # Save the review to the output
-          echo "review=$REVIEW" >> $GITHUB_OUTPUT
 
       - name: Post review comment
         if: steps.changed-files.outputs.diff_size != '0'
@@ -137,20 +170,12 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            try {
-              const { owner, repo } = context.repo;
-              const prNumber = ${{ steps.pr-number.outputs.number }};
-              const review = `${{ steps.analysis.outputs.review }}`;
-              
-              console.log(`Posting review to PR #${prNumber} in ${owner}/${repo}`);
-              
-              await github.rest.issues.createComment({
-                owner: owner,
-                repo: repo,
-                issue_number: prNumber,
-                body: `# Claude Code Review\n\n${review}`
-              });
-            } catch (error) {
-              core.setFailed(`Failed to post review: ${error.message}`);
-              throw error;
-            }
+            const review = `${{ steps.analysis.outputs.review }}`;
+            const prNumber = ${{ steps.pr-number.outputs.number }};
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: prNumber,
+              body: `# Claude Code Review\n\n${review}`
+            });
