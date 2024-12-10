@@ -18,25 +18,143 @@ jobs:
   code-review:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Previous steps remain the same until the post review comment...
+      - name: Get PR number
+        id: pr-number
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get PR details
+        id: pr-details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const { owner, repo } = context.repo;
+              const prNumber = ${{ steps.pr-number.outputs.number }};
+              
+              console.log(`Getting PR #${prNumber} from ${owner}/${repo}`);
+              
+              const pr = await github.rest.pulls.get({
+                owner: owner,
+                repo: repo,
+                pull_number: prNumber
+              });
+              
+              return {
+                base_sha: pr.data.base.sha,
+                head_sha: pr.data.head.sha,
+                base_ref: pr.data.base.ref,
+                head_ref: pr.data.head.ref
+              };
+            } catch (error) {
+              core.setFailed(`Failed to get PR details: ${error.message}`);
+              throw error;
+            }
+
+      - name: Generate diff
+        id: diff
+        run: |
+          # Configure git to fetch PR refs
+          git config --local --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
+          git fetch origin
+          
+          BASE_SHA="${{ fromJSON(steps.pr-details.outputs.result).base_sha }}"
+          HEAD_SHA="${{ fromJSON(steps.pr-details.outputs.result).head_sha }}"
+          
+          echo "Comparing $BASE_SHA..$HEAD_SHA"
+          
+          # Get the full diff with context
+          git diff -U10 "$BASE_SHA" "$HEAD_SHA" > diff_full.txt
+          
+          # Filter for relevant files
+          cat diff_full.txt | \
+            awk '/^diff --git/{p=0} /\.(js|ts|py|cpp|h|java|cs)$/{p=1} p' | \
+            grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' > diff_filtered.txt
+          
+          if [ ! -s diff_filtered.txt ]; then
+            echo "No relevant changes found"
+            echo "diff_size=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          DIFF_SIZE=$(wc -c < diff_filtered.txt)
+          echo "Found $DIFF_SIZE bytes of relevant changes"
+          echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+          
+          # Base64 encode the diff to preserve formatting
+          ENCODED_DIFF=$(base64 -w 0 diff_filtered.txt)
+          echo "diff_content=$ENCODED_DIFF" >> $GITHUB_OUTPUT
+
+      - name: Analyze with Claude
+        if: steps.diff.outputs.diff_size != '0'
+        id: analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Decode the diff content
+          DIFF_CONTENT=$(echo "${{ steps.diff.outputs.diff_content }}" | base64 -d)
+          
+          # Create request JSON using jq
+          REQUEST=$(jq -n \
+            --arg diff "$DIFF_CONTENT" \
+            '{
+              model: "claude-3-sonnet-20240229",
+              max_tokens: 4096,
+              temperature: 0.7,
+              messages: [{
+                role: "user",
+                content: "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:\n\n1. Potential conflicts with existing codebase\n2. Code correctness and potential bugs\n3. Security vulnerabilities or risks\n4. Performance implications\n5. Maintainability and readability issues\n6. Adherence to best practices and coding standards\n7. Suggestions for improvements\n\nFor each issue found:\n- Explain the problem clearly\n- Rate the severity (Critical/High/Medium/Low)\n- Provide specific recommendations for fixes\n- Include code examples where helpful\n\nIf no issues are found in a particular area, explicitly state that.\n\nHere is the code diff to review:\n\n```\n" + $diff + "\n```"
+              }]
+            }')
+          
+          # Make the API request
+          echo "Sending request to Claude API..."
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$REQUEST")
+          
+          if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
+            # Save the review text
+            REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text')
+            {
+              echo 'review<<EOF'
+              echo "$REVIEW"
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
+          else
+            echo "Error in Claude API response: $RESPONSE"
+            exit 1
+          fi
 
       - name: Post review comment
-        if: success() && steps.analysis.outputs.diff_size != '0'
+        if: success() && steps.diff.outputs.diff_size != '0'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { owner, repo } = context.repo;
-            const review = JSON.parse(JSON.stringify(`${{ steps.analysis.outputs.review }}`));
-            const prNumber = ${{ steps.pr-number.outputs.number }};
-            
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: prNumber,
-              body: "# Claude Code Review\n\n" + review.replace(/\\([\s\S])|(")/g, '\\$1$2')
-            });
+            try {
+              const { owner, repo } = context.repo;
+              const review = `${{ steps.analysis.outputs.review }}`;
+              const prNumber = ${{ steps.pr-number.outputs.number }};
+              
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: "# Claude Code Review\n\n" + review
+              });
+            } catch (error) {
+              core.setFailed(`Failed to post review: ${error.message}`);
+              throw error;
+            }
