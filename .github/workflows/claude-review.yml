@@ -59,7 +59,7 @@ jobs:
               throw error;
             }
 
-      - name: Generate diff and prepare review
+      - name: Generate full diff
         id: prepare
         run: |
           # Configure git to fetch PR refs
@@ -74,33 +74,38 @@ jobs:
           # Create a temporary directory for our files
           mkdir -p /tmp/review
           
-          # Get the full diff and store it
-          git diff "$BASE_SHA" "$HEAD_SHA" > /tmp/review/changes.diff
+          # Get the full diff with context and store it
+          git diff -U10 "$BASE_SHA" "$HEAD_SHA" > /tmp/review/full.diff
           
-          # Count total lines in diff
-          TOTAL_LINES=$(wc -l < /tmp/review/changes.diff)
-          echo "Total diff lines: $TOTAL_LINES"
-          
-          # Create filtered version
-          cat /tmp/review/changes.diff | \
-            grep -v -E '(package-lock.json|yarn.lock|node_modules|\.md$|\.json$)' | \
-            grep -E '\.(js|ts|py|cpp|h|java|cs)$' > /tmp/review/filtered.diff || true
+          # Create filtered version for relevant files only
+          cat /tmp/review/full.diff | \
+            awk '/^diff --git/{p=0} /\.(js|ts|py|cpp|h|java|cs)$/{p=1} p' | \
+            grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' > /tmp/review/filtered.diff
           
           if [ -s /tmp/review/filtered.diff ]; then
             DIFF_SIZE=$(wc -c < /tmp/review/filtered.diff)
             echo "Found $DIFF_SIZE bytes of relevant changes"
             echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
             
-            # Base64 encode the diff to preserve newlines and special characters
-            ENCODED_DIFF=$(base64 -w 0 /tmp/review/filtered.diff)
-            echo "diff_content=$ENCODED_DIFF" >> $GITHUB_OUTPUT
+            # Store full diff content in the output
+            {
+              echo 'diff_content<<EOF'
+              cat /tmp/review/filtered.diff
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
             
             echo "Preview of changes:"
-            head -n 5 /tmp/review/filtered.diff
+            head -n 10 /tmp/review/filtered.diff
           else
             echo "No relevant file changes found"
             echo "diff_size=0" >> $GITHUB_OUTPUT
           fi
+
+      - name: Debug diff content
+        if: steps.prepare.outputs.diff_size != '0'
+        run: |
+          echo "Full diff content:"
+          echo "${{ steps.prepare.outputs.diff_content }}"
 
       - name: Analyze code with Claude
         if: steps.prepare.outputs.diff_size != '0'
@@ -108,44 +113,21 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          # Decode the diff content
-          echo "${{ steps.prepare.outputs.diff_content }}" | base64 -d > /tmp/review/decoded.diff
-          DIFF_CONTENT=$(cat /tmp/review/decoded.diff)
+          DIFF_CONTENT="${{ steps.prepare.outputs.diff_content }}"
           
-          # Create request body
-          REQUEST_BODY=$(jq -n \
-            --arg content "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
-
-          1. Potential conflicts with existing codebase
-          2. Code correctness and potential bugs
-          3. Security vulnerabilities or risks
-          4. Performance implications
-          5. Maintainability and readability issues
-          6. Adherence to best practices and coding standards
-          7. Suggestions for improvements
-
-          For each issue found:
-          - Explain the problem clearly
-          - Rate the severity (Critical/High/Medium/Low)
-          - Provide specific recommendations for fixes
-          - Include code examples where helpful
-
-          If no issues are found in a particular area, explicitly state that.
-
-          Here is the code diff to review:
-
-          \`\`\`
-          $DIFF_CONTENT
-          \`\`\`" \
-            '{
-              "model": "claude-3-sonnet-20240229",
-              "max_tokens": 4096,
-              "temperature": 0.7,
-              "messages": [{
-                "role": "user",
-                "content": $content
-              }]
-            }')
+          # Create request body using cat and a heredoc to preserve formatting
+          REQUEST_BODY=$(cat << 'EOF' | jq -c .
+          {
+            "model": "claude-3-sonnet-20240229",
+            "max_tokens": 4096,
+            "temperature": 0.7,
+            "messages": [{
+              "role": "user",
+              "content": "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:\n\n1. Potential conflicts with existing codebase\n2. Code correctness and potential bugs\n3. Security vulnerabilities or risks\n4. Performance implications\n5. Maintainability and readability issues\n6. Adherence to best practices and coding standards\n7. Suggestions for improvements\n\nFor each issue found:\n- Explain the problem clearly\n- Rate the severity (Critical/High/Medium/Low)\n- Provide specific recommendations for fixes\n- Include code examples where helpful\n\nIf no issues are found in a particular area, explicitly state that.\n\nHere is the code diff to review:\n\n\`\`\`\n${DIFF_CONTENT}\n\`\`\`"
+            }]
+          }
+          EOF
+          )
 
           # Make the API request
           echo "Sending request to Claude API..."
@@ -156,9 +138,11 @@ jobs:
             -d "$REQUEST_BODY")
           
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
-            # Base64 encode the review to preserve formatting
-            REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text' | base64 -w 0)
-            echo "review=$REVIEW" >> $GITHUB_OUTPUT
+            {
+              echo 'review<<EOF'
+              echo "$RESPONSE" | jq -r '.content[0].text'
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
             exit 1
@@ -171,7 +155,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const review = Buffer.from('${{ steps.analysis.outputs.review }}', 'base64').toString();
+            const review = `${{ steps.analysis.outputs.review }}`;
             const prNumber = ${{ steps.pr-number.outputs.number }};
             
             await github.rest.issues.createComment({
