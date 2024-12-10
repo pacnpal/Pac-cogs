@@ -59,8 +59,10 @@ jobs:
               throw error;
             }
 
-      - name: Generate full diff
-        id: prepare
+      - name: Generate and analyze diff
+        id: analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           # Configure git to fetch PR refs
           git config --local --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
@@ -71,85 +73,62 @@ jobs:
           
           echo "Comparing $BASE_SHA..$HEAD_SHA"
           
-          # Create a temporary directory for our files
-          mkdir -p /tmp/review
+          # Get the diff with context
+          git diff -U10 "$BASE_SHA" "$HEAD_SHA" > diff_full.txt
           
-          # Get the full diff with context and store it
-          git diff -U10 "$BASE_SHA" "$HEAD_SHA" > /tmp/review/full.diff
-          
-          # Create filtered version for relevant files only
-          cat /tmp/review/full.diff | \
+          # Filter for relevant files
+          cat diff_full.txt | \
             awk '/^diff --git/{p=0} /\.(js|ts|py|cpp|h|java|cs)$/{p=1} p' | \
-            grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' > /tmp/review/filtered.diff
+            grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' > diff_filtered.txt
           
-          if [ -s /tmp/review/filtered.diff ]; then
-            DIFF_SIZE=$(wc -c < /tmp/review/filtered.diff)
-            echo "Found $DIFF_SIZE bytes of relevant changes"
-            echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
-            
-            # Store full diff content in the output
-            {
-              echo 'diff_content<<EOF'
-              cat /tmp/review/filtered.diff
-              echo 'EOF'
-            } >> $GITHUB_OUTPUT
-            
-            echo "Preview of changes:"
-            head -n 10 /tmp/review/filtered.diff
-          else
-            echo "No relevant file changes found"
+          if [ ! -s diff_filtered.txt ]; then
+            echo "No relevant changes found"
             echo "diff_size=0" >> $GITHUB_OUTPUT
+            exit 0
           fi
-
-      - name: Debug diff content
-        if: steps.prepare.outputs.diff_size != '0'
-        run: |
-          echo "Full diff content:"
-          echo "${{ steps.prepare.outputs.diff_content }}"
-
-      - name: Analyze code with Claude
-        if: steps.prepare.outputs.diff_size != '0'
-        id: analysis
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          DIFF_CONTENT="${{ steps.prepare.outputs.diff_content }}"
           
-          # Create request body using cat and a heredoc to preserve formatting
-          REQUEST_BODY=$(cat << 'EOF' | jq -c .
+          DIFF_SIZE=$(wc -c < diff_filtered.txt)
+          echo "Found $DIFF_SIZE bytes of relevant changes"
+          echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+          
+          # Prepare the diff content for the API request
+          DIFF_CONTENT=$(cat diff_filtered.txt)
+          
+          # Create the API request using a heredoc
+          REQUEST=$(cat << EOF
           {
             "model": "claude-3-sonnet-20240229",
             "max_tokens": 4096,
             "temperature": 0.7,
             "messages": [{
               "role": "user",
-              "content": "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:\n\n1. Potential conflicts with existing codebase\n2. Code correctness and potential bugs\n3. Security vulnerabilities or risks\n4. Performance implications\n5. Maintainability and readability issues\n6. Adherence to best practices and coding standards\n7. Suggestions for improvements\n\nFor each issue found:\n- Explain the problem clearly\n- Rate the severity (Critical/High/Medium/Low)\n- Provide specific recommendations for fixes\n- Include code examples where helpful\n\nIf no issues are found in a particular area, explicitly state that.\n\nHere is the code diff to review:\n\n\`\`\`\n${DIFF_CONTENT}\n\`\`\`"
+              "content": "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:\n\n1. Potential conflicts with existing codebase\n2. Code correctness and potential bugs\n3. Security vulnerabilities or risks\n4. Performance implications\n5. Maintainability and readability issues\n6. Adherence to best practices and coding standards\n7. Suggestions for improvements\n\nFor each issue found:\n- Explain the problem clearly\n- Rate the severity (Critical/High/Medium/Low)\n- Provide specific recommendations for fixes\n- Include code examples where helpful\n\nIf no issues are found in a particular area, explicitly state that.\n\nHere is the code diff to review:\n\n\`\`\`\n$DIFF_CONTENT\n\`\`\`"
             }]
           }
           EOF
           )
-
+          
           # Make the API request
           echo "Sending request to Claude API..."
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d "$REQUEST_BODY")
+            -d "$REQUEST")
           
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
-            {
-              echo 'review<<EOF'
-              echo "$RESPONSE" | jq -r '.content[0].text'
-              echo 'EOF'
-            } >> $GITHUB_OUTPUT
+            # Save the review to a file to preserve formatting
+            echo "$RESPONSE" | jq -r '.content[0].text' > review.txt
+            echo 'review<<EOF' >> $GITHUB_OUTPUT
+            cat review.txt >> $GITHUB_OUTPUT
+            echo 'EOF' >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
             exit 1
           fi
 
       - name: Post review comment
-        if: success() && steps.prepare.outputs.diff_size != '0'
+        if: success() && steps.analysis.outputs.diff_size != '0'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
