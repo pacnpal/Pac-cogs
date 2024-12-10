@@ -75,7 +75,7 @@ jobs:
           
           # Generate the full diff
           git diff -U10 "$BASE_SHA" "$HEAD_SHA" > full_diff.txt
-          
+
           # Use awk to properly capture full context of relevant files
           awk '
             BEGIN { found=0; buffer="" }
@@ -101,18 +101,42 @@ jobs:
           DIFF_SIZE=$(wc -c < filtered_diff.txt)
           echo "Found $DIFF_SIZE bytes of relevant changes"
           echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+
+          # Create prompt text
+          PROMPT_TEXT="You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
+
+          1. Potential conflicts with existing codebase
+          2. Code correctness and potential bugs
+          3. Security vulnerabilities or risks
+          4. Performance implications
+          5. Maintainability and readability issues
+          6. Adherence to best practices and coding standards
+          7. Suggestions for improvements
+
+          For each issue found:
+          - Explain the problem clearly
+          - Rate the severity (Critical/High/Medium/Low)
+          - Provide specific recommendations for fixes
+          - Include code examples where helpful
+
+          If no issues are found in a particular area, explicitly state that.
+
+          Here is the code diff to review:
+
+          \`\`\`
+          $(cat filtered_diff.txt)
+          \`\`\`"
           
-          # Create the API request
-          DIFF_CONTENT=$(cat filtered_diff.txt)
+          # Create API request with proper string handling
           REQUEST=$(jq -n \
-            --arg diff "$DIFF_CONTENT" \
+            --arg prompt "$PROMPT_TEXT" \
             '{
-              "model": "claude-3-sonnet-20240229",
-              "max_tokens": 4096,
-              "temperature": 0.7,
-              "messages": [{
-                "role": "user",
-                "content": "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:\n\n1. Potential conflicts with existing codebase\n2. Code correctness and potential bugs\n3. Security vulnerabilities or risks\n4. Performance implications\n5. Maintainability and readability issues\n6. Adherence to best practices and coding standards\n7. Suggestions for improvements\n\nFor each issue found:\n- Explain the problem clearly\n- Rate the severity (Critical/High/Medium/Low)\n- Provide specific recommendations for fixes\n- Include code examples where helpful\n\nIf no issues are found in a particular area, explicitly state that.\n\nHere is the code diff to review:\n\n```\n" + $diff + "\n```"
+              model: "claude-3-sonnet-20240229",
+              max_tokens: 4096,
+              temperature: 0.7,
+              messages: [{
+                role: "user",
+                content: $prompt
               }]
             }')
           
