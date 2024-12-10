@@ -48,13 +48,6 @@ jobs:
                 pull_number: prNumber
               });
               
-              console.log('PR Details:', {
-                base: pr.data.base.ref,
-                base_sha: pr.data.base.sha,
-                head: pr.data.head.ref,
-                head_sha: pr.data.head.sha
-              });
-              
               return {
                 base_sha: pr.data.base.sha,
                 head_sha: pr.data.head.sha,
@@ -66,8 +59,8 @@ jobs:
               throw error;
             }
 
-      - name: Generate diff
-        id: changed-files
+      - name: Generate diff and prepare review
+        id: prepare
         run: |
           # Configure git to fetch PR refs
           git config --local --add remote.origin.fetch "+refs/pull/*/head:refs/remotes/origin/pr/*"
@@ -78,45 +71,48 @@ jobs:
           
           echo "Comparing $BASE_SHA..$HEAD_SHA"
           
-          # Get the diff
-          git diff "$BASE_SHA" "$HEAD_SHA" > changes.diff
+          # Create a temporary directory for our files
+          mkdir -p /tmp/review
           
-          # Filter the diff for specific file types
-          if [ -s changes.diff ]; then
-            cat changes.diff | grep -v -E '(package-lock.json|yarn.lock|node_modules|\.md$|\.json$)' | grep -E '\.(js|ts|py|cpp|h|java|cs)$' > filtered_changes.diff || true
+          # Get the full diff and store it
+          git diff "$BASE_SHA" "$HEAD_SHA" > /tmp/review/changes.diff
+          
+          # Count total lines in diff
+          TOTAL_LINES=$(wc -l < /tmp/review/changes.diff)
+          echo "Total diff lines: $TOTAL_LINES"
+          
+          # Create filtered version
+          cat /tmp/review/changes.diff | \
+            grep -v -E '(package-lock.json|yarn.lock|node_modules|\.md$|\.json$)' | \
+            grep -E '\.(js|ts|py|cpp|h|java|cs)$' > /tmp/review/filtered.diff || true
+          
+          if [ -s /tmp/review/filtered.diff ]; then
+            DIFF_SIZE=$(wc -c < /tmp/review/filtered.diff)
+            echo "Found $DIFF_SIZE bytes of relevant changes"
+            echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
             
-            if [ -s filtered_changes.diff ]; then
-              DIFF_SIZE=$(wc -c < filtered_changes.diff)
-              echo "Found $DIFF_SIZE bytes of relevant changes"
-              echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
-              
-              # Store the diff content for the next step
-              DIFF_CONTENT=$(cat filtered_changes.diff)
-              echo "diff_content<<EOF" >> $GITHUB_OUTPUT
-              echo "$DIFF_CONTENT" >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-              
-              echo "Preview of changes:"
-              head -n 5 filtered_changes.diff
-            else
-              echo "No relevant file changes found"
-              echo "diff_size=0" >> $GITHUB_OUTPUT
-            fi
+            # Base64 encode the diff to preserve newlines and special characters
+            ENCODED_DIFF=$(base64 -w 0 /tmp/review/filtered.diff)
+            echo "diff_content=$ENCODED_DIFF" >> $GITHUB_OUTPUT
+            
+            echo "Preview of changes:"
+            head -n 5 /tmp/review/filtered.diff
           else
-            echo "No changes found"
+            echo "No relevant file changes found"
             echo "diff_size=0" >> $GITHUB_OUTPUT
           fi
 
       - name: Analyze code with Claude
-        if: steps.changed-files.outputs.diff_size != '0'
+        if: steps.prepare.outputs.diff_size != '0'
         id: analysis
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          # Get the diff content from the previous step
-          DIFF_CONTENT="${{ steps.changed-files.outputs.diff_content }}"
+          # Decode the diff content
+          echo "${{ steps.prepare.outputs.diff_content }}" | base64 -d > /tmp/review/decoded.diff
+          DIFF_CONTENT=$(cat /tmp/review/decoded.diff)
           
-          # Create the request body using jq
+          # Create request body
           REQUEST_BODY=$(jq -n \
             --arg content "You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
 
@@ -159,31 +155,28 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -d "$REQUEST_BODY")
           
-          echo "Response received, checking for content..."
-          
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
-            REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text')
-            echo "review<<EOF" >> $GITHUB_OUTPUT
-            echo "$REVIEW" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+            # Base64 encode the review to preserve formatting
+            REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text' | base64 -w 0)
+            echo "review=$REVIEW" >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
             exit 1
           fi
 
       - name: Post review comment
-        if: success() && steps.changed-files.outputs.diff_size != '0'
+        if: success() && steps.prepare.outputs.diff_size != '0'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const review = `${{ steps.analysis.outputs.review }}`;
+            const review = Buffer.from('${{ steps.analysis.outputs.review }}', 'base64').toString();
             const prNumber = ${{ steps.pr-number.outputs.number }};
             
             await github.rest.issues.createComment({
-              owner: owner,
-              repo: repo,
+              owner,
+              repo,
               issue_number: prNumber,
               body: `# Claude Code Review\n\n${review}`
             });
