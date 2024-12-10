@@ -56,33 +56,6 @@ jobs:
               throw error;
             }
 
-      - name: Get changed files
-        id: changed-files
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            BASE_SHA=${{ fromJSON(steps.pr-details.outputs.result).base_sha }}
-            HEAD_SHA=${{ fromJSON(steps.pr-details.outputs.result).head_sha }}
-          else
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
-            HEAD_SHA=${{ github.event.pull_request.head.sha }}
-          fi
-          
-          echo "Base SHA: $BASE_SHA"
-          echo "Head SHA: $HEAD_SHA"
-          
-          # Get the diff and save to a file
-          git diff $BASE_SHA..$HEAD_SHA > changes.diff || echo "Failed to get diff"
-          
-          # Create a filtered version without ignored files
-          cat changes.diff | grep -v -E '(package-lock.json|yarn.lock|node_modules|\.md$|\.json$)' | grep -E '\.(js|ts|py|cpp|h|java|cs)$' > filtered_changes.diff || true
-          
-          # Store the size of the diff
-          if [ -f filtered_changes.diff ]; then
-            echo "diff_size=$(wc -c < filtered_changes.diff)" >> $GITHUB_OUTPUT
-          else
-            echo "diff_size=0" >> $GITHUB_OUTPUT
-          fi
-
       - name: Analyze code with Claude
         if: steps.changed-files.outputs.diff_size != '0'
         id: analysis
@@ -91,8 +64,12 @@ jobs:
         run: |
           DIFF_CONTENT=$(cat filtered_changes.diff)
           
-          # Prepare the API request
-          PROMPT="You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
+          # Escape the diff content for JSON
+          DIFF_CONTENT_ESCAPED=$(echo "$DIFF_CONTENT" | jq -Rs .)
+          
+          # Create the prompt with escaped content
+          PROMPT=$(cat << 'EOL'
+          You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
 
           1. Potential conflicts with existing codebase
           2. Code correctness and potential bugs
@@ -112,30 +89,37 @@ jobs:
 
           Here is the code diff to review:
 
-          \`\`\`
-          $DIFF_CONTENT
-          \`\`\`"
+          ```
+          EOL
+          )
+
+          # Prepare the API request body using jq
+          REQUEST_BODY=$(jq -n \
+            --arg prompt "$PROMPT" \
+            --arg diff "$DIFF_CONTENT" \
+            '{
+              "model": "claude-3-sonnet-20241022",
+              "max_tokens": 4096,
+              "temperature": 0.7,
+              "messages": [{
+                "role": "user",
+                "content": ($prompt + $diff + "\n```")
+              }]
+            }')
 
           # Make the API request
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d "{
-              \"model\": \"claude-3-sonnet-20241022\",
-              \"max_tokens\": 4096,
-              \"temperature\": 0.7,
-              \"messages\": [{
-                \"role\": \"user\",
-                \"content\": \"$PROMPT\"
-              }]
-            }")
+            -d "$REQUEST_BODY")
           
           # Extract the review content from the response and handle potential errors
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
             REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text')
           else
             echo "Error in Claude API response: $RESPONSE"
+            echo "Request body was: $REQUEST_BODY"
             exit 1
           fi
           
