@@ -73,30 +73,23 @@ jobs:
           
           echo "Comparing $BASE_SHA..$HEAD_SHA"
           
-          # Get the full diff with context
-          git diff -U10 "$BASE_SHA" "$HEAD_SHA" > diff_full.txt
+          # Get the diff
+          DIFF_CONTENT=$(git diff -U10 "$BASE_SHA" "$HEAD_SHA" | \
+                        grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' | \
+                        grep -E '\.(js|ts|py|cpp|h|java|cs)$')
           
-          # Filter for relevant files
-          cat diff_full.txt | \
-            awk '/^diff --git/{p=0} /\.(js|ts|py|cpp|h|java|cs)$/{p=1} p' | \
-            grep -v -E '^diff --git .*(package-lock\.json|yarn\.lock|\.md|\.json)' > diff_filtered.txt
-          
-          if [ ! -s diff_filtered.txt ]; then
+          if [ -z "$DIFF_CONTENT" ]; then
             echo "No relevant changes found"
             echo "diff_size=0" >> $GITHUB_OUTPUT
             exit 0
           fi
           
-          DIFF_SIZE=$(wc -c < diff_filtered.txt)
+          DIFF_SIZE=${#DIFF_CONTENT}
           echo "Found $DIFF_SIZE bytes of relevant changes"
           echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
           
-          # Prepare the diff content
-          DIFF_CONTENT=$(cat diff_filtered.txt)
-          
-          # Create the JSON payload
-          read -r -d '' PROMPT << EOM
-          You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
+          # Create prompt
+          PROMPT="You are performing a code review. Please analyze this code diff and provide a thorough review that covers:
 
           1. Potential conflicts with existing codebase
           2. Code correctness and potential bugs
@@ -117,40 +110,39 @@ jobs:
           Here is the code diff to review:
 
           \`\`\`
-          ${DIFF_CONTENT}
-          \`\`\`
-          EOM
+          $DIFF_CONTENT
+          \`\`\`"
           
-          # Create API request JSON
-          REQUEST_JSON=$(jq -n \
+          # Create API request
+          REQUEST=$(jq -n \
             --arg prompt "$PROMPT" \
             '{
               "model": "claude-3-sonnet-20240229",
               "max_tokens": 4096,
               "temperature": 0.7,
-              "messages": [
-                {
-                  "role": "user",
-                  "content": $prompt
-                }
-              ]
+              "messages": [{
+                "role": "user",
+                "content": $prompt
+              }]
             }')
           
-          # Make API request and capture response in a file to preserve formatting
+          # Call API
           echo "Sending request to Claude API..."
           RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
-            -d "$REQUEST_JSON")
+            -d "$REQUEST")
           
+          # Process response
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
-            echo 'review<<EOF' >> $GITHUB_OUTPUT
-            echo "$RESPONSE" | jq -r '.content[0].text' >> $GITHUB_OUTPUT
-            echo 'EOF' >> $GITHUB_OUTPUT
+            {
+              echo 'review<<EOF'
+              echo "$RESPONSE" | jq -r '.content[0].text'
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
-            echo "Request was: $REQUEST_JSON"
             exit 1
           fi
 
@@ -161,8 +153,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
-            const review = `${{ steps.analysis.outputs.review }}`;
             const prNumber = ${{ steps.pr-number.outputs.number }};
+            const review = `${{ steps.analysis.outputs.review }}`;
             
             await github.rest.issues.createComment({
               owner,
