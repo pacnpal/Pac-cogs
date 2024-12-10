@@ -89,6 +89,13 @@ jobs:
               DIFF_SIZE=$(wc -c < filtered_changes.diff)
               echo "Found $DIFF_SIZE bytes of relevant changes"
               echo "diff_size=$DIFF_SIZE" >> $GITHUB_OUTPUT
+              
+              # Store the diff content for the next step
+              DIFF_CONTENT=$(cat filtered_changes.diff)
+              echo "diff_content<<EOF" >> $GITHUB_OUTPUT
+              echo "$DIFF_CONTENT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+              
               echo "Preview of changes:"
               head -n 5 filtered_changes.diff
             else
@@ -106,7 +113,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          DIFF_CONTENT=$(cat filtered_changes.diff)
+          # Get the diff content from the previous step
+          DIFF_CONTENT="${{ steps.changed-files.outputs.diff_content }}"
           
           # Create the request body using jq
           REQUEST_BODY=$(jq -n \
@@ -155,13 +163,9 @@ jobs:
           
           if echo "$RESPONSE" | jq -e '.content[0].text' > /dev/null; then
             REVIEW=$(echo "$RESPONSE" | jq -r '.content[0].text')
-            
-            # Escape the review content for GitHub Actions
-            REVIEW="${REVIEW//'%'/'%25'}"
-            REVIEW="${REVIEW//$'\n'/'%0A'}"
-            REVIEW="${REVIEW//$'\r'/'%0D'}"
-            
-            echo "review=$REVIEW" >> $GITHUB_OUTPUT
+            echo "review<<EOF" >> $GITHUB_OUTPUT
+            echo "$REVIEW" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "Error in Claude API response: $RESPONSE"
             exit 1
@@ -173,12 +177,13 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const { owner, repo } = context.repo;
             const review = `${{ steps.analysis.outputs.review }}`;
             const prNumber = ${{ steps.pr-number.outputs.number }};
             
             await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.name,
+              owner: owner,
+              repo: repo,
               issue_number: prNumber,
               body: `# Claude Code Review\n\n${review}`
             });
