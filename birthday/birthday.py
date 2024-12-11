@@ -4,9 +4,9 @@ from redbot.core.bot import Red # type: ignore
 from redbot.core.config import Config # type: ignore
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-import random
 import logging
 import asyncio
+import secrets
 
 # Set up logging
 logger = logging.getLogger("red.birthday")
@@ -52,7 +52,7 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
             return await interaction.followup.send("Failed to assign the birthday role due to a Discord error.", ephemeral=True)
 
         # Generate birthday message with random cakes (or pie)
-        cakes = random.randint(0, 5)
+        cakes = secrets.SystemRandom().randint(0, 5)
         if cakes == 0:
             message = f"🎉 Happy Birthday, {member.mention}! Sorry, out of cake today! Here's pie instead: 🥧"
         else:
@@ -368,7 +368,7 @@ class Birthday(commands.Cog):
                 return await ctx.send("Failed to assign the birthday role due to a Discord error.", ephemeral=True)
 
             # Generate birthday message with random cakes (or pie)
-            cakes = random.randint(0, 5)
+            cakes = secrets.SystemRandom().randint(0, 5)
             if cakes == 0:
                 message = f"🎉 Happy Birthday, {member.mention}! Sorry, out of cake today! Here's pie instead: 🥧"
             else:
