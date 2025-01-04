@@ -250,16 +250,14 @@ class FFmpegDownloader:
                 binary_files = [
                     f
                     for f in zip_ref.namelist()
-                    if f.endswith(f"/bin/{binary_name}")
-                    or f.endswith(f"\\bin\\{binary_name}")
+                    if f.endswith((f"/bin/{binary_name}", f"\\bin\\{binary_name}"))
                 ]
                 if not binary_files:
                     # Fallback to old structure
                     binary_files = [
                         f
                         for f in zip_ref.namelist()
-                        if f.endswith(f"/{binary_name}")
-                        or f.endswith(f"\\{binary_name}")
+                        if f.endswith((f"/{binary_name}", f"\\{binary_name}"))
                     ]
                 if not binary_files:
                     raise DownloadError(f"{binary_name} not found in archive")
