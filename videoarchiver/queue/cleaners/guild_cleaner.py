@@ -478,7 +478,7 @@ class GuildCleaner:
             f"Guild {guild_id} Cleanup Results:\n"
             f"Strategy: {self.strategy.value}\n"
             f"Duration: {duration:.2f}s\n"
-            f"Items:\n"
+            "Items:\n"
             f"- Queue: {initial_counts['queue']} -> {final_counts['queue']}\n"
             f"- Processing: {initial_counts['processing']} -> {final_counts['processing']}\n"
             f"- Completed: {initial_counts['completed']} -> {final_counts['completed']}\n"

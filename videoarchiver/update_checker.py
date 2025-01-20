@@ -237,10 +237,10 @@ class UpdateChecker:
             return
 
         message = (
-            f"⚠️ A new version of yt-dlp is available!\n"
+            "⚠️ A new version of yt-dlp is available!\n"
             f"Current: {current_version}\n"
             f"Latest: {latest_version}\n"
-            f"Use `[p]videoarchiver updateytdlp` to update."
+            "Use `[p]videoarchiver updateytdlp` to update."
         )
 
         for attempt in range(settings.get("discord_retry_attempts", 3)):

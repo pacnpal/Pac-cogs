@@ -310,7 +310,7 @@ class HistoryCleaner:
         stats = self.tracker.get_stats()
         
         return (
-            f"History Cleanup Results:\n"
+            "History Cleanup Results:\n"
             f"- Completed items: {initial_completed} -> {final_completed}\n"
             f"- Failed items: {initial_failed} -> {final_failed}\n"
             f"- Total items cleaned: {(initial_completed - final_completed) + (initial_failed - final_failed)}\n"

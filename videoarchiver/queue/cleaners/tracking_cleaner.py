@@ -410,10 +410,10 @@ class TrackingCleaner:
         )
 
         return (
-            f"Tracking Cleanup Results:\n"
+            "Tracking Cleanup Results:\n"
             f"Strategy: {self.strategy.value}\n"
             f"Duration: {duration:.2f}s\n"
-            f"Items:\n"
+            "Items:\n"
             f"- Guild Queues: {initial_counts['guilds']} -> {final_counts['guilds']}\n"
             f"- Channel Queues: {initial_counts['channels']} -> {final_counts['channels']}\n"
             f"- Guild URLs: {initial_counts['guild_urls']} -> {final_counts['guild_urls']}\n"

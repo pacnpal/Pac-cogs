@@ -141,7 +141,7 @@ async def remove_birthday_context_menu(interaction: discord.Interaction, member:
 
         await interaction.followup.send(f"Birthday role removed from {member.display_name}!", ephemeral=True)
     except Exception as e:
-        logger.error(f"Unexpected error in remove birthday context menu", exc_info=True)
+        logger.error("Unexpected error in remove birthday context menu", exc_info=True)
         try:
             await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
         except:
