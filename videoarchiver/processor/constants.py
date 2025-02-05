@@ -1,7 +1,7 @@
 """Constants for VideoProcessor"""
 
 from typing import Dict, List, Union
-from dataclasses import dataclass
+from dataclasses import field, dataclass
 from enum import Enum
 
 class ReactionType(Enum):
@@ -27,9 +27,9 @@ class ReactionEmojis:
 @dataclass(frozen=True)
 class ProgressEmojis:
     """Emoji sequences for progress indicators"""
-    NUMBERS: List[str] = ('1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣')
-    PROGRESS: List[str] = ('⬛', '🟨', '🟩')
-    DOWNLOAD: List[str] = ('0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟')
+    NUMBERS: List[str] = field(default_factory=lambda: ('1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'))
+    PROGRESS: List[str] = field(default_factory=lambda: ('⬛', '🟨', '🟩'))
+    DOWNLOAD: List[str] = field(default_factory=lambda: ('0️⃣', '2️⃣', '4️⃣', '6️⃣', '8️⃣', '🔟'))
 
 # Main reactions dictionary with type hints
 REACTIONS: Dict[str, Union[str, List[str]]] = {
