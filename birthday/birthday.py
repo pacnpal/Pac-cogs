@@ -63,7 +63,7 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
         if birthday_channel_id:
             channel = interaction.client.get_channel(birthday_channel_id)
             if not channel:
-                logger.warning(f"Birthday channel {birthday_channel_id} not found in guild {interaction.guild.id}")
+                logger.warning("Birthday channel not found in the guild")
                 channel = interaction.channel
         else:
             channel = interaction.channel
