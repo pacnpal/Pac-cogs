@@ -348,12 +348,12 @@ class Birthday(commands.Cog):
 
             birthday_role_id = await self.config.guild(ctx.guild).birthday_role()
             if not birthday_role_id:
-                logger.error(f"Birthday role not set for guild {ctx.guild.id}")
+                logger.error("Birthday role not set for the guild")
                 return await ctx.send("The birthday role hasn't been set. An admin needs to set it using `/setrole`.", ephemeral=True)
             
             birthday_role = ctx.guild.get_role(birthday_role_id)
             if not birthday_role:
-                logger.error(f"Birthday role {birthday_role_id} not found in guild {ctx.guild.id}")
+                logger.error("Birthday role not found in the guild")
                 return await ctx.send("The birthday role doesn't exist anymore. Please ask an admin to set it again.", ephemeral=True)
 
             # Assign the role, ignoring hierarchy
@@ -361,10 +361,10 @@ class Birthday(commands.Cog):
                 await member.add_roles(birthday_role, reason="Birthday role")
                 logger.info(f"Birthday role assigned to {member.id} in guild {ctx.guild.id}")
             except discord.Forbidden:
-                logger.error(f"Failed to assign birthday role to {member.id} in guild {ctx.guild.id}: Insufficient permissions")
+                logger.error("Failed to assign birthday role: Insufficient permissions")
                 return await ctx.send("I don't have permission to assign that role.", ephemeral=True)
             except discord.HTTPException as e:
-                logger.error(f"Failed to assign birthday role to {member.id} in guild {ctx.guild.id}: {str(e)}")
+                logger.error(f"Failed to assign birthday role: {str(e)}")
                 return await ctx.send("Failed to assign the birthday role due to a Discord error.", ephemeral=True)
 
             # Generate birthday message with random cakes (or pie)
@@ -379,7 +379,7 @@ class Birthday(commands.Cog):
             if birthday_channel_id:
                 channel = self.bot.get_channel(birthday_channel_id)
                 if not channel:  # If the set channel doesn't exist anymore
-                    logger.warning(f"Birthday channel {birthday_channel_id} not found in guild {ctx.guild.id}")
+                    logger.warning("Birthday channel not found in the guild")
                     channel = ctx.channel
             else:
                 channel = ctx.channel
@@ -392,7 +392,7 @@ class Birthday(commands.Cog):
             try:
                 tz = ZoneInfo(timezone)
             except ZoneInfoNotFoundError:
-                logger.warning(f"Invalid timezone {timezone} for guild {ctx.guild.id}, defaulting to UTC")
+                logger.warning("Invalid timezone for the guild, defaulting to UTC")
                 await ctx.send("Warning: Invalid timezone set. Defaulting to UTC.", ephemeral=True)
                 tz = ZoneInfo("UTC")
 
@@ -401,7 +401,7 @@ class Birthday(commands.Cog):
 
             await self.schedule_birthday_role_removal(ctx.guild, member, birthday_role, midnight)
         except Exception as e:
-            logger.error(f"Unexpected error in birthday command: {str(e)}", exc_info=True)
+            logger.error(f"Unexpected error in birthday command", exc_info=True)
             await ctx.send(f"An error occurred: {str(e)}", ephemeral=True)
 
     @commands.hybrid_command(name="bdaycheck")
