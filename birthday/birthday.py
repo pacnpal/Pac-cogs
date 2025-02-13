@@ -37,7 +37,7 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
         
         birthday_role = interaction.guild.get_role(birthday_role_id)
         if not birthday_role:
-            logger.error(f"Birthday role {birthday_role_id} not found in guild {interaction.guild.id}")
+            logger.error("Birthday role not found in the guild")
             return await interaction.followup.send("The birthday role doesn't exist anymore. Please ask an admin to set it again.", ephemeral=True)
 
         # Assign the role, ignoring hierarchy
@@ -45,10 +45,10 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
             await member.add_roles(birthday_role, reason="Birthday role")
             logger.info(f"Birthday role assigned to {member.id} in guild {interaction.guild.id}")
         except discord.Forbidden:
-            logger.error(f"Failed to assign birthday role to {member.id} in guild {interaction.guild.id}: Insufficient permissions")
+            logger.error("Failed to assign birthday role: Insufficient permissions")
             return await interaction.followup.send("I don't have permission to assign that role.", ephemeral=True)
         except discord.HTTPException as e:
-            logger.error(f"Failed to assign birthday role to {member.id} in guild {interaction.guild.id}: {str(e)}")
+            logger.error(f"Failed to assign birthday role: {str(e)}")
             return await interaction.followup.send("Failed to assign the birthday role due to a Discord error.", ephemeral=True)
 
         # Generate birthday message with random cakes (or pie)
@@ -76,7 +76,7 @@ async def birthday_context_menu(interaction: discord.Interaction, member: discor
         try:
             tz = ZoneInfo(timezone)
         except ZoneInfoNotFoundError:
-            logger.warning(f"Invalid timezone {timezone} for guild {interaction.guild.id}, defaulting to UTC")
+            logger.warning("Invalid timezone for the guild, defaulting to UTC")
             await interaction.followup.send("Warning: Invalid timezone set. Defaulting to UTC.", ephemeral=True)
             tz = ZoneInfo("UTC")
 
