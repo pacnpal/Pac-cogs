@@ -196,12 +196,12 @@ class Birthday(commands.Cog):
 
             birthday_role_id = await self.config.guild(ctx.guild).birthday_role()
             if not birthday_role_id:
-                logger.error(f"Birthday role not set for guild {ctx.guild.id}")
+                logger.error("Birthday role not set for the guild")
                 return await ctx.send("The birthday role hasn't been set.", ephemeral=True)
 
             birthday_role = ctx.guild.get_role(birthday_role_id)
             if not birthday_role:
-                logger.error(f"Birthday role {birthday_role_id} not found in guild {ctx.guild.id}")
+                logger.error("Birthday role not found in the guild")
                 return await ctx.send("The birthday role doesn't exist anymore.", ephemeral=True)
 
             if birthday_role not in member.roles:
@@ -209,12 +209,12 @@ class Birthday(commands.Cog):
 
             try:
                 await member.remove_roles(birthday_role, reason="Birthday role manually removed")
-                logger.info(f"Birthday role manually removed from {member.id} in guild {ctx.guild.id}")
+                logger.info(f"Birthday role manually removed from member {member.id}")
             except discord.Forbidden:
-                logger.error(f"Failed to remove birthday role from {member.id} in guild {ctx.guild.id}: Insufficient permissions")
+                logger.error(f"Failed to remove birthday role from member {member.id}: Insufficient permissions")
                 return await ctx.send("I don't have permission to remove that role.", ephemeral=True)
             except discord.HTTPException as e:
-                logger.error(f"Failed to remove birthday role from {member.id} in guild {ctx.guild.id}: {str(e)}")
+                logger.error(f"Failed to remove birthday role from member {member.id} due to a Discord error: {str(e)}")
                 return await ctx.send("Failed to remove the birthday role due to a Discord error.", ephemeral=True)
 
             # Remove scheduled task if it exists
@@ -226,7 +226,7 @@ class Birthday(commands.Cog):
 
             await ctx.send(f"Birthday role removed from {member.display_name}!", ephemeral=True)
         except Exception as e:
-            logger.error(f"Unexpected error in remove_birthday command: {str(e)}", exc_info=True)
+            logger.error("Unexpected error in remove_birthday command", exc_info=True)
             await ctx.send(f"An error occurred while removing the birthday role: {str(e)}", ephemeral=True)
 
     async def daily_cleanup(self):
