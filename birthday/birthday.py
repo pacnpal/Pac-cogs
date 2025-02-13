@@ -379,7 +379,7 @@ class Birthday(commands.Cog):
             if birthday_channel_id:
                 channel = self.bot.get_channel(birthday_channel_id)
                 if not channel:  # If the set channel doesn't exist anymore
-                    logger.warning(f"Birthday channel {birthday_channel_id} not found in guild {ctx.guild.id}")
+                    logger.warning("Birthday channel not found in the guild")
                     channel = ctx.channel
             else:
                 channel = ctx.channel
