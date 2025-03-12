@@ -228,6 +228,48 @@ class Birthday(commands.Cog):
         except Exception as e:
             logger.error("Unexpected error in remove_birthday command", exc_info=True)
             await ctx.send(f"An error occurred while removing the birthday role: {str(e)}", ephemeral=True)
+            
+    @commands.hybrid_command(name="status")
+    @app_commands.guild_only()
+    async def status(self, ctx: commands.Context):
+        """Show the status of the Birthday cog in the current server."""
+        try:
+            # Check if the user has permission to use this command
+            allowed_roles = await self.config.guild(ctx.guild).allowed_roles()
+            if not any(role.id in allowed_roles for role in ctx.author.roles):
+                logger.warning(f"User {ctx.author.id} attempted to use status command without permission")
+                return await ctx.send("You don't have permission to use this command.", ephemeral=True)
+
+            # Fetch configuration details
+            birthday_role_id = await self.config.guild(ctx.guild).birthday_role()
+            birthday_role = ctx.guild.get_role(birthday_role_id) if birthday_role_id else None
+            allowed_roles_ids = await self.config.guild(ctx.guild).allowed_roles()
+            allowed_roles = [ctx.guild.get_role(role_id) for role_id in allowed_roles_ids]
+            timezone = await self.config.guild(ctx.guild).timezone()
+            birthday_channel_id = await self.config.guild(ctx.guild).birthday_channel()
+            birthday_channel = ctx.guild.get_channel(birthday_channel_id) if birthday_channel_id else None
+            scheduled_tasks = await self.config.guild(ctx.guild).scheduled_tasks()
+
+            # Construct status message
+            status_message = f"**Birthday Cog Status for {ctx.guild.name}**\n"
+            status_message += f"**Birthday Role:** {birthday_role.name if birthday_role else 'Not Set'}\n"
+            status_message += f"**Allowed Roles:** {', '.join(role.name for role in allowed_roles if role) if allowed_roles else 'None'}\n"
+            status_message += f"**Timezone:** {timezone}\n"
+            status_message += f"**Birthday Channel:** {birthday_channel.mention if birthday_channel else 'Not Set'}\n"
+            status_message += f"**Scheduled Tasks:** {len(scheduled_tasks)}\n"
+
+            if scheduled_tasks:
+                status_message += "\n**Upcoming Tasks:**\n"
+                for member_id, task_info in scheduled_tasks.items():
+                    member = ctx.guild.get_member(int(member_id))
+                    role = ctx.guild.get_role(task_info["role_id"])
+                    remove_at = datetime.fromisoformat(task_info["remove_at"]).replace(tzinfo=ZoneInfo(timezone))
+                    status_message += f"- {member.display_name} ({role.name}) at {remove_at}\n"
+
+            await ctx.send(status_message, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Unexpected error in status command: {str(e)}", exc_info=True)
+            await ctx.send(f"An error occurred while fetching the status: {str(e)}", ephemeral=True)
 
     async def daily_cleanup(self):
         """Daily task to ensure all birthday roles are properly removed."""
