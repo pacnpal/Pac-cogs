@@ -197,7 +197,9 @@ class Birthday(commands.Cog):
         async with self.lock:  # same lock as give(), or this can clear an entry mid-assignment
             info = (await conf.scheduled_tasks()).get(str(member.id))
             role = member.guild.get_role(info["role_id"] if info else await conf.birthday_role() or 0)
-            if role is None or role not in member.roles:
+            # member.roles lags behind add_roles() until the gateway update lands, so a tracked
+            # entry always gets an API removal; only trust the cache when nothing is tracked.
+            if role is None or (info is None and role not in member.roles):
                 await conf.scheduled_tasks.clear_raw(str(member.id))
                 return f"{member.display_name} doesn't have the birthday role."
             try:
@@ -227,7 +229,9 @@ class Birthday(commands.Cog):
             if member is None:
                 with contextlib.suppress(discord.NotFound):
                     member = await guild.fetch_member(member_id)
-            if member is not None and role in member.roles:
+            # No `role in member.roles` check: the cache can lag behind add_roles(), and removing
+            # a role the member doesn't have is a harmless no-op for Discord.
+            if member is not None:
                 try:
                     await member.remove_roles(role, reason="Birthday is over")
                 except (discord.Forbidden, discord.NotFound) as e:

@@ -38,7 +38,7 @@ def fake_guild():
         m.mention = f"<@{member_id}>"
         m.guild_permissions.manage_roles = manage_roles
         m.add_roles = AsyncMock(side_effect=lambda r, **_: m.roles.append(r))
-        m.remove_roles = AsyncMock(side_effect=lambda r, **_: m.roles.remove(r))
+        m.remove_roles = AsyncMock(side_effect=lambda r, **_: r in m.roles and m.roles.remove(r))
         members[member_id] = m
         return m
 
@@ -88,7 +88,7 @@ async def main():
     await cog.expiry_loop.coro(cog)
     assert role not in alice.roles
     assert set(await conf.scheduled_tasks()) == {"3"}, "transient failure must be retried"
-    bob.remove_roles.side_effect = lambda r, **_: bob.roles.remove(r)
+    bob.remove_roles.side_effect = lambda r, **_: r in bob.roles and bob.roles.remove(r)
     await cog.expiry_loop.coro(cog)
     assert role not in bob.roles and await conf.scheduled_tasks() == {}
 
@@ -135,6 +135,20 @@ async def main():
     await asyncio.gather(give_task, remove_task)
     tracked = str(alice.id) in await conf.scheduled_tasks()
     assert tracked or role not in alice.roles, "manual removal stranded the role"
+
+    # Stale cache: real discord.py add_roles() doesn't touch member.roles until the gateway
+    # update arrives. Expiry and manual removal must still send the removal, not trust the cache.
+    for undo in ("expire", "remove"):
+        carol = member(4)
+        carol.add_roles = AsyncMock()  # role assigned on Discord, cache not updated yet
+        await cog.give(mod, carol, channel)
+        if undo == "expire":
+            await conf.scheduled_tasks.set_raw("4", "remove_at", value=0)
+            await cog.expiry_loop.coro(cog)
+        else:
+            assert "removed" in await cog.remove(mod, carol)
+        carol.remove_roles.assert_awaited()
+        assert "4" not in await conf.scheduled_tasks()
 
     await bot.remove_cog("Birthday")
     print("birthday: all checks passed")
