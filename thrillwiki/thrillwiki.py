@@ -1,6 +1,7 @@
 """Look up parks, rides, companies and live wait times from the ThrillWiki public API."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, tzinfo
 from typing import Any
@@ -92,7 +93,7 @@ class ThrillWiki(commands.Cog):
         error = getattr(error, "original", error)
         if isinstance(error, NotFound):
             await ctx.send("Nothing on ThrillWiki matched that.")
-        elif isinstance(error, (aiohttp.ClientError, TimeoutError)):
+        elif isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError)):
             log.warning("ThrillWiki API request failed: %s", error)
             await ctx.send("ThrillWiki didn't answer. Try again in a minute.")
         else:
