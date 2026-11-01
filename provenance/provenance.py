@@ -15,6 +15,7 @@ import discord  # type: ignore
 from aiohttp.abc import AbstractResolver
 from redbot.core import Config, app_commands, commands  # type: ignore
 from redbot.core.bot import Red  # type: ignore
+from redbot.core.utils.chat_formatting import pagify  # type: ignore
 
 logger = logging.getLogger("red.provenance")
 
@@ -436,7 +437,9 @@ class Provenance(commands.Cog):
         if lines:
             lines.append(f"-# {FOOTER}")
             try:
-                await message.reply("\n".join(lines), mention_author=False)
+                # Long filenames can push the reply past Discord's 2000 character limit.
+                for page in pagify("\n".join(lines)):
+                    await message.reply(page, mention_author=False)
             except discord.HTTPException as e:
                 logger.info(f"Couldn't reply in channel {message.channel.id}: {e}")
 
