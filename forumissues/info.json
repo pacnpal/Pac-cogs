@@ -1,0 +1,30 @@
+{
+    "name": "ForumIssues",
+    "short": "Turn Discord forum posts into GitHub issues",
+    "description": "Each new post in a watched Discord forum becomes a GitHub issue (with labels and attachments) through a GitHub App. Messages that mention the bot become issue comments, issue comments that mention the App are posted back, and the poster is told when the issue is completed.",
+    "end_user_data_statement": "This cog stores, per server: watched forums and their repositories and labels; for each forum post, its title, the opening message's text, the poster's Discord user ID and username, and the linked GitHub issue; and messages waiting to be relayed between Discord and GitHub. Post text, usernames and IDs are copied to GitHub issues, which this cog cannot delete. A data deletion request stops the cog from mentioning that user.",
+    "install_msg": "Thanks for installing ForumIssues! Run `[p]fi setup` for the GitHub App steps, then `[p]fi add #forum owner/repo [labels...]`. The bot needs the Message Content intent.",
+    "author": [
+        "PacNPal"
+    ],
+    "requirements": [
+        "PyJWT[crypto]>=2.8"
+    ],
+    "tags": [
+        "github",
+        "issues",
+        "forum",
+        "bug reports",
+        "feedback"
+    ],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [
+        3,
+        8,
+        1
+    ],
+    "hidden": false,
+    "disabled": false,
+    "type": "COG",
+    "end_user_data_statement_required": true
+}
