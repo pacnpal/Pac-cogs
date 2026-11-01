@@ -14,10 +14,10 @@
 name: Checkmarx Scan
 
 # Controls when the workflow will run
+# Automatic PR runs are off: CX_CLIENT_ID, CX_CLIENT_SECRET and CX_TENANT aren't set.
+# Restore the pull_request trigger once those secrets exist.
 on:
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
