@@ -199,8 +199,13 @@ class ForumIssues(commands.Cog):
                     if forum is None:
                         continue  # a removed forum is no longer monitored
                     await self.step(self.process(gh, p, forum), "forum post", p["thread_id"])
-                    # Separate step, so a deleted thread cannot hold back a resolution notice.
-                    await self.step(self.sync(gh, p), "comment sync", p["thread_id"])
+                    # Comment sync runs apart from process, so a deleted thread cannot hold back a
+                    # resolution notice, and each direction is its own step, so a failing upload or a
+                    # thread the bot can no longer post in holds back only that direction.
+                    if p["announced"]:
+                        await self.step(self.scan(gh, p), "Discord mention scan", p["thread_id"])
+                        await self.step(self.to_github(gh, p), "comment sync to GitHub", p["thread_id"])
+                        await self.step(self.to_discord(p), "comment sync to Discord", p["thread_id"])
             # Sweep after the posts, so an issue recovered from a lost create response is mapped
             # before the comment cursor passes its comments.
             if discover:
@@ -363,10 +368,8 @@ class ForumIssues(commands.Cog):
 
     # ---- comment sync -----------------------------------------------------------------------
 
-    async def sync(self, gh: GitHubApp, p: dict) -> None:
-        """Relays new messages that mention the bot, then delivers both outboxes."""
-        if not p["announced"]:
-            return
+    async def scan(self, gh: GitHubApp, p: dict) -> None:
+        """Queues new thread messages that mention the bot for the issue."""
         thread = self.bot.get_channel(int(p["thread_id"])) or self.seen.get(int(p["thread_id"]))
         last = getattr(thread, "last_message_id", None)
         if isinstance(thread, discord.Thread) and last and last > int(p["cursor"]):
@@ -378,10 +381,14 @@ class ForumIssues(commands.Cog):
                     await self.save(p)
                 p["cursor"] = str(m.id)
             await self.save(p)
+
+    async def to_github(self, gh: GitHubApp, p: dict) -> None:
         while p["to_github"]:
             await gh.comment(p["repo"], p["issue_number"], p["to_github"][0])
             p["to_github"].pop(0)
             await self.save(p)
+
+    async def to_discord(self, p: dict) -> None:
         while p["to_discord"]:
             await self.notify(p, p["to_discord"][0], True)  # pings the post's creator
             p["to_discord"].pop(0)
