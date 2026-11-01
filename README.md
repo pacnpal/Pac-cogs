@@ -65,7 +65,7 @@ Replace `[p]` with your bot's prefix.
     [p]overseerr apikey <your-api-key>
     ```
 
-- **ThrillWiki**: No setup. It reads the public [ThrillWiki](https://www.thrillwiki.com/) API, so there's no key or URL to configure. Try `[p]tw ride steel vengeance` or `/thrillwiki waits` once it's loaded. See [thrillwiki/README.md](thrillwiki/README.md) for the full command list.
+- **ThrillWiki**: No setup. It reads the public [ThrillWiki](https://www.thrillwiki.com/) API, so there's no key or URL to configure. Try `[p]tw ride steel vengeance` once it's loaded. For the slash commands, run `[p]slash enable thrillwiki` and then `[p]slash sync`. See [thrillwiki/README.md](thrillwiki/README.md) for the full command list.
 
 - **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.
 

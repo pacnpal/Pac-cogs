@@ -10,7 +10,7 @@ Look up theme parks, rides and companies from [ThrillWiki](https://www.thrillwik
 [p]load thrillwiki
 ```
 
-Every command works as a prefix command (`[p]thrillwiki`, or the short `[p]tw`) and as a slash command under `/thrillwiki`. Run `[p]slash sync` once if the slash commands don't show up.
+Every command works as a prefix command (`[p]thrillwiki`, or the short `[p]tw`) and as a slash command under `/thrillwiki`. Red keeps a cog's slash commands off until you turn them on, so run `[p]slash enable thrillwiki` and then `[p]slash sync` once.
 
 ## Commands
 

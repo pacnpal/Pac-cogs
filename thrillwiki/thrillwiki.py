@@ -35,10 +35,19 @@ def kmh(value: float | None) -> str | None:
     return None if value is None else f"{value:g} km/h ({value * 0.621371:.0f} mph)"
 
 
-def clock(iso: str, tz: tzinfo | None) -> str:
-    # The API serializes times in the server's zone, so convert to the park's own.
-    dt = datetime.fromisoformat(iso)
-    return f"{dt.astimezone(tz) if tz else dt:%I:%M %p}".lstrip("0")
+def span(opening: str, closing: str, tz: tzinfo | None) -> str:
+    # The API serializes times in the server's zone, so convert to the park's own. Each end
+    # takes its own abbreviation, so a schedule crossing a DST change labels both sides right.
+    def clock(dt: datetime) -> str:
+        return f"{dt:%I:%M %p}".lstrip("0")
+
+    start, end = datetime.fromisoformat(opening), datetime.fromisoformat(closing)
+    if not tz:
+        return f"{clock(start)} to {clock(end)}"
+    start, end = start.astimezone(tz), end.astimezone(tz)
+    if f"{start:%Z}" == f"{end:%Z}":
+        return f"{clock(start)} to {clock(end)} {end:%Z}"
+    return f"{clock(start)} {start:%Z} to {clock(end)} {end:%Z}"
 
 
 def place(location: dict | None) -> str | None:
@@ -200,9 +209,8 @@ class ThrillWiki(commands.Cog):
                 return
             park = live.get("park") or {}
             tz = gettz(park["timezone"]) if park.get("timezone") else None
-            zone = f" {datetime.now(tz):%Z}" if tz else ""
             hours = [
-                f"{h['schedule_type_display']}: {clock(h['opening_time'], tz)} to {clock(h['closing_time'], tz)}{zone}"
+                f"{h['schedule_type_display']}: {span(h['opening_time'], h['closing_time'], tz)}"
                 for h in park.get("hours_today") or []
                 if h.get("opening_time") and h.get("closing_time")
             ]
