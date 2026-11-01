@@ -105,7 +105,10 @@ class GitHubApp:
                 if not 200 <= r.status < 300:
                     if r.status == 401:
                         self._tokens.pop(repo, None)
-                    if r.status in (403, 429) or r.status >= 500:
+                    # A 403 is a rate limit only when GitHub says so; otherwise it's a permission
+                    # problem in one repo and must not pause requests for the others.
+                    limited = r.headers.get("Retry-After") or r.headers.get("X-RateLimit-Remaining") == "0"
+                    if r.status == 429 or r.status >= 500 or (r.status == 403 and limited):
                         self._backoff(r.headers)
                     raise GitHubError(r.status)
                 if r.status == 204:
