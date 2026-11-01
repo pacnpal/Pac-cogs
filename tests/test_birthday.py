@@ -124,6 +124,18 @@ async def main():
     tracked = str(alice.id) in await conf.scheduled_tasks()
     assert tracked or role not in alice.roles, "role stranded without an expiry entry"
 
+    # Same race through manual removal: /removebirthday while add_roles is in flight.
+    alice.roles.clear()
+    gate.clear()
+    give_task = asyncio.create_task(cog.give(mod, alice, channel))
+    await asyncio.sleep(0)
+    remove_task = asyncio.create_task(cog.remove(mod, alice))
+    await asyncio.sleep(0.05)
+    gate.set()
+    await asyncio.gather(give_task, remove_task)
+    tracked = str(alice.id) in await conf.scheduled_tasks()
+    assert tracked or role not in alice.roles, "manual removal stranded the role"
+
     await bot.remove_cog("Birthday")
     print("birthday: all checks passed")
 

@@ -109,7 +109,8 @@ class Birthday(commands.Cog):
                     await self.expire(guild, user_id)
                 except Exception:
                     log.exception("Failed to remove birthday role during data deletion in guild %s", guild_id)
-            await self.config.guild_from_id(guild_id).scheduled_tasks.clear_raw(str(user_id))
+            async with self.lock:
+                await self.config.guild_from_id(guild_id).scheduled_tasks.clear_raw(str(user_id))
 
     # ---- helpers -------------------------------------------------------
 
@@ -192,16 +193,17 @@ class Birthday(commands.Cog):
         conf = self.config.guild(member.guild)
         if not await self.is_allowed(author):
             return "You don't have permission to use this command."
-        info = (await conf.scheduled_tasks()).get(str(member.id))
-        role = member.guild.get_role(info["role_id"] if info else await conf.birthday_role() or 0)
-        if role is None or role not in member.roles:
+        async with self.lock:  # same lock as give(), or this can clear an entry mid-assignment
+            info = (await conf.scheduled_tasks()).get(str(member.id))
+            role = member.guild.get_role(info["role_id"] if info else await conf.birthday_role() or 0)
+            if role is None or role not in member.roles:
+                await conf.scheduled_tasks.clear_raw(str(member.id))
+                return f"{member.display_name} doesn't have the birthday role."
+            try:
+                await member.remove_roles(role, reason=f"Birthday role removed by {author} ({author.id})")
+            except discord.HTTPException as e:
+                return f"I couldn't remove the birthday role: {e.text or e}"
             await conf.scheduled_tasks.clear_raw(str(member.id))
-            return f"{member.display_name} doesn't have the birthday role."
-        try:
-            await member.remove_roles(role, reason=f"Birthday role removed by {author} ({author.id})")
-        except discord.HTTPException as e:
-            return f"I couldn't remove the birthday role: {e.text or e}"
-        await conf.scheduled_tasks.clear_raw(str(member.id))
         return f"Birthday role removed from {member.display_name}. Party's over! 🎈"
 
     async def expire(self, guild: discord.Guild, member_id: int, now: Optional[float] = None) -> None:
