@@ -97,8 +97,10 @@ class GitHubApp:
             "User-Agent": "pac-cogs-forumissues",
         }
         try:
-            async with self.session.request(method, self.base + path, json=body, params=params,
-                                            headers=headers, allow_redirects=False) as r:
+            # A 10 MiB upload is ~13 MB of base64, too much for the session's 15s on a slow uplink.
+            timeout = aiohttp.ClientTimeout(total=300) if method == "PUT" else self.session.timeout
+            async with self.session.request(method, self.base + path, json=body, params=params, headers=headers,
+                                            allow_redirects=False, timeout=timeout) as r:
                 # Never log response bodies: they can hold user content or credentials.
                 if not 200 <= r.status < 300:
                     if r.status == 401:

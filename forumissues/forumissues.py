@@ -187,6 +187,8 @@ class ForumIssues(commands.Cog):
                     await self.step(self.discover(self.bot.get_guild(gid), data), "forum discovery")
             for data in guilds.values():
                 for p in data["posts"].values():
+                    if not discover and p["thread_id"] != str(thread_id):
+                        continue  # an event cycle handles only its own post; polling covers the rest
                     forum = data["forums"].get(p["forum_id"])
                     if forum is None:
                         continue  # a removed forum is no longer monitored
