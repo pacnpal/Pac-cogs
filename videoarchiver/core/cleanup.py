@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Dict, Any, Optional, TypedDict, ClassVar
 
 # try:
 # Try relative imports first
-from utils.file_ops import cleanup_downloads
-from utils.exceptions import CleanupError, ErrorContext, ErrorSeverity
+from ..utils.file_ops import cleanup_downloads
+from ..utils.exceptions import CleanupError, ErrorContext, ErrorSeverity
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -261,7 +261,7 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
             )
 
         # Clean up download directory
-        if hasattr(cog, "download_path") and cog.download_path.exists():
+        if getattr(cog, "download_path", None) and cog.download_path.exists():
             phase_start = datetime.utcnow()
             try:
                 logger.info("Cleaning up download directory")
@@ -392,7 +392,7 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
             )
 
         # Clean up download directory
-        if hasattr(cog, "download_path") and cog.download_path.exists():
+        if getattr(cog, "download_path", None) and cog.download_path.exists():
             phase_start = datetime.utcnow()
             try:
                 logger.info("Force cleaning download directory")

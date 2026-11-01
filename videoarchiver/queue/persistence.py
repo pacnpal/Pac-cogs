@@ -7,9 +7,9 @@ import time
 import fcntl
 import asyncio
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
-from models import QueueItem, QueueMetrics
+from .models import QueueItem, QueueMetrics
 
 # Configure logging
 logging.basicConfig(
@@ -48,7 +48,7 @@ class QueuePersistenceManager:
 
     async def persist_queue_state(
         self,
-        queue: list[QueueItem],
+        queue: List[QueueItem],
         processing: Dict[str, QueueItem],
         completed: Dict[str, QueueItem],
         failed: Dict[str, QueueItem],

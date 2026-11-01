@@ -9,8 +9,8 @@ from datetime import datetime
 
 # try:
 # Try relative imports first
-from cleanup import cleanup_resources, force_cleanup_resources
-from utils.exceptions import (
+from .cleanup import cleanup_resources, force_cleanup_resources
+from ..utils.exceptions import (
     VideoArchiverError,
     ErrorContext,
     ErrorSeverity,

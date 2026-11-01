@@ -6,8 +6,8 @@ import asyncio
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from utils.exceptions import FileCleanupError
-from utils.file_deletion import SecureFileDeleter
+from ..utils.exceptions import FileCleanupError
+from ..utils.file_deletion import SecureFileDeleter
 
 logger = logging.getLogger("DirectoryManager")
 
@@ -117,7 +117,7 @@ class DirectoryManager:
     async def _remove_directory(self, dir_path: str) -> None:
         """Remove a directory safely"""
         try:
-            await asyncio.to_thread(os.rmdir, dir_path)
+            await asyncio.get_running_loop().run_in_executor(None, os.rmdir, dir_path)
         except Exception as e:
             logger.error(f"Failed to remove directory {dir_path}: {e}")
             raise

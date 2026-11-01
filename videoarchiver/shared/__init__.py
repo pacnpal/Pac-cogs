@@ -1,6 +1,6 @@
 """Shared functionality for the videoarchiver package"""
 
-from progress import (
+from .progress import (
     compression_progress,
     download_progress,
     processing_progress,

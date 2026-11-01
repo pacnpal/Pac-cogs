@@ -11,12 +11,12 @@ import discord  # type: ignore
 
 # try:
 # Try relative imports first
-from processor.constants import REACTIONS
-from processor.reactions import handle_archived_reaction
-from guild import initialize_guild_components, cleanup_guild_components
-from error_handler import ErrorManager
-from response_handler import response_manager
-from utils.exceptions import EventError, ErrorContext, ErrorSeverity
+from ..processor.constants import REACTIONS
+from ..processor.reactions import handle_archived_reaction
+from .guild import initialize_guild_components, cleanup_guild_components
+from .error_handler import ErrorManager
+from .response_handler import response_manager
+from ..utils.exceptions import EventError, ErrorContext, ErrorSeverity
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -29,7 +29,7 @@ from utils.exceptions import EventError, ErrorContext, ErrorSeverity
 
 if TYPE_CHECKING:
     # try:
-    from base import VideoArchiver
+    from .base import VideoArchiver
 # except ImportError:
 # from videoarchiver.core.base import VideoArchiver
 

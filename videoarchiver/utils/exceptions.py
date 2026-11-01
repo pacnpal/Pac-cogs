@@ -364,6 +364,12 @@ class EventError(VideoArchiverError):
 
     pass
 
+class UpdateError(VideoArchiverError):
+    """Error during update checks"""
+
+    pass
+
+
 class CogError(VideoArchiverError):
     """Error in cog operations"""
     def __init__(

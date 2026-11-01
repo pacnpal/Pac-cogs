@@ -2,27 +2,21 @@
 
 from typing import Dict, Optional, Any, Union, List
 
-from file_ops import (
+from .file_ops import (
     cleanup_downloads,
     ensure_directory,
-    get_file_size,
-    is_valid_path,
-    safe_delete
 )
-from file_deletion import FileDeleter
-from directory_manager import DirectoryManager
-from permission_manager import PermissionManager
-from download_manager import DownloadManager
-from compression_manager import CompressionManager
-from progress_tracker import (
+from .file_deletion import SecureFileDeleter
+from .directory_manager import DirectoryManager
+from .permission_manager import PermissionManager
+from .download_manager import DownloadManager
+from .compression_manager import CompressionManager
+from .progress_tracker import (
     ProgressTracker,
     ProgressStatus,
-    DownloadProgress,
-    CompressionProgress,
-    CompressionParams
 )
-from path_manager import PathManager
-from exceptions import (
+from .path_manager import PathManager
+from .exceptions import (
     # Base exception
     VideoArchiverError,
     ErrorSeverity,
@@ -30,7 +24,6 @@ from exceptions import (
     
     # File operations
     FileOperationError,
-    DirectoryError,
     PermissionError,
     FileCleanupError,
     
@@ -85,19 +78,16 @@ from exceptions import (
     TrackingError
 )
 
-# Import progress_tracker from processor
-from processor import progress_tracker
+# ProgressTracker is a singleton, so this is the same instance processor uses
+progress_tracker = ProgressTracker()
 
 __all__ = [
     # File Operations
     'cleanup_downloads',
     'ensure_directory',
-    'get_file_size',
-    'is_valid_path',
-    'safe_delete',
     
     # Managers
-    'FileDeleter',
+    'SecureFileDeleter',
     'DirectoryManager',
     'PermissionManager',
     'DownloadManager',
@@ -107,9 +97,6 @@ __all__ = [
     
     # Progress Tracking Types
     'ProgressStatus',
-    'DownloadProgress',
-    'CompressionProgress',
-    'CompressionParams',
     
     # Base Exceptions
     'VideoArchiverError',
@@ -118,7 +105,6 @@ __all__ = [
     
     # File Operation Exceptions
     'FileOperationError',
-    'DirectoryError',
     'PermissionError',
     'FileCleanupError',
     
@@ -184,15 +170,8 @@ __version__ = "1.0.0"
 __author__ = "VideoArchiver Team"
 __description__ = "Utility functions and classes for VideoArchiver"
 
-# Initialize shared instances for module-level access
-directory_manager = DirectoryManager()
-permission_manager = PermissionManager()
-download_manager = DownloadManager()
-compression_manager = CompressionManager()
-path_manager = PathManager()
-
 # Progress tracking helper functions
-def get_download_progress(url: Optional[str] = None) -> Union[Dict[str, DownloadProgress], Optional[DownloadProgress]]:
+def get_download_progress(url: Optional[str] = None) -> Dict[str, Any]:
     """
     Get progress information for a download.
     
@@ -211,7 +190,7 @@ def get_download_progress(url: Optional[str] = None) -> Union[Dict[str, Download
     except Exception as e:
         raise TrackingError(f"Failed to get download progress: {str(e)}")
 
-def get_compression_progress(input_file: Optional[str] = None) -> Union[Dict[str, CompressionProgress], Optional[CompressionProgress]]:
+def get_compression_progress(input_file: Optional[str] = None) -> Dict[str, Any]:
     """
     Get progress information for a compression operation.
     
@@ -230,7 +209,7 @@ def get_compression_progress(input_file: Optional[str] = None) -> Union[Dict[str
     except Exception as e:
         raise TrackingError(f"Failed to get compression progress: {str(e)}")
 
-def get_active_downloads() -> Dict[str, DownloadProgress]:
+def get_active_downloads() -> Dict[str, Any]:
     """
     Get all active downloads.
     
@@ -245,7 +224,7 @@ def get_active_downloads() -> Dict[str, DownloadProgress]:
     except Exception as e:
         raise TrackingError(f"Failed to get active downloads: {str(e)}")
 
-def get_active_compressions() -> Dict[str, CompressionProgress]:
+def get_active_compressions() -> Dict[str, Any]:
     """
     Get all active compression operations.
     
