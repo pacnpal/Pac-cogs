@@ -16,7 +16,7 @@ from redbot.core.commands import (  # type: ignore
 
 # try:
 # Try relative imports first
-from utils.exceptions import (
+from ..utils.exceptions import (
     VideoArchiverError,
     ErrorSeverity,
     ErrorContext,
@@ -35,7 +35,7 @@ from utils.exceptions import (
     ResourceExhaustedError,
     ConfigurationError,
 )
-from core.response_handler import response_manager
+from ..core.response_handler import response_manager
 
 # except ImportError:
 #     # Fall back to absolute imports if relative imports fail

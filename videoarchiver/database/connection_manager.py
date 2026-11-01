@@ -12,7 +12,7 @@ from datetime import datetime
 
 # try:
 # Try relative imports first
-from utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
+from ..utils.exceptions import DatabaseError, ErrorContext, ErrorSeverity
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail

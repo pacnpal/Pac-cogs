@@ -5,6 +5,11 @@ from .overseerr import Overseerr
 
 logger = logging.getLogger("Overseerr")
 
+__red_end_user_data_statement__ = (
+    "This cog stores your Overseerr URL, API key and admin role name. "
+    "It does not store any data about Discord users."
+)
+
 async def setup(bot: Red) -> None:
     """Load Overseerr cog."""
     try:

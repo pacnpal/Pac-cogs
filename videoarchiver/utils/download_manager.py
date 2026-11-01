@@ -9,9 +9,11 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from pathlib import Path
 
-from ffmpeg.verification_manager import VerificationManager
-from utils.compression_manager import CompressionManager
-from processor import progress_tracker  # Import from processor instead of utils
+from ..ffmpeg.verification_manager import VerificationManager
+from ..utils.compression_manager import CompressionManager
+from .progress_tracker import ProgressTracker
+
+progress_tracker = ProgressTracker()  # singleton shared with processor
 
 logger = logging.getLogger("DownloadManager")
 

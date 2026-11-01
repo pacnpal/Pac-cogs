@@ -67,16 +67,18 @@ To install the cogs in this repository, follow these steps:
 
 Replace `[p]` with your bot's prefix.
 
+All cogs target Red-DiscordBot 3.5 (tested on 3.5.24). Slash commands and context menus must be enabled with `[p]slash enablecog <cogname>` (e.g. `birthday`) and then `[p]slash sync`.
+
 ### Additional Requirements
 
-- **Birthday**: No additional requirements. Just configure the birthday role, timezone, and allowed roles after installation. Supports both traditional commands, slash commands, and context menu interactions.
+- **Birthday**: No extra setup beyond `[p]birthdayset role @Role`. See [birthday/README.md](birthday/README.md). Supports prefix commands, slash commands and context menus.
 
 - **ForumIssues**: Needs a GitHub App installed on the destination repositories and the bot's Message Content intent. Run `[p]fi setup` after loading it. See [forumissues/README.md](forumissues/README.md).
 
 - **Overseerr**: Requires a running [Overseerr](https://overseerr.dev/) instance and API key. You'll need to configure the Overseerr URL and API key after installation using:
     ```bash
-    [p]overseerr url <your-overseerr-url>
-    [p]overseerr apikey <your-api-key>
+    [p]seturl <your-overseerr-url>
+    [p]setapikey <your-api-key>
     ```
 
 - **Provenance**: Requires an OpenAI API key with access to the Content Provenance API, set with `[p]set api openai api_key,<your key>`. Avatar scanning needs the Server Members intent enabled in the Discord Developer Portal. It only detects OpenAI's C2PA Content Credentials and SynthID watermark. See the [Provenance README](provenance/README.md) for details.

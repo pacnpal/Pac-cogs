@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Any, Dict, Optional, Protocol, TypedDict
+from typing import Any, Dict, Optional, Protocol, TypedDict, Tuple
 from datetime import datetime
 
 class ComponentState(Enum):
@@ -62,7 +62,7 @@ class IComponent(Protocol):
 class IProcessor(IComponent, Protocol):
     """Interface for video processor"""
     
-    async def process_video(self, item: Any) -> tuple[bool, Optional[str]]:
+    async def process_video(self, item: Any) -> Tuple[bool, Optional[str]]:
         """Process a video item"""
         ...
 

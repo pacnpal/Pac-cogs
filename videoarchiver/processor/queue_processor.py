@@ -11,8 +11,8 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 # Use non-relative imports
-from queue.q_types import QueuePriority, QueueMetrics, ProcessingMetrics
-from queue.models import QueueItem
+from ..queue.q_types import QueuePriority, QueueMetrics, ProcessingMetrics
+from ..queue.models import QueueItem
 
 logger = logging.getLogger("VideoArchiver")
 

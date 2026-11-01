@@ -2,16 +2,16 @@
 
 from .base import VideoArchiver
 from .commands import (
-    ArchiverCommands,
-    DatabaseCommands,
-    SettingsCommands
+    setup_archiver_commands,
+    setup_database_commands,
+    setup_settings_commands,
 )
 from .component_manager import ComponentManager
-from .error_handler import ErrorHandler
-from .events import EventHandler
+from .error_handler import ErrorManager
+from .events import EventManager
 from .initialization import initialize_cog
 from .lifecycle import LifecycleManager
-from .response_handler import ResponseHandler
+from .response_handler import ResponseManager
 from .settings import Settings
 from .c_types import (
     IQueueManager,
@@ -21,15 +21,15 @@ from .c_types import (
 
 __all__ = [
     "VideoArchiver",
-    "ArchiverCommands",
-    "DatabaseCommands",
-    "SettingsCommands",
+    "setup_archiver_commands",
+    "setup_database_commands",
+    "setup_settings_commands",
     "ComponentManager",
-    "ErrorHandler",
-    "EventHandler",
+    "ErrorManager",
+    "EventManager",
     "initialize_cog",
     "LifecycleManager",
-    "ResponseHandler",
+    "ResponseManager",
     "Settings",
     "IQueueManager",
     "QueueState",

@@ -1,0 +1,14 @@
+{
+    "name": "Overseerr",
+    "author": ["PacNPal"],
+    "short": "Search and request movies and TV shows on Overseerr.",
+    "description": "Search your Overseerr instance, request media from a dropdown and approve requests from Discord.",
+    "install_msg": "Thanks for installing Overseerr! Configure it with `[p]seturl` and `[p]setapikey`.",
+    "end_user_data_statement": "This cog stores your Overseerr URL, API key and admin role name. It does not store any data about Discord users.",
+    "requirements": [],
+    "tags": ["overseerr", "plex", "media", "requests"],
+    "min_bot_version": "3.5.0",
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}

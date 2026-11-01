@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     # try:
-    from base import VideoArchiver
+    from .base import VideoArchiver
 # except ImportError:
 # from videoarchiver.core.base import VideoArchiver
 
