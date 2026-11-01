@@ -1,0 +1,35 @@
+{
+    "name": "Provenance",
+    "short": "Check images and audio for OpenAI provenance signals",
+    "description": "Checks images (and optionally audio) for OpenAI's C2PA Content Credentials and SynthID watermark using OpenAI's Content Provenance API. Supports manual checks, opt-in auto scanning of attachments, and opt-in avatar scanning that posts to a private log channel. It only detects OpenAI signals. It doesn't detect content from other AI companies, and finding nothing doesn't prove a person made the file.",
+    "end_user_data_statement": "This cog stores per-server settings only (channel IDs and toggles). Files and avatars it checks are sent to OpenAI's Content Provenance API. Results are cached in memory by file hash and are never written to disk. No personal user data is stored.",
+    "install_msg": "Thanks for installing Provenance! Set your OpenAI key with `[p]set api openai api_key,<your key>`, then use `[p]provenance` to check a file. Avatar scanning needs the Server Members intent. See `[p]help Provenance` for settings.",
+    "author": [
+        "PacNPal"
+    ],
+    "required_cogs": {},
+    "requirements": [],
+    "tags": [
+        "openai",
+        "provenance",
+        "c2pa",
+        "synthid",
+        "moderation",
+        "images"
+    ],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [
+        3,
+        8,
+        0
+    ],
+    "hidden": false,
+    "disabled": false,
+    "type": "COG",
+    "permissions": [
+        "embed_links",
+        "read_message_history",
+        "send_messages"
+    ],
+    "end_user_data_statement_required": true
+}
