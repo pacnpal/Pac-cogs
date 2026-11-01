@@ -448,8 +448,9 @@ class Provenance(commands.Cog):
                 continue
             try:
                 async with self.auto_semaphore, guild_slot:
-                    data = await attachment.read()
-                    results = await self.check_bytes(data, attachment.filename, media_type, guild_id=message.guild.id)
+                    # No local name for the bytes, so they're freed when check_bytes returns
+                    # instead of living on while the reply below is sent.
+                    results = await self.check_bytes(await attachment.read(), attachment.filename, media_type, guild_id=message.guild.id)
             except (ProvenanceError, discord.HTTPException) as e:
                 logger.debug(f"Auto scan skipped {attachment.filename} in guild {message.guild.id}: {e}")
                 continue
