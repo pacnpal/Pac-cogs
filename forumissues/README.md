@@ -51,6 +51,8 @@ Each poll reads every linked issue once. That's fine for a community server. If 
 
 GitHub has no idempotency key for creating issues. Before sending the request, the cog saves that it's about to try. If the request times out or GitHub answers 5xx, the cog can't know whether the issue was made. It never sends a second create in that case. On every poll it looks through the repository's issues for the hidden `<!-- discord-forum-issue:GUILD_ID:THREAD_ID -->` marker at the end of the body, and picks the issue up if it shows up. Keep that marker intact. Synced comments carry a `<!-- discord-message:MESSAGE_ID -->` marker for the same reason.
 
+For up to an hour after an uncertain create, the cog also holds back GitHub comment relay for that repository, so comments on a recovered issue aren't skipped. After that, relay resumes for the repository's other issues.
+
 If an uncertain create really made nothing, the post stays stuck and the log says so. Check the repository's open and closed issues for the marker first. If there's truly no issue, stop the bot, set that post's `attempted` to `false` in the cog's Config data (`cogs/ForumIssues/settings.json` under Red's data path with the JSON backend), and start it again.
 
 ## Data

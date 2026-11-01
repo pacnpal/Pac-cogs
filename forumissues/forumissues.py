@@ -22,6 +22,9 @@ log = logging.getLogger("red.pac-cogs.forumissues")
 TOKEN_SERVICE = "forumissues"
 # Overlap for activation/archive cutoffs, so a host clock ahead of Discord does not drop new posts.
 CLOCK_SKEW = timedelta(minutes=5)
+# How long an uncertain create holds its repo's comment cursor, so a recovered issue's comments
+# wait instead of being passed. After that, the post likely needs manual repair (see README).
+RECOVERY_HOLD = 3600
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NEEDED_PERMS = ("view_channel", "read_message_history", "send_messages_in_threads", "manage_threads")
 
@@ -59,6 +62,9 @@ class ForumIssues(commands.Cog):
         self.lock = asyncio.Lock()
         self.queue: "asyncio.Queue[int]" = asyncio.Queue(maxsize=128)
         self.task: Optional[asyncio.Task] = None
+        # Threads seen by discovery's archive scan. Archived threads leave the cache, but the scan
+        # returns every thread re-archived since the last poll, with its last_message_id.
+        self.seen: Dict[int, discord.Thread] = {}
 
     async def cog_load(self) -> None:
         self.session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
@@ -210,6 +216,7 @@ class ForumIssues(commands.Cog):
         return channel
 
     async def register(self, data: dict, thread: discord.Thread) -> None:
+        self.seen[thread.id] = thread
         forum = data["forums"].get(str(thread.parent_id))
         tid = str(thread.id)
         if forum is None or tid in data["posts"] or thread.type != discord.ChannelType.public_thread:
@@ -218,7 +225,7 @@ class ForumIssues(commands.Cog):
         if discord.utils.snowflake_time(thread.id).timestamp() < forum["since"] - CLOCK_SKEW.total_seconds():
             return
         p = {"guild_id": str(thread.guild.id), "forum_id": str(thread.parent_id), "thread_id": tid,
-             "title": thread.name, "repo": forum["repo"], "creator_id": None, "body": "", "loaded": False,
+             "title": thread.name, "repo": forum["repo"], "labels": forum["labels"], "creator_id": None, "body": "", "loaded": False,
              "attempted": False, "issue_number": 0, "issue_url": "", "announced": False,
              "notified_closures": [], "resolution": None, "cursor": tid, "to_github": [], "to_discord": []}
         data["posts"][tid] = p
@@ -245,7 +252,9 @@ class ForumIssues(commands.Cog):
     # ---- forum post -> issue -> resolution --------------------------------------------------
 
     async def process(self, gh: GitHubApp, p: dict, forum: dict) -> None:
-        repo, labels = p["repo"], forum["labels"]
+        # Both are fixed at registration: changing a forum's repo must not send the new repo's
+        # labels to an issue pending in the old one.
+        repo, labels = p["repo"], p["labels"]
         if not p["loaded"]:
             thread = await self.channel(p["thread_id"])
             if not isinstance(thread, discord.Thread):
@@ -268,7 +277,7 @@ class ForumIssues(commands.Cog):
             else:
                 await gh.token(repo)  # a failed mint sends no POST, so it must not mark an attempt
                 # Commit the intent before the POST: a crash after GitHub accepts it must never re-send.
-                p["attempted"] = True
+                p["attempted"], p["attempted_at"] = True, time.time()
                 await self.save(p)
                 try:
                     issue = await gh.request(repo, "POST", "/issues", {
@@ -356,7 +365,7 @@ class ForumIssues(commands.Cog):
         """Relays new messages that mention the bot, then delivers both outboxes."""
         if not p["announced"]:
             return
-        thread = self.bot.get_channel(int(p["thread_id"]))
+        thread = self.bot.get_channel(int(p["thread_id"])) or self.seen.get(int(p["thread_id"]))
         last = getattr(thread, "last_message_id", None)
         if isinstance(thread, discord.Thread) and last and last > int(p["cursor"]):
             me = self.bot.user
@@ -399,8 +408,9 @@ class ForumIssues(commands.Cog):
         repos = await self.config.repos()
         hint = f"\n-# Mention {self.bot.user.mention} in this post to reply on GitHub."
         for repo, posts in by_repo.items():
-            if any(p["attempted"] and not p["issue_number"] for p in posts):
-                continue  # hold the cursor until that issue is mapped, so its comments wait, not drop
+            if any(p["attempted"] and not p["issue_number"] and time.time() - p.get("attempted_at", 0) < RECOVERY_HOLD
+                   for p in posts):
+                continue  # hold the cursor briefly so a recovered issue's comments wait, not drop
             state = repos.setdefault(repo, {"cursor": 0, "since": time.time()})
             since = datetime.fromtimestamp(state["since"], timezone.utc)
             # since is exclusive and second-precise; overlap it, the ID cursor drops repeats.
