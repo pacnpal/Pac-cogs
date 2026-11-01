@@ -8,10 +8,10 @@ import time
 from collections import OrderedDict
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple
-from urllib.parse import urljoin, urlsplit
 
 import aiohttp
 import discord  # type: ignore
+from yarl import URL
 from aiohttp.abc import AbstractResolver
 from redbot.core import Config, app_commands, commands  # type: ignore
 from redbot.core.bot import Red  # type: ignore
@@ -284,23 +284,32 @@ class Provenance(commands.Cog):
 
     async def fetch_url(self, url: str) -> Tuple[bytes, str, Optional[str]]:
         """Download a URL with SSRF protection. Returns (data, filename, content_type)."""
+        try:
+            target = URL(url)
+        except ValueError:
+            raise ProvenanceError("That isn't a valid URL.") from None
         for _ in range(MAX_REDIRECTS + 1):
-            parts = urlsplit(url)
-            if parts.scheme not in ("http", "https") or not parts.hostname:
+            # Check the host exactly as aiohttp will connect to it. yarl normalizes hosts
+            # (fullwidth digits become ASCII), so checking the raw string misses some IPs.
+            host = target.raw_host
+            if target.scheme not in ("http", "https") or not host:
                 raise ProvenanceError("Only http and https URLs can be checked.")
             try:
-                ipaddress.ip_address(parts.hostname)
+                ipaddress.ip_address(host)
                 literal = True
             except ValueError:
                 literal = False
             # Literal IPs skip the resolver in aiohttp, so check them here.
             # Hostnames are checked by PublicResolver after DNS resolution.
-            if literal and not is_public_ip(parts.hostname):
+            if literal and not is_public_ip(host):
                 raise ProvenanceError("That URL points at a private address.")
             try:
-                async with self.fetch_session.get(url, allow_redirects=False) as resp:
+                async with self.fetch_session.get(target, allow_redirects=False) as resp:
                     if resp.status in (301, 302, 303, 307, 308) and "Location" in resp.headers:
-                        url = urljoin(url, resp.headers["Location"])
+                        try:
+                            target = target.join(URL(resp.headers["Location"]))
+                        except ValueError:
+                            raise ProvenanceError("The URL redirected somewhere invalid.") from None
                         continue
                     if resp.status != 200:
                         raise ProvenanceError(f"The URL returned HTTP {resp.status}.")
@@ -311,10 +320,10 @@ class Provenance(commands.Cog):
                         data.extend(chunk)
                         if len(data) > MAX_BYTES:
                             raise ProvenanceError("That file is over the 50 MiB limit.")
-                    filename = os.path.basename(urlsplit(str(resp.url)).path) or "file"
+                    filename = os.path.basename(resp.url.path) or "file"
                     return bytes(data), filename, resp.headers.get("Content-Type")
             except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
-                logger.info(f"URL fetch failed for {url}: {e!r}")
+                logger.info(f"URL fetch failed for {target}: {e!r}")
                 raise ProvenanceError("Couldn't download that URL.") from e
         raise ProvenanceError("Too many redirects.")
 
@@ -370,8 +379,7 @@ class Provenance(commands.Cog):
                 embeds.append(self.results_embed(filename, await self.check_bytes(data, filename, media_type), color))
             except ProvenanceError as e:
                 errors.append(str(e).replace("[p]", ctx.clean_prefix))
-        # Discord allows 10 embeds per message, and a URL takes one of them.
-        for attachment in attachments[: 10 - bool(url)]:
+        for attachment in attachments[:10]:
             name = attachment.filename
             media_type = upload_type(name, attachment.content_type)
             try:
@@ -386,10 +394,29 @@ class Provenance(commands.Cog):
             except discord.HTTPException:
                 errors.append(f"{discord.utils.escape_markdown(name)}: couldn't download it from Discord.")
 
-        content = "\n".join(errors)[:2000] or None
-        await ctx.send(content=content, embeds=embeds)
+        # Discord allows 10 embeds and 6000 embed characters per message, so send in batches.
+        batch: List[discord.Embed] = []
+        for embed in embeds:
+            if len(batch) == 10 or sum(map(len, batch)) + len(embed) > 6000:
+                await ctx.send(embeds=batch)
+                batch = []
+            batch.append(embed)
+        await ctx.send(content="\n".join(errors)[:2000] or None, embeds=batch)
 
     # ---- Auto scan ----
+
+    def auto_slot(self, key: int) -> Optional[asyncio.Semaphore]:
+        """Return the per-guild slot if automatic work for this key can start now, else None.
+
+        Automatic scans skip instead of queueing, so a flood can't pile up downloads. Each key
+        gets at most AUTO_PER_GUILD of the AUTO_DOWNLOADS global slots, and a guild that's out
+        of rate-limit tokens is skipped before anything is downloaded.
+        """
+        slot = self.guild_slots.setdefault(key, asyncio.Semaphore(AUTO_PER_GUILD))
+        bucket = self.guild_cooldowns.get(key)
+        if self.auto_semaphore.locked() or slot.locked() or (bucket and bucket.get_tokens() == 0):
+            return None
+        return slot
 
     async def scanning_ready(self, guild: Optional[discord.Guild]) -> bool:
         if guild is None or self.paused or await self.bot.cog_disabled_in_guild(self, guild):
@@ -415,9 +442,8 @@ class Provenance(commands.Cog):
                 continue
             if media_type.startswith("audio/") and not settings["audio_scan"]:
                 continue
-            guild_slot = self.guild_slots.setdefault(message.guild.id, asyncio.Semaphore(AUTO_PER_GUILD))
-            bucket = self.guild_cooldowns.get(message.guild.id)
-            if self.auto_semaphore.locked() or guild_slot.locked() or (bucket and bucket.get_tokens() == 0):
+            guild_slot = self.auto_slot(message.guild.id)
+            if guild_slot is None:
                 logger.debug(f"Auto scan busy or rate limited, skipped {attachment.filename} in guild {message.guild.id}")
                 continue
             try:
@@ -449,11 +475,17 @@ class Provenance(commands.Cog):
         """Scan an avatar asset. Returns results when something was detected, otherwise None."""
         asset = asset.with_size(4096)
         filename = "avatar.gif" if asset.is_animated() else "avatar.png"
+        # Global avatar changes have no guild, so they share slot key 0 (no guild has ID 0).
+        slot = self.auto_slot(guild_id or 0)
+        if slot is None:
+            logger.debug(f"Avatar scan busy or rate limited, skipped for guild {guild_id}")
+            return None
         try:
-            data = await asset.read()
-            if len(data) > MAX_BYTES:
-                return None
-            results = await self.check_bytes(data, filename, EXT_TYPES[filename[-4:]], guild_id=guild_id)
+            async with self.auto_semaphore, slot:
+                data = await asset.read()
+                if len(data) > MAX_BYTES:
+                    return None
+                results = await self.check_bytes(data, filename, EXT_TYPES[filename[-4:]], guild_id=guild_id)
         except (ProvenanceError, discord.HTTPException) as e:
             logger.debug(f"Avatar scan skipped: {e}")
             return None
