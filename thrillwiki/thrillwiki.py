@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, tzinfo
 from typing import Any
 
 import aiohttp
 import discord  # type: ignore
+from dateutil.tz import gettz
 from redbot.core import app_commands, commands  # type: ignore
 from redbot.core.bot import Red  # type: ignore
 
@@ -33,9 +34,10 @@ def kmh(value: float | None) -> str | None:
     return None if value is None else f"{value:g} km/h ({value * 0.621371:.0f} mph)"
 
 
-def clock(iso: str) -> str:
-    # The API sends park-local times with an offset, so formatting as-is shows park time.
-    return f"{datetime.fromisoformat(iso):%I:%M %p}".lstrip("0")
+def clock(iso: str, tz: tzinfo | None) -> str:
+    # The API serializes times in the server's zone, so convert to the park's own.
+    dt = datetime.fromisoformat(iso)
+    return f"{dt.astimezone(tz) if tz else dt:%I:%M %p}".lstrip("0")
 
 
 def place(location: dict | None) -> str | None:
@@ -195,9 +197,12 @@ class ThrillWiki(commands.Cog):
             if not live.get("supported"):
                 await ctx.send(f"ThrillWiki has no live data for **{p['name']}**.")
                 return
+            park = live.get("park") or {}
+            tz = gettz(park["timezone"]) if park.get("timezone") else None
+            zone = f" {datetime.now(tz):%Z}" if tz else ""
             hours = [
-                f"{h['schedule_type_display']}: {clock(h['opening_time'])} to {clock(h['closing_time'])}"
-                for h in (live.get("park") or {}).get("hours_today") or []
+                f"{h['schedule_type_display']}: {clock(h['opening_time'], tz)} to {clock(h['closing_time'], tz)}{zone}"
+                for h in park.get("hours_today") or []
                 if h.get("opening_time") and h.get("closing_time")
             ]
             rides = sorted(
