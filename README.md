@@ -30,6 +30,9 @@ To install the cogs in this repository, follow these steps:
     # For Overseerr cog:
     [p]cog install Pac-cogs overseerr
 
+    # For Provenance cog:
+    [p]cog install Pac-cogs provenance
+
     # For VideoArchiver cog:
     [p]cog install Pac-cogs videoarchiver
     ```
@@ -42,6 +45,9 @@ To install the cogs in this repository, follow these steps:
 
     # For Overseerr cog:
     [p]load overseerr
+
+    # For Provenance cog:
+    [p]load provenance
 
     # For VideoArchiver cog:
     [p]load videoarchiver
@@ -58,6 +64,8 @@ Replace `[p]` with your bot's prefix.
     [p]overseerr url <your-overseerr-url>
     [p]overseerr apikey <your-api-key>
     ```
+
+- **Provenance**: Requires an OpenAI API key with access to the Content Provenance API, set with `[p]set api openai api_key,<your key>`. Avatar scanning needs the Server Members intent enabled in the Discord Developer Portal. It only detects OpenAI's C2PA Content Credentials and SynthID watermark. See the [Provenance README](provenance/README.md) for details.
 
 - **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.
 
