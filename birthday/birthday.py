@@ -168,19 +168,24 @@ class Birthday(commands.Cog):
         if problem := self.role_problem(role):
             return problem
 
-        scheduled = await conf.scheduled_tasks()
-        if role in member.roles and str(member.id) in scheduled:
-            ends = int(remove_at(scheduled[str(member.id)]))
-            return f"{member.display_name} is already celebrating! The party ends <t:{ends}:R>."
-
         ends = int(next_midnight(await self.get_tz(guild)).timestamp())
         async with self.lock:
+            # Check under the lock so two concurrent requests can't both get past it.
+            prev = (await conf.scheduled_tasks()).get(str(member.id))
+            if prev is not None and role in member.roles:
+                prev_ends = int(remove_at(prev))
+                return f"{member.display_name} is already celebrating! The party ends <t:{prev_ends}:R>."
             # Record first so a crash between the two steps can't leave the role on forever.
             await conf.scheduled_tasks.set_raw(str(member.id), value={"role_id": role.id, "remove_at": ends})
             try:
                 await member.add_roles(role, reason=f"Birthday role given by {author} ({author.id})")
             except discord.HTTPException as e:
-                await conf.scheduled_tasks.clear_raw(str(member.id))
+                # Put back any earlier entry: member.roles can lag behind an earlier successful
+                # add_roles(), so that role may be on and still needs its expiry.
+                if prev is None:
+                    await conf.scheduled_tasks.clear_raw(str(member.id))
+                else:
+                    await conf.scheduled_tasks.set_raw(str(member.id), value=prev)
                 log.warning("Could not give birthday role in guild %s: %s", guild.id, e)
                 return f"I couldn't give the birthday role: {e.text or e}"
 

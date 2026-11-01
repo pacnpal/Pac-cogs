@@ -150,6 +150,15 @@ async def main():
         carol.remove_roles.assert_awaited()
         assert "4" not in await conf.scheduled_tasks()
 
+    # Repeat give before the first one's gateway update lands, and the repeat fails:
+    # the first assignment's entry must survive.
+    dave = member(5)
+    dave.add_roles = AsyncMock()  # first give works on Discord, cache stays stale
+    await cog.give(mod, dave, channel)
+    dave.add_roles = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=500), "boom"))
+    assert "couldn't" in await cog.give(mod, dave, channel)
+    assert "5" in await conf.scheduled_tasks(), "failed repeat give wiped the first expiry"
+
     await bot.remove_cog("Birthday")
     print("birthday: all checks passed")
 
