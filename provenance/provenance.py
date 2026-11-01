@@ -355,7 +355,8 @@ class Provenance(commands.Cog):
                 embeds.append(self.results_embed(filename, await self.check_bytes(data, filename, media_type), color))
             except ProvenanceError as e:
                 errors.append(str(e).replace("[p]", ctx.clean_prefix))
-        for attachment in attachments[:10]:
+        # Discord allows 10 embeds per message, and a URL takes one of them.
+        for attachment in attachments[: 10 - bool(url)]:
             name = attachment.filename
             media_type = upload_type(name, attachment.content_type)
             try:
@@ -370,7 +371,7 @@ class Provenance(commands.Cog):
             except discord.HTTPException:
                 errors.append(f"{discord.utils.escape_markdown(name)}: couldn't download it from Discord.")
 
-        content = "\n".join(errors) or None
+        content = "\n".join(errors)[:2000] or None
         await ctx.send(content=content, embeds=embeds)
 
     # ---- Auto scan ----
