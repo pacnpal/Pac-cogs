@@ -132,7 +132,7 @@ All settings commands need the admin role or the Administrator permission.
 
 - Supported formats come from OpenAI's docs. Images: PNG, JPEG, WebP, GIF. Audio: MP3, Opus/Ogg, AAC, FLAC, WAV, PCM. The file extension and the reported MIME type both have to match a supported format before anything is uploaded. Files over 50 MiB are skipped, and OpenAI rejects audio longer than 60 seconds.
 - Results are cached in memory by the SHA-256 of the file for 6 hours (up to 1024 files), so reposting the same file doesn't call the API again.
-- At most 2 API calls run at once across the whole bot. Auto scans, join scans, and server avatar scans are limited to 10 API calls per server per minute. Anything past that is skipped quietly.
+- At most 2 API calls run at once across the whole bot. Auto scans, join scans, and server avatar scans are limited to 10 API calls per server per minute. Anything past that is skipped quietly. Auto scan holds at most 4 files in memory at once, and attachments that arrive while it's full are skipped, so a flood of uploads can't pile up downloads.
 - Rate limits (429) and server errors are retried up to 4 times with backoff and jitter. A rejected file (400) is logged and skipped. Errors from auto scans only go to the bot's log, never to channels.
 
 ## Data

@@ -23,6 +23,7 @@ MAX_BYTES = 50 * 1024 * 1024  # API upload limit (50 MiB)
 MAX_REDIRECTS = 3
 MAX_RETRIES = 4
 API_CONCURRENCY = 2
+AUTO_DOWNLOADS = 4  # auto scan files held in memory at once; extras are skipped
 CACHE_SIZE = 1024
 CACHE_TTL = 6 * 60 * 60
 GUILD_RATE = 10  # API calls allowed per guild...
@@ -159,6 +160,7 @@ class Provenance(commands.Cog):
         self.config.register_guild(**default_guild)
         self.cache: "OrderedDict[str, Tuple[float, List[dict]]]" = OrderedDict()
         self.api_semaphore = asyncio.Semaphore(API_CONCURRENCY)
+        self.auto_semaphore = asyncio.Semaphore(AUTO_DOWNLOADS)
         self.guild_cooldowns: Dict[int, commands.Cooldown] = {}
         self.paused = False  # set when the key has no Content Provenance access
         self.owner_notified = False
@@ -195,15 +197,9 @@ class Provenance(commands.Cog):
         Pass guild_id for auto scans so the per-guild rate limit applies. Cache hits are free.
         """
         digest = hashlib.sha256(data).hexdigest()
-        hit = self.cache.get(digest)
-        if hit and time.monotonic() - hit[0] < CACHE_TTL:
-            self.cache.move_to_end(digest)
-            return hit[1]
-
-        if guild_id is not None:
-            bucket = self.guild_cooldowns.setdefault(guild_id, commands.Cooldown(GUILD_RATE, GUILD_PER))
-            if bucket.update_rate_limit():
-                raise ProvenanceError("Auto scan rate limit reached for this server.")
+        cached = self._cached(digest)
+        if cached is not None:
+            return cached
 
         api_key = (await self.bot.get_shared_api_tokens("openai")).get("api_key")
         if not api_key:
@@ -212,6 +208,15 @@ class Provenance(commands.Cog):
             raise ProvenanceError("The OpenAI API key doesn't have Content Provenance access.")
 
         async with self.api_semaphore:
+            # An identical file may have finished while this call waited for the semaphore.
+            cached = self._cached(digest)
+            if cached is not None:
+                return cached
+            if guild_id is not None:
+                bucket = self.guild_cooldowns.setdefault(guild_id, commands.Cooldown(GUILD_RATE, GUILD_PER))
+                if bucket.update_rate_limit():
+                    raise ProvenanceError("Auto scan rate limit reached for this server.")
+
             for attempt in range(MAX_RETRIES):
                 form = aiohttp.FormData()
                 form.add_field("file", data, filename=filename, content_type=media_type)
@@ -251,6 +256,13 @@ class Provenance(commands.Cog):
 
         logger.warning(f"Content Provenance API still failing after {MAX_RETRIES} attempts")
         raise ProvenanceError("The OpenAI API is busy or unavailable. Try again later.")
+
+    def _cached(self, digest: str) -> Optional[List[dict]]:
+        hit = self.cache.get(digest)
+        if hit and time.monotonic() - hit[0] < CACHE_TTL:
+            self.cache.move_to_end(digest)
+            return hit[1]
+        return None
 
     async def _lost_access(self, status: int) -> None:
         self.paused = True
@@ -400,9 +412,13 @@ class Provenance(commands.Cog):
                 continue
             if media_type.startswith("audio/") and not settings["audio_scan"]:
                 continue
+            if self.auto_semaphore.locked():
+                logger.debug(f"Auto scan busy, skipped {attachment.filename} in guild {message.guild.id}")
+                continue
             try:
-                data = await attachment.read()
-                results = await self.check_bytes(data, attachment.filename, media_type, guild_id=message.guild.id)
+                async with self.auto_semaphore:
+                    data = await attachment.read()
+                    results = await self.check_bytes(data, attachment.filename, media_type, guild_id=message.guild.id)
             except (ProvenanceError, discord.HTTPException) as e:
                 logger.debug(f"Auto scan skipped {attachment.filename} in guild {message.guild.id}: {e}")
                 continue
