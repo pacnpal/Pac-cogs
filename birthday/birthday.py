@@ -363,7 +363,9 @@ class Birthday(commands.Cog):
         await self.config.guild(ctx.guild).message.set(message)
         if message is None:
             return await ctx.send("Back to the built-in random birthday messages.")
-        await ctx.send("Custom birthday message saved. Preview:\n" + render(message, ctx.author), allowed_mentions=NO_MENTIONS)
+        # Two sends: render() already fills the 2000-char limit on its own.
+        await ctx.send("Custom birthday message saved. Preview:")
+        await ctx.send(render(message, ctx.author), allowed_mentions=NO_MENTIONS)
 
     @birthdayset.command(name="test")
     @commands.admin_or_permissions(manage_guild=True)
