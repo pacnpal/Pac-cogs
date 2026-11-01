@@ -216,10 +216,12 @@ class ForumIssues(commands.Cog):
         return channel
 
     async def register(self, data: dict, thread: discord.Thread) -> None:
-        self.seen[thread.id] = thread
         forum = data["forums"].get(str(thread.parent_id))
         tid = str(thread.id)
-        if forum is None or tid in data["posts"] or thread.type != discord.ChannelType.public_thread:
+        if tid in data["posts"]:
+            self.seen[thread.id] = thread  # only linked posts are synced, so only they are kept
+            return
+        if forum is None or thread.type != discord.ChannelType.public_thread:
             return
         # ponytail: skew beyond CLOCK_SKEW can still miss posts; keep host clocks synchronized.
         if discord.utils.snowflake_time(thread.id).timestamp() < forum["since"] - CLOCK_SKEW.total_seconds():
