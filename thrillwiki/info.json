@@ -1,0 +1,11 @@
+{
+    "author": ["PacNPal"],
+    "name": "ThrillWiki",
+    "short": "Look up theme parks, rides and live wait times from ThrillWiki.",
+    "description": "Search ThrillWiki for parks, rides, shows and companies, check live wait times and today's hours, and see site-wide stats. Uses the public API, so there's nothing to configure.",
+    "install_msg": "Load it with `[p]load thrillwiki`, then try `[p]tw ride millennium force`.",
+    "end_user_data_statement": "This cog does not store any user data.",
+    "tags": ["thrillwiki", "theme parks", "roller coasters", "wait times"],
+    "min_bot_version": "3.5.0",
+    "type": "COG"
+}
