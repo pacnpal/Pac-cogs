@@ -27,6 +27,9 @@ To install the cogs in this repository, follow these steps:
     # For Birthday cog:
     [p]cog install Pac-cogs birthday
 
+    # For ForumIssues cog:
+    [p]cog install Pac-cogs forumissues
+
     # For Overseerr cog:
     [p]cog install Pac-cogs overseerr
 
@@ -46,6 +49,9 @@ To install the cogs in this repository, follow these steps:
     # For Birthday cog:
     [p]load birthday
 
+    # For ForumIssues cog:
+    [p]load forumissues
+
     # For Overseerr cog:
     [p]load overseerr
 
@@ -64,6 +70,8 @@ Replace `[p]` with your bot's prefix.
 ### Additional Requirements
 
 - **Birthday**: No additional requirements. Just configure the birthday role, timezone, and allowed roles after installation. Supports both traditional commands, slash commands, and context menu interactions.
+
+- **ForumIssues**: Needs a GitHub App installed on the destination repositories and the bot's Message Content intent. Run `[p]fi setup` after loading it. See [forumissues/README.md](forumissues/README.md).
 
 - **Overseerr**: Requires a running [Overseerr](https://overseerr.dev/) instance and API key. You'll need to configure the Overseerr URL and API key after installation using:
     ```bash
