@@ -94,7 +94,17 @@ class Birthday(commands.Cog):
         self.bot.tree.remove_command(self.remove_menu.name, type=self.remove_menu.type)
 
     async def red_delete_data_for_user(self, *, requester, user_id: int) -> None:
-        for guild_id in await self.config.all_guilds():
+        for guild_id, data in (await self.config.all_guilds()).items():
+            info = data["scheduled_tasks"].get(str(user_id))
+            if info is None:
+                continue
+            # Take the role off first; without the entry the expiry loop would never remove it.
+            guild = self.bot.get_guild(guild_id)
+            if guild is not None:
+                try:
+                    await self.expire(guild, user_id, info["role_id"])
+                except Exception:
+                    log.exception("Failed to remove birthday role during data deletion in guild %s", guild_id)
             await self.config.guild_from_id(guild_id).scheduled_tasks.clear_raw(str(user_id))
 
     # ---- helpers -------------------------------------------------------

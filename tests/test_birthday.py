@@ -99,6 +99,7 @@ async def main():
     await cog.give(mod, alice, channel)
     await cog.red_delete_data_for_user(requester="user", user_id=2)
     assert await conf.scheduled_tasks() == {}
+    assert role not in alice.roles, "data deletion must not strand the role"
 
     await bot.remove_cog("Birthday")
     print("birthday: all checks passed")
