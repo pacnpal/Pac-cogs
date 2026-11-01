@@ -49,14 +49,16 @@ To install the cogs in this repository, follow these steps:
 
 Replace `[p]` with your bot's prefix.
 
+All cogs target Red-DiscordBot 3.5 (tested on 3.5.24). Slash commands and context menus must be enabled with `[p]slash enablecog <cogname>` (e.g. `birthday`) and then `[p]slash sync`.
+
 ### Additional Requirements
 
-- **Birthday**: No additional requirements. Just configure the birthday role, timezone, and allowed roles after installation. Supports both traditional commands, slash commands, and context menu interactions.
+- **Birthday**: No extra setup beyond `[p]birthdayset role @Role`. See [birthday/README.md](birthday/README.md). Supports prefix commands, slash commands and context menus.
 
 - **Overseerr**: Requires a running [Overseerr](https://overseerr.dev/) instance and API key. You'll need to configure the Overseerr URL and API key after installation using:
     ```bash
-    [p]overseerr url <your-overseerr-url>
-    [p]overseerr apikey <your-api-key>
+    [p]seturl <your-overseerr-url>
+    [p]setapikey <your-api-key>
     ```
 
 - **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.

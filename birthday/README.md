@@ -1,140 +1,69 @@
 # Birthday Cog for Red-DiscordBot
 
-This cog allows you to assign a special role to users on their birthday and send them a celebratory message with cake (or pie) emojis! Supports both traditional prefix commands, slash commands, and context menu commands.
+Give someone a birthday role until midnight in your server's timezone, and throw them a party: a random celebratory announcement, a pile of cakes (or pie, or a rare legendary cake drop), and a 🎉 reaction for everyone to join in on. Works with prefix commands, slash commands and right-click context menus.
+
+Requires Red-DiscordBot 3.5+ and Python 3.9+.
 
 ## Installation
 
-To install this cog, follow these steps:
+```
+[p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
+[p]cog install Pac-cogs birthday
+[p]load birthday
+```
 
-1. Ensure you have Red-DiscordBot V3 installed.
-2. Add the repository to your bot:
+To use slash commands and the context menus (this enables both):
 
-   ```
-   [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
-   ```
-
-3. Install the Birthday cog:
-
-   ```
-   [p]cog install Pac-cogs birthday
-   ```
-
-4. Load the cog:
-
-   ```
-   [p]load birthday
-   ```
+```
+[p]slash enablecog birthday
+[p]slash sync
+```
 
 Replace `[p]` with your bot's prefix.
 
 ## Setup
 
-Before using the cog, you need to set it up. You can use either prefix commands or slash commands:
+Admins, or anyone with Manage Server, configure the cog with `[p]birthdayset` (or `/birthdayset`):
 
-1. Set the birthday role:
+| Command | What it does |
+| --- | --- |
+| `birthdayset role @Birthday` | Set the role to give. The bot's top role must be above it. |
+| `birthdayset timezone America/New_York` | When "midnight" is. Slash command autocompletes. Default `UTC`. |
+| `birthdayset channel #birthdays` | Where to announce. Leave empty to announce wherever the command is used. |
+| `birthdayset allowrole @Party Planners` | Let a role give birthday roles. |
+| `birthdayset disallowrole @Party Planners` | Take that permission away. |
+| `birthdayset message <text>` | Custom announcement. Placeholders: `{mention}` `{name}` `{server}` `{cakes}`. Leave empty to go back to the random built-in messages. |
+| `birthdayset test` | Preview the announcement without giving a role. |
+| `birthdayset settings` | Show the current settings and flag permission problems. |
 
-   ```
-   [p]setrole @Birthday
-   ```
-   or
-   ```
-   /setrole @Birthday
-   ```
-
-   **Note:** The bot's role must be above the birthday role in the server's role hierarchy, but users assigning the birthday role do not need to have a role above it.
-
-2. Add roles that can use the birthday command:
-
-   ```
-   [p]birthdayallowrole @Moderator
-   ```
-   or
-   ```
-   /birthdayallowrole @Moderator
-   ```
-
-3. (Optional) Set the timezone for role expiration:
-
-   ```
-   [p]settimezone America/New_York
-   ```
-   or
-   ```
-   /settimezone America/New_York
-   ```
-
-4. (Optional) Set a specific channel for birthday announcements:
-
-   ```
-   [p]setchannel #birthdays
-   ```
-   or
-   ```
-   /setchannel #birthdays
-   ```
-
-   If not set, the birthday message will be sent in the channel where the command is used.
+Server mods/admins (Red's `[p]set addmodrole` / `addadminrole`) and anyone with Manage Roles can always give birthday roles. Allowed roles add to that list.
 
 ## Usage
 
-To assign or remove the birthday role from a user, you can use any of these methods:
+- `[p]birthday @User` or `/birthday`: give the role and announce it. The role comes off at the next midnight. Giving it again on the same day just tells you the party is already on.
+- `[p]removebirthday @User` or `/removebirthday`: end the party early.
+- `[p]bdaycheck` or `/bdaycheck`: list who's celebrating and when their role comes off.
+- Right-click a member → Apps → **Give Birthday Role** / **Remove Birthday Role**.
 
-1. Commands:
-   ```
-   [p]birthday @User
-   ```
-   or
-   ```
-   /birthday @User
-   ```
+## How removal works
 
-   To remove:
-   ```
-   [p]removebirthday @User
-   ```
-   or
-   ```
-   /removebirthday @User
-   ```
+Every member's expiry is saved as a timestamp, and the bot checks once a minute, so several birthdays on the same day are all handled and nothing is lost across restarts. If the bot was offline at midnight, the role comes off as soon as it's back. Changing the timezone doesn't move parties that have already started.
 
-2. Context Menu:
-   - Right-click on a user and select "Apps > Give Birthday Role" to assign
-   - Right-click on a user and select "Apps > Remove Birthday Role" to remove
+## Upgrading from earlier versions
 
-When assigning the role, this will give the user the birthday role and send a celebratory message with random cake (or pie) emojis. The role will be automatically removed at midnight in the specified timezone.
+The setup commands moved under `birthdayset` so they no longer clash with other cogs:
 
-## Features
+| Old | New |
+| --- | --- |
+| `setrole` | `birthdayset role` |
+| `settimezone` | `birthdayset timezone` |
+| `setchannel` | `birthdayset channel` |
+| `birthdayallowrole` | `birthdayset allowrole` |
+| `birthdayremoverole` | `birthdayset disallowrole` |
+| `status` | `birthdayset settings` |
 
-- Assigns a special birthday role to users
-- Sends a celebratory message with random cake (or pie) emojis
-- Automatically removes the birthday role at midnight
-- Configurable timezone for role expiration
-- Option to set a specific channel for birthday announcements (defaults to the channel where the command is used)
-- Restricts usage of the birthday command to specified roles
-- Users can assign the birthday role without needing a role higher than it in the hierarchy
-- Full slash command and context menu support
-- Persistent birthday role removal scheduling (survives bot restarts)
-- Birthday role removal task checking
-- Manual birthday role removal option
-
-## Commands
-
-All commands support both prefix and slash command syntax:
-
-### Admin Commands
-- `[p]setrole` or `/setrole`: Set the birthday role
-- `[p]birthdayallowrole` or `/birthdayallowrole`: Add a role that can use the birthday command
-- `[p]birthdayremoverole` or `/birthdayremoverole`: Remove a role from using the birthday command
-- `[p]settimezone` or `/settimezone`: Set the timezone for the birthday role expiration
-- `[p]setchannel` or `/setchannel`: Set the channel for birthday announcements
-
-### User Commands
-- `[p]birthday` or `/birthday`: Assign the birthday role to a user
-- `[p]removebirthday` or `/removebirthday`: Remove the birthday role from a user
-- Context Menu > "Give Birthday Role": Right-click a user to assign the birthday role
-- Context Menu > "Remove Birthday Role": Right-click a user to remove the birthday role
-- `[p]bdaycheck` or `/bdaycheck`: Check upcoming birthday role removal tasks
+Existing settings and running parties carry over.
 
 ## Support
 
-If you encounter any issues or have questions, please open an issue on the [GitHub repository](https://github.com/pacnpal/Pac-cogs).
+Open an issue on the [GitHub repository](https://github.com/pacnpal/Pac-cogs).

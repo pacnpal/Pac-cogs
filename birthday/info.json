@@ -1,0 +1,15 @@
+{
+    "name": "Birthday",
+    "author": ["PacNPal"],
+    "short": "Give members a birthday role until midnight and throw them a party.",
+    "description": "Assign a birthday role that is removed automatically at midnight in your timezone, with randomised cake-filled announcements, custom messages, slash commands and right-click context menus.",
+    "install_msg": "Thanks for installing Birthday! Set it up with `[p]birthdayset role @Role`, then optionally `[p]birthdayset timezone`, `[p]birthdayset channel` and `[p]birthdayset allowrole`. For slash commands and context menus run `[p]slash enablecog birthday` and `[p]slash sync`.",
+    "end_user_data_statement": "This cog stores the IDs of members who currently have the birthday role and when it should be removed. That entry is deleted when the role comes off or on a data deletion request.",
+    "requirements": ["tzdata"],
+    "tags": ["birthday", "roles", "fun", "celebration"],
+    "min_bot_version": "3.5.0",
+    "min_python_version": [3, 9, 0],
+    "hidden": false,
+    "disabled": false,
+    "type": "COG"
+}
