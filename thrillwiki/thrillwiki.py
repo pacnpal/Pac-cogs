@@ -36,8 +36,9 @@ def kmh(value: float | None) -> str | None:
 
 
 def span(opening: str, closing: str, tz: tzinfo | None) -> str:
-    # The API serializes times in the server's zone, so convert to the park's own. Each end
-    # takes its own abbreviation, so a schedule crossing a DST change labels both sides right.
+    # The API writes a park's times on the park's own clock (thrillwiki#3303), so the wall time
+    # is read as sent and the zone only names it. Each end takes its own abbreviation, so a
+    # schedule crossing a DST change labels both sides right.
     def clock(dt: datetime) -> str:
         return f"{dt:%I:%M %p}".lstrip("0")
 
