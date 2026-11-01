@@ -102,14 +102,15 @@ class Birthday(commands.Cog):
             info = data["scheduled_tasks"].get(str(user_id))
             if info is None:
                 continue
-            # Take the role off first; without the entry the expiry loop would never remove it.
-            guild = self.bot.get_guild(guild_id)
-            if guild is not None:
-                try:
-                    await self.expire(guild, user_id)
-                except Exception:
-                    log.exception("Failed to remove birthday role during data deletion in guild %s", guild_id)
+            # One lock hold for both steps, so a give() can't slip in between and get wiped.
             async with self.lock:
+                # Take the role off first; without the entry the expiry loop would never remove it.
+                guild = self.bot.get_guild(guild_id)
+                if guild is not None:
+                    try:
+                        await self._expire_locked(guild, user_id)
+                    except Exception:
+                        log.exception("Failed to remove birthday role during data deletion in guild %s", guild_id)
                 await self.config.guild_from_id(guild_id).scheduled_tasks.clear_raw(str(user_id))
 
     # ---- helpers -------------------------------------------------------
@@ -212,22 +213,26 @@ class Birthday(commands.Cog):
         Transient errors propagate so the next tick retries.
         """
         async with self.lock:
-            # Re-read under the lock: give() may have replaced the entry since the loop's snapshot.
-            info = (await self.config.guild(guild).scheduled_tasks()).get(str(member_id))
-            if info is None or (now is not None and remove_at(info) > now):
-                return
-            role = guild.get_role(info["role_id"])
-            if role is not None:
-                member = guild.get_member(member_id)
-                if member is None:
-                    with contextlib.suppress(discord.NotFound):
-                        member = await guild.fetch_member(member_id)
-                if member is not None and role in member.roles:
-                    try:
-                        await member.remove_roles(role, reason="Birthday is over")
-                    except (discord.Forbidden, discord.NotFound) as e:
-                        log.warning("Giving up removing birthday role in guild %s: %s", guild.id, e)
-            await self.config.guild(guild).scheduled_tasks.clear_raw(str(member_id))
+            await self._expire_locked(guild, member_id, now)
+
+    async def _expire_locked(self, guild: discord.Guild, member_id: int, now: Optional[float] = None) -> None:
+        """expire() for callers already holding self.lock (asyncio.Lock isn't reentrant)."""
+        # Re-read under the lock: give() may have replaced the entry since the loop's snapshot.
+        info = (await self.config.guild(guild).scheduled_tasks()).get(str(member_id))
+        if info is None or (now is not None and remove_at(info) > now):
+            return
+        role = guild.get_role(info["role_id"])
+        if role is not None:
+            member = guild.get_member(member_id)
+            if member is None:
+                with contextlib.suppress(discord.NotFound):
+                    member = await guild.fetch_member(member_id)
+            if member is not None and role in member.roles:
+                try:
+                    await member.remove_roles(role, reason="Birthday is over")
+                except (discord.Forbidden, discord.NotFound) as e:
+                    log.warning("Giving up removing birthday role in guild %s: %s", guild.id, e)
+        await self.config.guild(guild).scheduled_tasks.clear_raw(str(member_id))
 
     # ponytail: polls every minute, so roles come off up to ~60s after midnight.
     @tasks.loop(minutes=1)
