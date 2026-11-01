@@ -204,7 +204,7 @@ class ForumIssues(commands.Cog):
             # Sweep after the posts, so an issue recovered from a lost create response is mapped
             # before the comment cursor passes its comments.
             if discover:
-                await self.step(self.sweep(gh, guilds), "GitHub comment sync")
+                await self.sweep(gh, guilds)
 
     async def channel(self, channel_id: Union[int, str]) -> Any:
         channel = self.bot.get_channel(int(channel_id))
@@ -401,38 +401,41 @@ class ForumIssues(commands.Cog):
 
     async def sweep(self, gh: GitHubApp, guilds: Dict[int, dict]) -> None:
         """Queues issue comments that mention the App for their linked Discord posts."""
-        slug = await gh.app_slug()
         by_repo: Dict[str, List[dict]] = {}
         for data in guilds.values():
             for p in data["posts"].values():
                 if p["forum_id"] in data["forums"]:
                     by_repo.setdefault(p["repo"], []).append(p)
-        repos = await self.config.repos()
-        hint = f"\n-# Mention {self.bot.user.mention} in this post to reply on GitHub."
         for repo, posts in by_repo.items():
             if any(p["attempted"] and not p["issue_number"] and time.time() - p.get("attempted_at", 0) < RECOVERY_HOLD
                    for p in posts):
                 continue  # hold the cursor briefly so a recovered issue's comments wait, not drop
-            state = repos.setdefault(repo, {"cursor": 0, "since": time.time()})
-            since = datetime.fromtimestamp(state["since"], timezone.utc)
-            # since is exclusive and second-precise; overlap it, the ID cursor drops repeats.
-            for c in sorted(await gh.comments_since(repo, since - timedelta(minutes=1)), key=lambda c: c["id"]):
-                created = parse_time(c["created_at"])
-                if c["id"] <= state["cursor"] or created < since:
-                    continue  # already checked, or an older comment edited since
-                number = int(c["issue_url"].rsplit("/", 1)[1])
-                login = c["user"]["login"]
-                body = c.get("body") or ""
-                # The App's own comments carry Discord text and must not echo back.
-                if login.lower() != f"{slug}[bot]".lower() and mentions(slug, body):
-                    for p in posts:
-                        if p["issue_number"] == number:
-                            ping = f"<@{p['creator_id']}> " if p["creator_id"] else ""
-                            content = f"{ping}**{login}** commented on GitHub: <{c['html_url']}>\n{quote(strip_mention(slug, body))}"
-                            p["to_discord"].append(fit(content, hint))
-                            await self.save(p)
-                state["cursor"], state["since"] = c["id"], created.timestamp()
-            await self.config.repos.set_raw(repo, value=state)
+            # One step per repo, so an unreachable repo cannot stop relay for the others.
+            await self.step(self.sweep_repo(gh, repo, posts), f"GitHub comment sync for {repo}")
+
+    async def sweep_repo(self, gh: GitHubApp, repo: str, posts: List[dict]) -> None:
+        slug = await gh.app_slug()
+        hint = f"\n-# Mention {self.bot.user.mention} in this post to reply on GitHub."
+        state = (await self.config.repos()).get(repo) or {"cursor": 0, "since": time.time()}
+        since = datetime.fromtimestamp(state["since"], timezone.utc)
+        # since is exclusive and second-precise; overlap it, the ID cursor drops repeats.
+        for c in sorted(await gh.comments_since(repo, since - timedelta(minutes=1)), key=lambda c: c["id"]):
+            created = parse_time(c["created_at"])
+            if c["id"] <= state["cursor"] or created < since:
+                continue  # already checked, or an older comment edited since
+            number = int(c["issue_url"].rsplit("/", 1)[1])
+            login = c["user"]["login"]
+            body = c.get("body") or ""
+            # The App's own comments carry Discord text and must not echo back.
+            if login.lower() != f"{slug}[bot]".lower() and mentions(slug, body):
+                for p in posts:
+                    if p["issue_number"] == number:
+                        ping = f"<@{p['creator_id']}> " if p["creator_id"] else ""
+                        content = f"{ping}**{login}** commented on GitHub: <{c['html_url']}>\n{quote(strip_mention(slug, body))}"
+                        p["to_discord"].append(fit(content, hint))
+                        await self.save(p)
+            state["cursor"], state["since"] = c["id"], created.timestamp()
+        await self.config.repos.set_raw(repo, value=state)
 
     # ---- commands -----------------------------------------------------------------------------
 
