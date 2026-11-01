@@ -24,6 +24,7 @@ MAX_REDIRECTS = 3
 MAX_RETRIES = 4
 API_CONCURRENCY = 2
 AUTO_DOWNLOADS = 4  # auto scan files held in memory at once; extras are skipped
+AUTO_PER_GUILD = 2  # slots one guild can hold, so a flood can't starve other guilds
 CACHE_SIZE = 1024
 CACHE_TTL = 6 * 60 * 60
 GUILD_RATE = 10  # API calls allowed per guild...
@@ -161,6 +162,7 @@ class Provenance(commands.Cog):
         self.cache: "OrderedDict[str, Tuple[float, List[dict]]]" = OrderedDict()
         self.api_semaphore = asyncio.Semaphore(API_CONCURRENCY)
         self.auto_semaphore = asyncio.Semaphore(AUTO_DOWNLOADS)
+        self.guild_slots: Dict[int, asyncio.Semaphore] = {}
         self.guild_cooldowns: Dict[int, commands.Cooldown] = {}
         self.paused = False  # set when the key has no Content Provenance access
         self.owner_notified = False
@@ -412,11 +414,13 @@ class Provenance(commands.Cog):
                 continue
             if media_type.startswith("audio/") and not settings["audio_scan"]:
                 continue
-            if self.auto_semaphore.locked():
-                logger.debug(f"Auto scan busy, skipped {attachment.filename} in guild {message.guild.id}")
+            guild_slot = self.guild_slots.setdefault(message.guild.id, asyncio.Semaphore(AUTO_PER_GUILD))
+            bucket = self.guild_cooldowns.get(message.guild.id)
+            if self.auto_semaphore.locked() or guild_slot.locked() or (bucket and bucket.get_tokens() == 0):
+                logger.debug(f"Auto scan busy or rate limited, skipped {attachment.filename} in guild {message.guild.id}")
                 continue
             try:
-                async with self.auto_semaphore:
+                async with self.auto_semaphore, guild_slot:
                     data = await attachment.read()
                     results = await self.check_bytes(data, attachment.filename, media_type, guild_id=message.guild.id)
             except (ProvenanceError, discord.HTTPException) as e:
