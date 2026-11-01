@@ -101,6 +101,29 @@ async def main():
     assert await conf.scheduled_tasks() == {}
     assert role not in alice.roles, "data deletion must not strand the role"
 
+    # Race: expiry loop runs while add_roles is still waiting on Discord, with an entry that's
+    # already due (command run right at midnight). The role must not be left on untracked.
+    import birthday.birthday as bmod
+    real_midnight = bmod.next_midnight
+    bmod.next_midnight = lambda tz: datetime.now(tz)  # due immediately
+    gate = asyncio.Event()
+
+    async def slow_add(r, **_):
+        await gate.wait()
+        alice.roles.append(r)
+
+    alice.add_roles = AsyncMock(side_effect=slow_add)
+    give_task = asyncio.create_task(cog.give(mod, alice, channel))
+    await asyncio.sleep(0)
+    loop_task = asyncio.create_task(cog.expiry_loop.coro(cog))
+    await asyncio.sleep(0.05)
+    gate.set()
+    await asyncio.gather(give_task, loop_task)
+    await cog.expiry_loop.coro(cog)
+    bmod.next_midnight = real_midnight
+    tracked = str(alice.id) in await conf.scheduled_tasks()
+    assert tracked or role not in alice.roles, "role stranded without an expiry entry"
+
     await bot.remove_cog("Birthday")
     print("birthday: all checks passed")
 
