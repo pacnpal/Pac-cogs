@@ -5,10 +5,8 @@ permissions:
   pull-requests: write
 
 on:
-  # Run on new/updated PRs
-  pull_request:
-    types: [opened, reopened, synchronize]
-  
+  # Automatic PR runs are off: the pinned action asks for a retired model and fails.
+  # Restore the pull_request trigger once the action uses a current model.
   # Allow manual triggers for existing PRs
   workflow_dispatch:
     inputs:

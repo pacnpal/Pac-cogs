@@ -30,6 +30,9 @@ To install the cogs in this repository, follow these steps:
     # For Overseerr cog:
     [p]cog install Pac-cogs overseerr
 
+    # For Provenance cog:
+    [p]cog install Pac-cogs provenance
+
     # For ThrillWiki cog:
     [p]cog install Pac-cogs thrillwiki
 
@@ -45,6 +48,9 @@ To install the cogs in this repository, follow these steps:
 
     # For Overseerr cog:
     [p]load overseerr
+
+    # For Provenance cog:
+    [p]load provenance
 
     # For ThrillWiki cog:
     [p]load thrillwiki
@@ -64,6 +70,8 @@ Replace `[p]` with your bot's prefix.
     [p]overseerr url <your-overseerr-url>
     [p]overseerr apikey <your-api-key>
     ```
+
+- **Provenance**: Requires an OpenAI API key with access to the Content Provenance API, set with `[p]set api openai api_key,<your key>`. Avatar scanning needs the Server Members intent enabled in the Discord Developer Portal. It only detects OpenAI's C2PA Content Credentials and SynthID watermark. See the [Provenance README](provenance/README.md) for details.
 
 - **ThrillWiki**: No setup. It reads the public [ThrillWiki](https://www.thrillwiki.com/) API, so there's no key or URL to configure. Try `[p]tw ride steel vengeance` once it's loaded. For the slash commands, run `[p]slash enable thrillwiki` and then `[p]slash sync`. See [thrillwiki/README.md](thrillwiki/README.md) for the full command list.
 
