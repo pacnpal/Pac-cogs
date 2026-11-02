@@ -54,6 +54,43 @@ async def main():
         ok, msg = await checker.update_yt_dlp()
     assert not ok and "boom" in msg
 
+    # A broken new install: keep the loaded yt-dlp in sys.modules
+    loaded = sys.modules["yt_dlp"]
+    with patch("importlib.import_module", side_effect=ImportError("half-written")):
+        try:
+            reload_yt_dlp()
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("reload_yt_dlp swallowed the ImportError")
+    assert sys.modules["yt_dlp"] is loaded
+
+    # Unload during pip: the subprocess is killed and reaped, not left running
+    proc = MagicMock(returncode=None, wait=AsyncMock())
+    proc.communicate = lambda: asyncio.sleep(3600)
+    with patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc)):
+        task = asyncio.create_task(checker.update_yt_dlp())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    proc.kill.assert_called_once()
+    proc.wait.assert_awaited_once()
+
+    # An exception in one cycle doesn't kill the daily loop
+    calls = []
+    async def flaky():
+        calls.append(1)
+        raise OSError("can't spawn pip")
+    with patch.object(UpdateChecker, "update_yt_dlp", side_effect=flaky), \
+         patch.object(UpdateChecker, "UPDATE_INTERVAL", 0.01):
+        await checker.start()
+        await asyncio.sleep(0.1)
+        assert not checker._task.done() and len(calls) > 1
+        await checker.stop()
+
     # start() updates right away, then sleeps a day; stop() cancels cleanly
     with patch.object(UpdateChecker, "update_yt_dlp", AsyncMock(return_value=(True, "ok"))) as upd:
         await checker.start()

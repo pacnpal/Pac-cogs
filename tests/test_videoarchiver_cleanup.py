@@ -71,14 +71,19 @@ async def main():
         assert not cog.ready.is_set()
 
         cog = FakeCog()
+        updater = cog.update_checker = MagicMock(stop=AsyncMock())
         await cleanup.force_cleanup_resources(cog)
+        updater.stop.assert_awaited_once()  # force path stops the yt-dlp updater
         system.assert_not_called()
         assert_cleared(cog)
         # References phase got past the component lines.
         assert cog.bot is None and cog.db is None and cog.components == {}
 
     cog = FakeCog()
+    updater = cog.update_checker = MagicMock(stop=AsyncMock())
     await LifecycleManager(cog)._cleanup_references()
+    updater.stop.assert_awaited_once()
+    assert cog.update_checker is None
     assert_cleared(cog)
     assert cog.components == {} and cog.db is None
 

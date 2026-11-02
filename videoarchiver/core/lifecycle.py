@@ -9,7 +9,7 @@ from datetime import datetime
 
 # try:
 # Try relative imports first
-from .cleanup import cleanup_resources, force_cleanup_resources, clear_component
+from .cleanup import cleanup_resources, force_cleanup_resources, clear_component, stop_update_checker
 from ..utils.exceptions import (
     VideoArchiverError,
     ErrorContext,
@@ -475,7 +475,7 @@ class LifecycleManager:
         self.cog.bot = None
         clear_component(self.cog, "processor")
         clear_component(self.cog, "queue_manager")
-        self.cog.update_checker = None
+        await stop_update_checker(self.cog)
         clear_component(self.cog, "ffmpeg_mgr")
         self.cog.components.clear()
         self.cog.db = None

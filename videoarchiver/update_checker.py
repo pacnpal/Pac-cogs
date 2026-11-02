@@ -41,8 +41,13 @@ class UpdateChecker:
 
     async def _loop(self) -> None:
         while True:
-            ok, message = await self.update_yt_dlp()
-            (logger.info if ok else logger.error)(message)
+            try:
+                ok, message = await self.update_yt_dlp()
+                (logger.info if ok else logger.error)(message)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("yt-dlp update failed")
             await asyncio.sleep(self.UPDATE_INTERVAL)
 
     @staticmethod
@@ -64,8 +69,12 @@ class UpdateChecker:
             _, stderr = await asyncio.wait_for(
                 process.communicate(), timeout=self.SUBPROCESS_TIMEOUT
             )
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            # Don't leave pip writing to site-packages after unload
             process.kill()
+            await process.wait()
+            if isinstance(e, asyncio.CancelledError):
+                raise
             return False, "yt-dlp update timed out"
         if process.returncode != 0:
             return False, f"yt-dlp update failed: {stderr.decode(errors='ignore').strip()}"
@@ -82,10 +91,17 @@ def reload_yt_dlp() -> None:
 
     Downloads already running keep the old module objects and finish on them.
     """
-    for name in [m for m in sys.modules if m == "yt_dlp" or m.startswith("yt_dlp.")]:
-        del sys.modules[name]
+    old = {m: sys.modules.pop(m) for m in list(sys.modules)
+           if m == "yt_dlp" or m.startswith("yt_dlp.")}
     importlib.invalidate_caches()
-    fresh = importlib.import_module("yt_dlp")
+    try:
+        fresh = importlib.import_module("yt_dlp")
+    except Exception:
+        # Broken install: keep running on the version already loaded
+        for m in [m for m in sys.modules if m == "yt_dlp" or m.startswith("yt_dlp.")]:
+            del sys.modules[m]
+        sys.modules.update(old)
+        raise
     for name, module in list(sys.modules.items()):
         if name.startswith(__package__ + ".") and getattr(module, "yt_dlp", None) is not None:
             module.yt_dlp = fresh

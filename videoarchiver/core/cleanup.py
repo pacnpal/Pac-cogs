@@ -34,6 +34,16 @@ def clear_component(cog: "VideoArchiver", name: str) -> None:
         registry.pop(name, None)
 
 
+async def stop_update_checker(cog: "VideoArchiver") -> None:
+    """Cancel the yt-dlp updater (and any pip it's running) before dropping it."""
+    checker, cog.update_checker = getattr(cog, "update_checker", None), None
+    if checker:
+        try:
+            await asyncio.wait_for(checker.stop(), timeout=10)
+        except Exception as e:
+            logger.warning(f"Error stopping yt-dlp updater: {e}")
+
+
 class CleanupPhase(Enum):
     """Cleanup phases"""
 
@@ -444,7 +454,7 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
             cog.bot = None
             clear_component(cog, "processor")
             clear_component(cog, "queue_manager")
-            cog.update_checker = None
+            await stop_update_checker(cog)
             clear_component(cog, "ffmpeg_mgr")
             cog.components = {}
             cog.db = None
