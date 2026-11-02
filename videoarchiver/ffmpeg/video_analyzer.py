@@ -17,7 +17,6 @@ def temp_path_context():
     """Context manager for temporary path creation and cleanup"""
     temp_dir = tempfile.mkdtemp(prefix="ffmpeg_")
     try:
-        os.chmod(temp_dir, 0o777)
         yield temp_dir
     finally:
         try:

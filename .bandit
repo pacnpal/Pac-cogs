@@ -1,0 +1,5 @@
+[bandit]
+# B101 assert: tests and self-check demos, not a security boundary
+# B404/B603/B607 subprocess with list args (no shell): the ffmpeg/GPU probes need it; B602/B605 shell use stays on
+# B110/B112 try/except/pass|continue: best-effort cleanup paths
+skips = B101,B404,B603,B607,B110,B112
