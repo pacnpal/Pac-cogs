@@ -30,6 +30,7 @@ from ..config_manager import ConfigManager
 from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager, QueueConfig
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
+from ..update_checker import UpdateChecker
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -437,6 +438,10 @@ class ComponentManager:
                 processor,
                 {"config_manager", "queue_manager", "ffmpeg_mgr"},
             )
+
+            # Upgrades yt-dlp now (in the background) and then daily
+            cog.update_checker = UpdateChecker()
+            await cog.update_checker.start()
 
         except Exception as e:
             error = f"Failed to initialize core components: {str(e)}"

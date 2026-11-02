@@ -74,54 +74,36 @@ A powerful video archiving cog that automatically downloads and reposts videos f
 
 ## Commands
 
-All commands support both prefix and slash command syntax:
+Every command works as a prefix command and as a slash command. Red keeps slash commands off until an owner turns them on with `[p]slash enable` and `[p]slash sync`.
 
-### Core Video Archiver Commands (va_)
-- **`va_settings`**: Show current video archiver settings
-- **`va_format <mp4|webm|mkv>`**: Set video format
-- **`va_quality <144-4320>`**: Set maximum video quality (in pixels)
-- **`va_maxsize <1-100>`**: Set maximum file size (in MB)
-- **`va_concurrent <1-5>`**: Set number of concurrent downloads
-- **`va_toggledelete`**: Toggle deletion of local files after reposting
-- **`va_duration <0-168>`**: Set message duration in hours (0 for permanent)
-- **`va_template <template>`**: Set message template using {author}, {url}, {original_message}
-- **`va_update`**: Update yt-dlp to latest version
-- **`va_toggleupdates`**: Toggle update notifications
+### Archiver (`archiver`)
+- **`archiver enable`**: Turn on video archiving in this server
+- **`archiver disable`**: Turn it off
+- **`archiver queue`**: Show the processing queue
+- **`archiver status`**: Show cog, queue, processor and health status
 
-### Database Management Commands (archivedb_)
-- **`archivedb enable`**: Enable the video archive database
-- **`archivedb disable`**: Disable the video archive database
-- **`checkarchived <url>`**: Check if a video URL has been archived
+### Settings (`settings`)
+- **`settings`**: Show the current settings
+- **`settings setchannel <channel>`**: Set the archive channel
+- **`settings setlog <channel>`**: Set the log channel
+- **`settings addchannel <channel>`**: Add a channel to monitor
+- **`settings removechannel <channel>`**: Stop monitoring a channel
+- **`settings setformat <mp4|webm|mkv>`**: Set the video format
+- **`settings setquality <144-4320>`**: Set the max video height in pixels
+- **`settings setmaxsize <1-100>`**: Set the max file size in MB
+- **`settings setmessageduration <0-168>`**: How long archive messages stay, in hours (0 keeps them)
+- **`settings settemplate <template>`**: Set the archive message template. Placeholders: `{author}`, `{channel}`, `{original_message}`
+- **`settings setconcurrent <1-5>`**: Set how many downloads run at once
 
-### Archiver Management Commands (archiver_)
-- **`archiver enable`**: Enable video archiving in the server
-- **`archiver disable`**: Disable video archiving in the server
-- **`archiver setchannel <channel>`**: Set the archive channel
-- **`archiver setlog <channel>`**: Set the log channel
-- **`archiver addchannel <channel>`**: Add a channel to monitor
-- **`archiver removechannel <channel>`**: Remove a channel from monitoring
-- **`archiver queue`**: Show current queue status
+### Database (`archivedb`)
+- **`archivedb enable`**: Turn on the archive database
+- **`archivedb disable`**: Turn it off
+- **`archivedb check <url>`**: Check whether a URL was already archived
+- **`archivedb status`**: Show database status and stats
 
-### Queue Management Commands (vaq_)
-- **`vaq_status`**: Show current queue status with basic metrics
-- **`vaq_metrics`**: Show detailed queue performance metrics
-- **`vaq_clear`**: Clear the video processing queue
+## yt-dlp updates
 
-### Channel Configuration Commands (vac_)
-- **`vac_archive <channel>`**: Set the archive channel
-- **`vac_notify <channel>`**: Set the notification channel
-- **`vac_log <channel>`**: Set the log channel for errors
-- **`vac_monitor [channel]`**: Add channel to monitor (empty for all channels)
-- **`vac_unmonitor <channel>`**: Remove channel from monitoring
-
-### Role Management Commands (var_)
-- **`var_add [role]`**: Add allowed role (empty for @everyone)
-- **`var_remove <role>`**: Remove allowed role
-- **`var_list`**: List allowed roles
-
-### Site Management Commands (vas_)
-- **`vas_enable [sites...]`**: Enable specific sites (empty for all)
-- **`vas_list`**: List available and enabled sites
+The cog upgrades yt-dlp when it starts and then once a day, with `pip install --upgrade yt-dlp` in the bot's environment. A new version gets swapped in without restarting the bot. Downloads already running finish on the old one. Updates show up in the bot log.
 
 ## Default Settings
 
@@ -161,7 +143,7 @@ Channel: {channel}
 
 ## Site Support
 
-The cog supports all sites compatible with yt-dlp. Use `vas_list` to see available sites and currently enabled ones.
+The cog supports every site yt-dlp supports.
 
 ## Performance & Limitations
 
