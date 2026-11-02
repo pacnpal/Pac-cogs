@@ -74,14 +74,16 @@ or
 
 This will:
 1. Search for the media on Overseerr
-2. Display an interactive select menu with up to 25 results
-3. Show media type, release date, and current status (Available/Not Available/Requested) for each result
+2. Display an interactive select menu with up to 25 movie and TV results (people in the search results are left out)
+3. Show media type, release date, and current status (Available/Partially Available/Not Available/Requested) for each result
 4. Allow you to select the desired title from the menu
 5. Automatically check if the media is already available or requested before submitting a new request
 
+TV requests ask for every season. If a show is partially available, Overseerr only requests the seasons it doesn't have yet.
+
 ### Approving Requests
 
-Admins can approve requests using:
+Admins can approve requests using the command below. It only works in a server, not in DMs, because it checks your roles.
 
 ```
 [p]approve request_id
@@ -127,7 +129,7 @@ All commands support both prefix and slash command syntax:
   - Example: `[p]request The Matrix` or `/request The Matrix`
 
 - **`[p]approve <request_id>`** or **`/approve <request_id>`**
-  - Approve a media request (requires admin role)
+  - Approve a media request (requires admin role, server only)
   - Example: `[p]approve 123` or `/approve 123`
 
 ## Support
