@@ -185,7 +185,7 @@ class ValidationRuleManager:
                 ))
         self.rules.sort(key=lambda x: x.priority)
 
-    def _validate_content(self, ctx: ValidationContext) -> Tuple[bool, Optional[str]]:
+    def _validate_content_check(self, ctx: ValidationContext) -> Tuple[bool, Optional[str]]:
         """Validate message content"""
         if not ctx.content_length and not ctx.attachment_count:
             return False, "No content or attachments"
@@ -197,10 +197,10 @@ class ValidationRuleManager:
             return False, "Video archiving disabled for guild"
         return True, None
 
-    def _validate_channel(self, ctx: ValidationContext) -> Tuple[bool, Optional[str]]:
+    def _validate_channel_enabled(self, ctx: ValidationContext) -> Tuple[bool, Optional[str]]:
         """Validate channel settings"""
-        enabled_channels = ctx.settings.get("enabled_channels", [])
-        if enabled_channels and ctx.channel_id not in enabled_channels:
+        monitored_channels = ctx.settings.get("monitored_channels", [])
+        if monitored_channels and ctx.channel_id not in monitored_channels:
             return False, "Channel not enabled for archiving"
         return True, None
 

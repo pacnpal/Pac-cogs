@@ -65,20 +65,12 @@ class CommandContext:
         return False
 
 
-def setup_archiver_commands(cog: Any) -> Callable:
-    """
-    Set up archiver commands for the cog.
-
-    Args:
-        cog: VideoArchiver cog instance
-
-    Returns:
-        Main archiver command group
-    """
+class ArchiverCommands:
+    """Archiver commands mixin for the VideoArchiver cog"""
 
     @hybrid_group(name="archiver", fallback="help")
     @guild_only()
-    async def archiver(ctx: Context) -> None:
+    async def archiver(self, ctx: Context) -> None:
         """Manage video archiver settings."""
         if ctx.invoked_subcommand is None:
             await handle_response(
@@ -90,12 +82,12 @@ def setup_archiver_commands(cog: Any) -> Callable:
     @archiver.command(name="enable")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def enable_archiver(ctx: Context) -> None:
+    async def enable_archiver(self, ctx: Context) -> None:
         """Enable video archiving in this server."""
         async with CommandContext(ctx, CommandCategory.MANAGEMENT, "enable_archiver"):
             try:
                 # Check if config manager is ready
-                if not cog.config_manager:
+                if not self.config_manager:
                     raise CommandError(
                         "Configuration system is not ready",
                         context=ErrorContext(
@@ -107,7 +99,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     )
 
                 # Check current setting
-                current_setting = await cog.config_manager.get_setting(
+                current_setting = await self.config_manager.get_setting(
                     ctx.guild.id, "enabled"
                 )
                 if current_setting:
@@ -119,7 +111,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     return
 
                 # Update setting
-                await cog.config_manager.update_setting(ctx.guild.id, "enabled", True)
+                await self.config_manager.update_setting(ctx.guild.id, "enabled", True)
                 await handle_response(
                     ctx,
                     "Video archiving has been enabled.",
@@ -142,12 +134,12 @@ def setup_archiver_commands(cog: Any) -> Callable:
     @archiver.command(name="disable")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def disable_archiver(ctx: Context) -> None:
+    async def disable_archiver(self, ctx: Context) -> None:
         """Disable video archiving in this server."""
         async with CommandContext(ctx, CommandCategory.MANAGEMENT, "disable_archiver"):
             try:
                 # Check if config manager is ready
-                if not cog.config_manager:
+                if not self.config_manager:
                     raise CommandError(
                         "Configuration system is not ready",
                         context=ErrorContext(
@@ -159,7 +151,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     )
 
                 # Check current setting
-                current_setting = await cog.config_manager.get_setting(
+                current_setting = await self.config_manager.get_setting(
                     ctx.guild.id, "enabled"
                 )
                 if not current_setting:
@@ -171,7 +163,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     return
 
                 # Update setting
-                await cog.config_manager.update_setting(ctx.guild.id, "enabled", False)
+                await self.config_manager.update_setting(ctx.guild.id, "enabled", False)
                 await handle_response(
                     ctx,
                     "Video archiving has been disabled.",
@@ -193,12 +185,12 @@ def setup_archiver_commands(cog: Any) -> Callable:
 
     @archiver.command(name="queue")
     @guild_only()
-    async def show_queue(ctx: Context) -> None:
+    async def show_queue(self, ctx: Context) -> None:
         """Show the current video processing queue."""
         async with CommandContext(ctx, CommandCategory.STATUS, "show_queue"):
             try:
                 # Check if processor is ready
-                if not cog.processor:
+                if not self.processor:
                     raise CommandError(
                         "Video processor is not ready",
                         context=ErrorContext(
@@ -209,7 +201,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         ),
                     )
 
-                await cog.processor.show_queue_details(ctx)
+                await self.processor.show_queue_details(ctx)
 
             except Exception as e:
                 error = f"Failed to show queue: {str(e)}"
@@ -227,23 +219,23 @@ def setup_archiver_commands(cog: Any) -> Callable:
     @archiver.command(name="status")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def show_status(ctx: Context) -> None:
+    async def show_status(self, ctx: Context) -> None:
         """Show the archiver status for this server."""
         async with CommandContext(ctx, CommandCategory.STATUS, "show_status"):
             try:
                 # Get comprehensive status
                 status = {
-                    "enabled": await cog.config_manager.get_setting(
+                    "enabled": await self.config_manager.get_setting(
                         ctx.guild.id, "enabled"
                     ),
                     "queue": (
-                        cog.queue_manager.get_queue_status(ctx.guild.id)
-                        if cog.queue_manager
+                        self.queue_manager.get_queue_status(ctx.guild.id)
+                        if self.queue_manager
                         else None
                     ),
-                    "processor": cog.processor.get_status() if cog.processor else None,
-                    "components": cog.component_manager.get_component_status(),
-                    "health": cog.status_tracker.get_status(),
+                    "processor": self.processor.get_status() if self.processor else None,
+                    "components": self.component_manager.get_component_status(),
+                    "health": self.status_tracker.get_status(),
                 }
 
                 # Create status embed
@@ -276,7 +268,7 @@ def setup_archiver_commands(cog: Any) -> Callable:
                     embed.add_field(
                         name="Processor",
                         value=(
-                            f"Active: {status['processor']['active']}\n"
+                            f"Active: {len(status['processor']['details']['active_operations'])}\n"
                             f"Health: {status['processor']['health']}"
                         ),
                         inline=True,
@@ -305,12 +297,3 @@ def setup_archiver_commands(cog: Any) -> Callable:
                         ErrorSeverity.MEDIUM,
                     ),
                 )
-
-    # Store commands in cog for access
-    cog.archiver = archiver
-    cog.enable_archiver = enable_archiver
-    cog.disable_archiver = disable_archiver
-    cog.show_queue = show_queue
-    cog.show_status = show_status
-
-    return archiver

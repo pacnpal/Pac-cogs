@@ -10,7 +10,8 @@ from pathlib import Path
 
 import discord  # type: ignore
 from redbot.core.bot import Red  # type: ignore
-from redbot.core.commands import GroupCog, Context  # type: ignore
+from redbot.core import Config  # type: ignore
+from redbot.core.commands import Cog, Context  # type: ignore
 
 # try:
 # Try relative imports first
@@ -19,9 +20,7 @@ from .lifecycle import LifecycleManager, LifecycleState
 from .component_manager import ComponentManager, ComponentState
 from .error_handler import error_manager, handle_command_error
 from .response_handler import ResponseManager
-from .commands.archiver_commands import setup_archiver_commands
-from .commands.database_commands import setup_database_commands
-from .commands.settings_commands import setup_settings_commands
+from .commands import ArchiverCommands, DatabaseCommands, SettingsCommands
 from .events import setup_events, EventManager
 from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager
@@ -37,9 +36,6 @@ from ..utils.exceptions import CogError, ErrorContext, ErrorSeverity
 # from videoarchiver.core.component_manager import ComponentManager, ComponentState
 # from videoarchiver.core.error_handler import error_manager, handle_command_error
 # from videoarchiver.core.response_handler import ResponseManager
-# from videoarchiver.core.commands.archiver_commands import setup_archiver_commands
-# from videoarchiver.core.commands.database_commands import setup_database_commands
-# from videoarchiver.core.commands.settings_commands import setup_settings_commands
 # from videoarchiver.core.events import setup_events, EventManager
 # from videoarchiver.processor.core import VideoProcessor
 # from videoarchiver.queue.manager import EnhancedVideoQueueManager
@@ -148,7 +144,7 @@ class ComponentAccessor:
         """
         component = self._component_manager.get(name)
         if component and component.state == ComponentState.READY:
-            return component
+            return component.instance
         return None
 
     def get_component_status(self, name: str) -> Dict[str, Any]:
@@ -164,7 +160,7 @@ class ComponentAccessor:
         return self._component_manager.get_component_status().get(name, {})
 
 
-class VideoArchiver(GroupCog, Settings):
+class VideoArchiver(ArchiverCommands, DatabaseCommands, SettingsCommands, Cog, Settings):
     """Archive videos from Discord channels"""
 
     def __init__(self, bot: Red) -> None:
@@ -172,6 +168,7 @@ class VideoArchiver(GroupCog, Settings):
         super().__init__()
         self.bot = bot
         self.ready = asyncio.Event()
+        self.config = Config.get_conf(self, identifier=8573920184, force_registration=True)
 
         # Initialize managers
         self.lifecycle_manager = LifecycleManager(self)
@@ -190,11 +187,6 @@ class VideoArchiver(GroupCog, Settings):
         self.components: Dict[int, Dict[str, Any]] = {}
         self.update_checker = None
         self._db = None
-
-        # Set up commands
-        setup_archiver_commands(self)
-        setup_database_commands(self)
-        setup_settings_commands(self)
 
         # Set up events
         self.event_manager = setup_events(self)
@@ -282,27 +274,25 @@ class VideoArchiver(GroupCog, Settings):
         """Monitor system health metrics"""
         while True:
             try:
-                # Check queue health
+                # Check queue health (component-wide; get_queue_status is per-guild)
                 if queue_manager := self.queue_manager:
-                    queue_status = await queue_manager.get_queue_status()
+                    queue_status = queue_manager.get_status()
                     self.status_tracker.update_health_check(
-                        "queue_health",
-                        queue_status["active"] and not queue_status["stalled"],
-                        queue_status,
+                        "queue_health", queue_status["health"], queue_status
                     )
 
                 # Check processor health
                 if processor := self.processor:
-                    processor_status = await processor.get_status()
+                    processor_status = processor.get_status()
                     self.status_tracker.update_health_check(
-                        "processor_health", processor_status["active"], processor_status
+                        "processor_health", processor_status["health"], processor_status
                     )
 
                 # Check database health
                 if db := self.db:
-                    db_status = await db.get_status()
+                    db_status = db.connection_manager.get_status()
                     self.status_tracker.update_health_check(
-                        "database_health", db_status["connected"], db_status
+                        "database_health", db_status["state"] == "healthy", db_status
                     )
 
                 # Check event system health

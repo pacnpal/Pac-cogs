@@ -5,7 +5,7 @@ import asyncio
 import os
 from enum import Enum, auto
 from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import discord  # type: ignore
 
 # try:
@@ -167,16 +167,17 @@ class QueueHandler:
         if not self.db:
             return False
 
-        if self.db.is_url_archived(item.url):
+        if await self.db.is_url_archived(item.url):
             logger.info(f"Video already archived: {item.url}")
             if original_message := await self._get_original_message(item):
                 await self._update_message_reactions(
                     original_message, QueueItemStatus.COMPLETED
                 )
-                archived_info = self.db.get_archived_video(item.url)
+                archived_info = await self.db.get_archived_video(item.url)
                 if archived_info:
                     await original_message.reply(
-                        f"This video was already archived. You can find it here: {archived_info[0]}"
+                        "This video was already archived. You can find it here: "
+                        f"{archived_info['discord_url']}"
                     )
             item.finish_processing(True)
             return True
@@ -316,10 +317,15 @@ class QueueHandler:
 
             # Format message
             try:
-                author = original_message.author if original_message else None
-                channel = original_message.channel if original_message else None
-                message = await message_manager.format_message(
-                    author=author, channel=channel, url=url
+                # MessageManager.format_archive_message can't fill {channel}/{username},
+                # which the default and documented templates use, so fill them all here
+                msg = original_message
+                message = message_manager.message_template.format(
+                    author=msg.author.mention if msg else "Unknown",
+                    username=msg.author.display_name if msg else "Unknown",
+                    channel=msg.channel.name if msg else "Unknown",
+                    url=url,
+                    original_message=msg.jump_url if msg else url,
                 )
             except Exception as e:
                 raise QueueHandlerError(f"Failed to format message: {str(e)}")
@@ -331,11 +337,18 @@ class QueueHandler:
             archive_message = await archive_channel.send(
                 content=message, file=discord.File(file_path)
             )
+            # ponytail: deletion timers live in memory, so a restart keeps those messages
+            async def expire(msg=archive_message, db=self.db, u=url):
+                if db:  # forget it first, or the URL reads as archived forever
+                    await db.remove_archived_video(u)
+                await msg.delete()
+
+            await message_manager.schedule_message_deletion(archive_message.id, expire)
 
             # Store in database if available
             if self.db and archive_message.attachments:
                 discord_url = archive_message.attachments[0].url
-                self.db.add_archived_video(
+                await self.db.add_archived_video(
                     url, discord_url, archive_message.id, archive_channel.id, guild_id
                 )
                 logger.info(f"Added video to archive database: {url} -> {discord_url}")
@@ -395,13 +408,11 @@ class QueueHandler:
                         return
 
                     # Update progress tracking
-                    ProgressTracker.update_download_progress(
+                    self.progress_tracker.update_download_progress(
                         url,
                         {
                             "percent": progress,
-                            "last_update": datetime.now(
-                                datetime.timezone.utc
-                            )().isoformat(),
+                            "last_update": datetime.now(timezone.utc).isoformat(),
                         },
                     )
 
@@ -444,9 +455,9 @@ class QueueHandler:
                 download_task, timeout=self.DOWNLOAD_TIMEOUT
             )
             if success:
-                ProgressTracker.complete_download(url)
+                self.progress_tracker.complete_download(url)
             else:
-                ProgressTracker.increment_download_retries(url)
+                self.progress_tracker.increment_download_retries(url)
             return success, file_path, error
 
         except asyncio.TimeoutError:

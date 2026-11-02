@@ -340,7 +340,8 @@ class QueueCleaner:
             # Update metrics
             metrics_manager.update_cleanup_time()
 
-            logger.info(
+            # Only worth an INFO line when something was actually removed
+            (logger.info if any(items_cleaned.values()) else logger.debug)(
                 "%s%s%s", f"Cleanup completed ({mode.value}):\n", "\n".join(
                     f"- {phase.value}: {count} items"
                     for phase, count in items_cleaned.items()

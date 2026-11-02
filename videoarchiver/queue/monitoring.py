@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Set
 from datetime import datetime, timedelta
 
-from .health_checker import HealthChecker, HealthStatus, HealthCategory
-from .recovery_manager import RecoveryManager, RecoveryStrategy
+from .health_checker import HealthChecker, HealthStatus, HealthCategory, HealthThresholds
+from .recovery_manager import RecoveryManager, RecoveryStrategy, RecoveryThresholds
 
 logger = logging.getLogger("QueueMonitoring")
 
@@ -172,15 +172,27 @@ class QueueMonitor:
         strategy: Optional[MonitoringStrategy] = None,
         thresholds: Optional[MonitoringThresholds] = None
     ):
-        self.strategy = strategy or MonitoringStrategy()
         self.thresholds = thresholds or MonitoringThresholds()
+        self.strategy = strategy or MonitoringStrategy(thresholds=self.thresholds)
         
         # Initialize components
         self.health_checker = HealthChecker(
-            memory_threshold=self.thresholds.memory_threshold,
-            deadlock_threshold=self.thresholds.deadlock_threshold
+            HealthThresholds(
+                memory_critical_mb=self.thresholds.memory_threshold,
+                deadlock_critical_sec=self.thresholds.deadlock_threshold,
+                # activity only updates when an item starts, so a long download looks idle
+                inactivity_critical_sec=self.thresholds.deadlock_threshold,
+            )
         )
-        self.recovery_manager = RecoveryManager(max_retries=self.thresholds.max_retries)
+        self.recovery_manager = RecoveryManager(
+            RecoveryThresholds(
+                max_retries=self.thresholds.max_retries,
+                deadlock_threshold=self.thresholds.deadlock_threshold,
+                # Above the deadlock threshold, or every stuck item goes EMERGENCY
+                # and its retry count resets, so it never hits max_retries
+                emergency_threshold=self.thresholds.deadlock_threshold * 2,
+            )
+        )
         self.alert_manager = AlertManager()
         
         self._shutdown = False
@@ -251,19 +263,22 @@ class QueueMonitor:
         """Perform health check and recovery if needed"""
         try:
             # Check memory usage
-            memory_usage, is_critical = await self.health_checker.check_memory_usage()
+            memory_result = await self.health_checker._check_memory_health()
+            memory_usage = memory_result.value or 0.0
             metrics_manager.update_memory_usage(memory_usage)
 
-            if is_critical:
+            if memory_result.status == HealthStatus.CRITICAL:
                 self.alert_manager.create_alert(
                     category=HealthCategory.MEMORY,
                     severity=AlertSeverity.CRITICAL,
                     message=f"Critical memory usage: {memory_usage:.1f}MB",
                     details={"memory_usage": memory_usage}
                 )
+            else:
+                self._resolve_alerts(HealthCategory.MEMORY)
 
             # Get current queue state
-            queue_stats = await state_manager.get_queue_stats()
+            queue_stats = state_manager.get_state_stats()
             processing_items = await state_manager.get_all_processing_items()
 
             # Check for stuck items
@@ -286,12 +301,15 @@ class QueueMonitor:
                     state_manager,
                     metrics_manager
                 )
+            else:
+                self._resolve_alerts(HealthCategory.DEADLOCKS)
 
             # Check overall queue activity
-            if processing_items and self.health_checker.check_queue_activity(
+            activity_result = self.health_checker._check_activity_health(
                 self._last_active_time,
                 bool(processing_items)
-            ):
+            )
+            if activity_result.status == HealthStatus.CRITICAL:
                 self.alert_manager.create_alert(
                     category=HealthCategory.ACTIVITY,
                     severity=AlertSeverity.ERROR,
@@ -304,9 +322,13 @@ class QueueMonitor:
                     metrics_manager
                 )
                 self.update_activity()
+            else:
+                self._resolve_alerts(HealthCategory.ACTIVITY)
 
-            # Check error rates
-            error_rate = current_metrics.get("error_rate", 0)
+            # Check error rates (metrics are nested by category)
+            processing = current_metrics.get("processing", {})
+            total = processing.get("total_processed", 0)
+            error_rate = processing.get("total_failed", 0) / total if total else 0.0
             if error_rate > 0.2:  # 20% error rate
                 self.alert_manager.create_alert(
                     category=HealthCategory.ERRORS,
@@ -314,20 +336,19 @@ class QueueMonitor:
                     message=f"High error rate: {error_rate:.1%}",
                     details={"error_rate": error_rate}
                 )
+            else:
+                self._resolve_alerts(HealthCategory.ERRORS)
+            self._resolve_alerts(HealthCategory.SYSTEM)  # this check itself succeeded
 
             # Log health report
             if self.strategy.level in (MonitoringLevel.INTENSIVE, MonitoringLevel.DEBUG):
                 health_report = self.health_checker.format_health_report(
-                    memory_usage=memory_usage,
-                    queue_size=queue_stats["queue_size"],
-                    processing_count=queue_stats["processing_count"],
-                    success_rate=metrics_manager.success_rate,
-                    avg_processing_time=metrics_manager.avg_processing_time,
-                    peak_memory=metrics_manager.peak_memory_usage,
-                    error_distribution=metrics_manager.errors_by_type,
-                    last_activity_delta=time.time() - self._last_active_time
+                    [memory_result, activity_result]
                 )
-                logger.info(health_report)
+                logger.info(
+                    f"{health_report}\nQueue size: {queue_stats['queue_size']}, "
+                    f"processing: {queue_stats['processing_count']}"
+                )
 
         except Exception as e:
             logger.error(f"Error performing health check: {str(e)}")
@@ -336,6 +357,12 @@ class QueueMonitor:
                 severity=AlertSeverity.ERROR,
                 message=f"Health check error: {str(e)}"
             )
+
+    def _resolve_alerts(self, category: HealthCategory) -> None:
+        """Resolve active alerts of a category whose condition has cleared"""
+        for alert_id, event in list(self.alert_manager.active_alerts.items()):
+            if event.category == category:
+                self.alert_manager.resolve_alert(alert_id)
 
     def _adjust_monitoring_strategy(self, metrics: Dict[str, Any]) -> None:
         """Adjust monitoring strategy based on current state"""
@@ -359,7 +386,7 @@ class QueueMonitor:
             "last_active": self._last_active_time,
             "alerts": self.alert_manager.get_alert_stats(),
             "recovery": self.recovery_manager.get_recovery_stats(),
-            "health": self.health_checker.get_health_stats()
+            "health": self.health_checker.history.get_status_summary()
         }
 
 class MonitoringError(Exception):

@@ -123,13 +123,13 @@ class Settings:
             required=False,
             error_message="Log channel must be a valid channel ID",
         ),
-        "enabled_channels": SettingDefinition(
-            name="enabled_channels",
+        "monitored_channels": SettingDefinition(
+            name="monitored_channels",
             category=SettingCategory.CHANNELS,
             default_value=[],
             description="Channels to monitor (empty means all channels)",
             data_type=list,
-            error_message="Enabled channels must be a list of valid channel IDs",
+            error_message="Monitored channels must be a list of valid channel IDs",
         ),
         "allowed_roles": SettingDefinition(
             name="allowed_roles",

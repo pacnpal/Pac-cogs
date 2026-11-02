@@ -8,9 +8,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List, Set, Tuple
 
 from ..shared.progress import update_compression_progress
-from ..utils.compression_handler import CompressionHandler
-from ..utils.progress_handler import ProgressHandler
 from ..utils.file_operations import FileOperations
+from ..ffmpeg.encoder_params import EncoderParams
 from ..ffmpeg.exceptions import CompressionError
 from ..utils.exceptions import VideoVerificationError
 
@@ -62,14 +61,14 @@ class CompressionManager:
             )
 
             # Fall back to CPU if hardware acceleration fails
-            if not success:
+            if not success and compression_params.get("c:v") != "libx264":
                 logger.warning(
                     f"Hardware acceleration failed: {error}, falling back to CPU encoding"
                 )
                 success, error = await self._try_compression(
                     input_file,
                     output_file,
-                    compression_params,
+                    await asyncio.to_thread(self._cpu_params, input_file),
                     progress_callback,
                     use_hardware=False,
                 )
@@ -86,6 +85,12 @@ class CompressionManager:
         except Exception as e:
             logger.error(f"Error during compression: {e}")
             return False, str(e)
+
+    def _cpu_params(self, input_file: str) -> Dict[str, str]:
+        """libx264 params without the GPU preset/options (e.g. NVENC "p5") a GPU host gets"""
+        no_gpu = {"nvidia": False, "amd": False, "intel": False}
+        encoder = EncoderParams(self.ffmpeg_mgr.cpu_cores, no_gpu)
+        return encoder.get_params(self.ffmpeg_mgr.analyze_video(input_file), self.max_file_size)
 
     async def _try_compression(
         self,
@@ -128,6 +133,14 @@ class CompressionManager:
                 )
                 return success, ""
 
+            except BaseException:
+                # Cancelled (timeout/unload) or failed mid-encode: stop ffmpeg before the
+                # caller deletes its files, or it keeps writing the output after cleanup
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+                raise
+
             finally:
                 async with self._processes_lock:
                     self._active_processes.discard(process)
@@ -144,7 +157,8 @@ class CompressionManager:
     ) -> List[str]:
         """Build FFmpeg command with appropriate parameters"""
         ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
-        cmd = [ffmpeg_path, "-y", "-i", input_file, "-progress", "pipe:1"]
+        # -nostats/-loglevel error: stderr is piped but never read, so keep it tiny or ffmpeg blocks
+        cmd = [ffmpeg_path, "-y", "-nostats", "-loglevel", "error", "-i", input_file, "-progress", "pipe:1"]
 
         # Modify parameters for hardware acceleration
         if use_hardware:
@@ -198,7 +212,7 @@ class CompressionManager:
                 logger.error(f"Error updating progress: {e}")
 
         await process.wait()
-        return os.path.exists(output_file)
+        return process.returncode == 0 and os.path.exists(output_file)
 
     async def _verify_output(self, input_file: str, output_file: str) -> bool:
         """Verify compressed output file"""
@@ -212,7 +226,9 @@ class CompressionManager:
                 return False
 
             # Verify video integrity
-            return await self.ffmpeg_mgr.verify_video_file(output_file)
+            return await asyncio.to_thread(
+                FileOperations().verify_video_file, output_file, str(self.ffmpeg_mgr.get_ffprobe_path())
+            )
 
         except Exception as e:
             logger.error(f"Error verifying output file: {e}")
@@ -254,7 +270,9 @@ class CompressionManager:
     async def _get_video_duration(self, file_path: str) -> float:
         """Get video duration in seconds"""
         try:
-            return await self.ffmpeg_mgr.get_video_duration(file_path)
+            return await asyncio.to_thread(
+                FileOperations().get_video_duration, file_path, str(self.ffmpeg_mgr.get_ffprobe_path())
+            )
         except Exception as e:
             logger.error(f"Error getting video duration: {e}")
             return 0

@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -26,6 +25,23 @@ if TYPE_CHECKING:
     # from videoarchiver.core.base import VideoArchiver
 
 logger = logging.getLogger("VideoArchiver")
+
+
+def clear_component(cog: "VideoArchiver", name: str) -> None:
+    """Drop a component from the registry (cog.<name> is a read-only property over it)."""
+    registry = getattr(getattr(cog, "component_manager", None), "_components", None)
+    if registry is not None:
+        registry.pop(name, None)
+
+
+async def stop_update_checker(cog: "VideoArchiver") -> None:
+    """Cancel the yt-dlp updater (and any pip it's running) before dropping it."""
+    checker, cog.update_checker = getattr(cog, "update_checker", None), None
+    if checker:
+        try:
+            await asyncio.wait_for(checker.stop(), timeout=10)
+        except Exception as e:
+            logger.warning(f"Error stopping yt-dlp updater: {e}")
 
 
 class CleanupPhase(Enum):
@@ -174,7 +190,7 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
                     str(e),
                     (datetime.utcnow() - phase_start).total_seconds(),
                 )
-            cog.processor = None
+            clear_component(cog, "processor")
 
         # Clean up queue manager
         if hasattr(cog, "queue_manager") and cog.queue_manager:
@@ -198,7 +214,7 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
                     str(e),
                     (datetime.utcnow() - phase_start).total_seconds(),
                 )
-            cog.queue_manager = None
+            clear_component(cog, "queue_manager")
 
         # Clean up components for each guild
         if hasattr(cog, "components"):
@@ -210,8 +226,8 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
                     try:
                         if "message_manager" in components:
                             await components["message_manager"].cancel_all_deletions()
-                        if "downloader" in components:
-                            components["downloader"] = None
+                        if components.get("downloader"):
+                            await components.pop("downloader").cleanup()
                         if "ffmpeg_mgr" in components:
                             components["ffmpeg_mgr"] = None
                     except Exception as e:
@@ -239,13 +255,7 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
             if hasattr(cog, "ffmpeg_mgr") and cog.ffmpeg_mgr:
                 logger.info("Killing FFmpeg processes")
                 cog.ffmpeg_mgr.kill_all_processes()
-                cog.ffmpeg_mgr = None
-
-            # Kill any remaining FFmpeg processes system-wide
-            if os.name != "nt":  # Unix-like systems
-                os.system("pkill -9 ffmpeg")
-            else:  # Windows
-                os.system("taskkill /F /IM ffmpeg.exe")
+                clear_component(cog, "ffmpeg_mgr")
 
             cleanup_manager.record_result(
                 CleanupPhase.FFMPEG,
@@ -342,7 +352,7 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
                     str(e),
                     (datetime.utcnow() - phase_start).total_seconds(),
                 )
-            cog.processor = None
+            clear_component(cog, "processor")
 
         # Force stop queue manager
         if hasattr(cog, "queue_manager") and cog.queue_manager:
@@ -362,7 +372,7 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
                     str(e),
                     (datetime.utcnow() - phase_start).total_seconds(),
                 )
-            cog.queue_manager = None
+            clear_component(cog, "queue_manager")
 
         # Kill FFmpeg processes
         phase_start = datetime.utcnow()
@@ -370,13 +380,7 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
             if hasattr(cog, "ffmpeg_mgr") and cog.ffmpeg_mgr:
                 logger.info("Force killing FFmpeg processes")
                 cog.ffmpeg_mgr.kill_all_processes()
-                cog.ffmpeg_mgr = None
-
-            # Force kill any remaining FFmpeg processes system-wide
-            if os.name != "nt":  # Unix-like systems
-                os.system("pkill -9 ffmpeg")
-            else:  # Windows
-                os.system("taskkill /F /IM ffmpeg.exe")
+                clear_component(cog, "ffmpeg_mgr")
 
             cleanup_manager.record_result(
                 CleanupPhase.FFMPEG,
@@ -420,6 +424,9 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
         try:
             logger.info("Force clearing components")
             if hasattr(cog, "components"):
+                for components in cog.components.values():
+                    if components.get("downloader"):
+                        await components.pop("downloader").force_cleanup()
                 cog.components.clear()
             cleanup_manager.record_result(
                 CleanupPhase.COMPONENTS,
@@ -445,10 +452,10 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
         phase_start = datetime.utcnow()
         try:
             cog.bot = None
-            cog.processor = None
-            cog.queue_manager = None
-            cog.update_checker = None
-            cog.ffmpeg_mgr = None
+            clear_component(cog, "processor")
+            clear_component(cog, "queue_manager")
+            await stop_update_checker(cog)
+            clear_component(cog, "ffmpeg_mgr")
             cog.components = {}
             cog.db = None
             cog._init_task = None

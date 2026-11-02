@@ -1,11 +1,7 @@
 """Core module for VideoArchiver"""
 
 from .base import VideoArchiver
-from .commands import (
-    setup_archiver_commands,
-    setup_database_commands,
-    setup_settings_commands,
-)
+from .commands import ArchiverCommands, DatabaseCommands, SettingsCommands
 from .component_manager import ComponentManager
 from .error_handler import ErrorManager
 from .events import EventManager
@@ -21,9 +17,9 @@ from .c_types import (
 
 __all__ = [
     "VideoArchiver",
-    "setup_archiver_commands",
-    "setup_database_commands",
-    "setup_settings_commands",
+    "ArchiverCommands",
+    "DatabaseCommands",
+    "SettingsCommands",
     "ComponentManager",
     "ErrorManager",
     "EventManager",

@@ -121,24 +121,16 @@ async def validate_setting(
     return validation
 
 
-def setup_settings_commands(cog: Any) -> Any:
-    """
-    Set up settings commands for the cog.
-
-    Args:
-        cog: VideoArchiver cog instance
-
-    Returns:
-        Main settings command group
-    """
+class SettingsCommands:
+    """Settings commands mixin for the VideoArchiver cog"""
 
     @hybrid_group(name="settings", fallback="show")
     @guild_only()
-    async def settings(ctx: Context) -> None:
+    async def settings(self, ctx: Context) -> None:
         """Show current archiver settings."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -153,7 +145,7 @@ def setup_settings_commands(cog: Any) -> Any:
             if hasattr(ctx, "interaction") and ctx.interaction:
                 await ctx.defer()
 
-            embed = await cog.config_manager.format_settings_embed(ctx.guild)
+            embed = await self.config_manager.format_settings_embed(ctx.guild)
             await handle_response(ctx, embed=embed, response_type=ResponseType.INFO)
 
         except Exception as e:
@@ -173,11 +165,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where archived videos will be stored")
-    async def set_archive_channel(ctx: Context, channel: discord.TextChannel) -> None:
+    async def set_archive_channel(self, ctx: Context, channel: discord.TextChannel) -> None:
         """Set the channel where archived videos will be stored."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -201,7 +193,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 read_message_history=True,
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -211,16 +203,16 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,
                     ),
                 )
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "archive_channel", channel.id
             )
             await handle_response(
@@ -246,11 +238,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel where log messages will be sent")
-    async def set_log_channel(ctx: Context, channel: discord.TextChannel) -> None:
+    async def set_log_channel(self, ctx: Context, channel: discord.TextChannel) -> None:
         """Set the channel where log messages will be sent."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -271,7 +263,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 send_messages=True, embed_links=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -281,16 +273,16 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,
                     ),
                 )
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "log_channel", channel.id
             )
             await handle_response(
@@ -316,11 +308,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to monitor for videos")
-    async def add_enabled_channel(ctx: Context, channel: discord.TextChannel) -> None:
+    async def add_enabled_channel(self, ctx: Context, channel: discord.TextChannel) -> None:
         """Add a channel to monitor for videos."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -341,7 +333,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 read_messages=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -351,17 +343,17 @@ def setup_settings_commands(cog: Any) -> Any:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,
                     ),
                 )
 
-            enabled_channels = await cog.config_manager.get_setting(
-                ctx.guild.id, "enabled_channels"
+            enabled_channels = await self.config_manager.get_setting(
+                ctx.guild.id, "monitored_channels"
             )
             if channel.id in enabled_channels:
                 await handle_response(
@@ -372,8 +364,8 @@ def setup_settings_commands(cog: Any) -> Any:
                 return
 
             enabled_channels.append(channel.id)
-            await cog.config_manager.update_setting(
-                ctx.guild.id, "enabled_channels", enabled_channels
+            await self.config_manager.update_setting(
+                ctx.guild.id, "monitored_channels", enabled_channels
             )
             await handle_response(
                 ctx,
@@ -399,12 +391,12 @@ def setup_settings_commands(cog: Any) -> Any:
     @admin_or_permissions(administrator=True)
     @app_commands.describe(channel="The channel to stop monitoring")
     async def remove_enabled_channel(
-        ctx: Context, channel: discord.TextChannel
+        self, ctx: Context, channel: discord.TextChannel
     ) -> None:
         """Remove a channel from video monitoring."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -419,8 +411,8 @@ def setup_settings_commands(cog: Any) -> Any:
             if hasattr(ctx, "interaction") and ctx.interaction:
                 await ctx.defer()
 
-            enabled_channels = await cog.config_manager.get_setting(
-                ctx.guild.id, "enabled_channels"
+            enabled_channels = await self.config_manager.get_setting(
+                ctx.guild.id, "monitored_channels"
             )
             if channel.id not in enabled_channels:
                 await handle_response(
@@ -431,8 +423,8 @@ def setup_settings_commands(cog: Any) -> Any:
                 return
 
             enabled_channels.remove(channel.id)
-            await cog.config_manager.update_setting(
-                ctx.guild.id, "enabled_channels", enabled_channels
+            await self.config_manager.update_setting(
+                ctx.guild.id, "monitored_channels", enabled_channels
             )
             await handle_response(
                 ctx,
@@ -457,11 +449,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(format="The video format to use (mp4, webm, or mkv)")
-    async def set_video_format(ctx: Context, format: str) -> None:
+    async def set_video_format(self, ctx: Context, format: str) -> None:
         """Set the video format for archived videos."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -485,7 +477,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "video_format", format
             )
             await handle_response(
@@ -511,11 +503,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(quality="The video quality (144-4320)")
-    async def set_video_quality(ctx: Context, quality: int) -> None:
+    async def set_video_quality(self, ctx: Context, quality: int) -> None:
         """Set the video quality for archived videos."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -540,7 +532,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "video_quality", quality
             )
             await handle_response(
@@ -566,11 +558,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(size="The maximum file size in MB (1-100)")
-    async def set_max_file_size(ctx: Context, size: int) -> None:
+    async def set_max_file_size(self, ctx: Context, size: int) -> None:
         """Set the maximum file size for archived videos."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -595,7 +587,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
+            await self.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
             await handle_response(
                 ctx,
                 f"Maximum file size has been set to {size}MB.",
@@ -619,11 +611,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(hours="How long to keep messages in hours (0-168)")
-    async def set_message_duration(ctx: Context, hours: int) -> None:
+    async def set_message_duration(self, ctx: Context, hours: int) -> None:
         """Set how long to keep archived messages."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -648,7 +640,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "message_duration", hours
             )
             await handle_response(
@@ -676,11 +668,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @app_commands.describe(
         template="The message template to use. Available placeholders: {author}, {channel}, {original_message}"
     )
-    async def set_message_template(ctx: Context, template: str) -> None:
+    async def set_message_template(self, ctx: Context, template: str) -> None:
         """Set the template for archived messages."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -705,7 +697,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "message_template", template
             )
             await handle_response(
@@ -731,11 +723,11 @@ def setup_settings_commands(cog: Any) -> Any:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(count="Number of concurrent downloads (1-5)")
-    async def set_concurrent_downloads(ctx: Context, count: int) -> None:
+    async def set_concurrent_downloads(self, ctx: Context, count: int) -> None:
         """Set the number of concurrent downloads allowed."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -760,7 +752,7 @@ def setup_settings_commands(cog: Any) -> Any:
                 )
                 return
 
-            await cog.config_manager.update_setting(
+            await self.config_manager.update_setting(
                 ctx.guild.id, "concurrent_downloads", count
             )
             await handle_response(
@@ -781,18 +773,3 @@ def setup_settings_commands(cog: Any) -> Any:
                     ErrorSeverity.HIGH,
                 ),
             )
-
-    # Store commands in cog for access
-    cog.settings = settings
-    cog.set_archive_channel = set_archive_channel
-    cog.set_log_channel = set_log_channel
-    cog.add_enabled_channel = add_enabled_channel
-    cog.remove_enabled_channel = remove_enabled_channel
-    cog.set_video_format = set_video_format
-    cog.set_video_quality = set_video_quality
-    cog.set_max_file_size = set_max_file_size
-    cog.set_message_duration = set_message_duration
-    cog.set_message_template = set_message_template
-    cog.set_concurrent_downloads = set_concurrent_downloads
-
-    return settings

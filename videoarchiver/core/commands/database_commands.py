@@ -84,25 +84,17 @@ async def check_database_status(cog: Any) -> DatabaseStatus:
         )
 
 
-def setup_database_commands(cog: Any) -> Any:
-    """
-    Set up database commands for the cog.
-
-    Args:
-        cog: VideoArchiver cog instance
-
-    Returns:
-        Main database command group
-    """
+class DatabaseCommands:
+    """Database commands mixin for the VideoArchiver cog"""
 
     @hybrid_group(name="archivedb", fallback="help")
     @guild_only()
-    async def archivedb(ctx: Context) -> None:
+    async def archivedb(self, ctx: Context) -> None:
         """Manage the video archive database."""
         if ctx.invoked_subcommand is None:
             try:
                 # Get database status
-                status = await check_database_status(cog)
+                status = await check_database_status(self)
 
                 # Create status embed
                 embed = discord.Embed(
@@ -153,11 +145,11 @@ def setup_database_commands(cog: Any) -> Any:
     @archivedb.command(name="enable")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def enable_database(ctx: Context) -> None:
+    async def enable_database(self, ctx: Context) -> None:
         """Enable the video archive database."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -173,7 +165,7 @@ def setup_database_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             # Check if database is already enabled
-            current_setting = await cog.config_manager.get_setting(
+            current_setting = await self.config_manager.get_setting(
                 ctx.guild.id, "use_database"
             )
             if current_setting:
@@ -186,8 +178,7 @@ def setup_database_commands(cog: Any) -> Any:
 
             # Initialize database
             try:
-                cog.db = VideoArchiveDB(cog.data_path)
-                await cog.db.initialize()
+                self.db = VideoArchiveDB(self.data_path)  # creates the schema
             except Exception as e:
                 raise DatabaseError(
                     f"Failed to initialize database: {str(e)}",
@@ -200,13 +191,13 @@ def setup_database_commands(cog: Any) -> Any:
                 )
 
             # Update processor with database
-            if cog.processor:
-                cog.processor.db = cog.db
-                if cog.processor.queue_handler:
-                    cog.processor.queue_handler.db = cog.db
+            if self.processor:
+                self.processor.db = self.db
+                if self.processor.queue_handler:
+                    self.processor.queue_handler.db = self.db
 
             # Update setting
-            await cog.config_manager.update_setting(ctx.guild.id, "use_database", True)
+            await self.config_manager.update_setting(ctx.guild.id, "use_database", True)
 
             # Send success message
             await handle_response(
@@ -231,11 +222,11 @@ def setup_database_commands(cog: Any) -> Any:
     @archivedb.command(name="disable")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def disable_database(ctx: Context) -> None:
+    async def disable_database(self, ctx: Context) -> None:
         """Disable the video archive database."""
         try:
             # Check if config manager is ready
-            if not cog.config_manager:
+            if not self.config_manager:
                 raise CommandError(
                     "Configuration system is not ready",
                     context=ErrorContext(
@@ -250,7 +241,7 @@ def setup_database_commands(cog: Any) -> Any:
             if hasattr(ctx, "interaction") and ctx.interaction:
                 await ctx.defer()
 
-            current_setting = await cog.config_manager.get_setting(
+            current_setting = await self.config_manager.get_setting(
                 ctx.guild.id, "use_database"
             )
             if not current_setting:
@@ -262,20 +253,20 @@ def setup_database_commands(cog: Any) -> Any:
                 return
 
             # Close database connection if active
-            if cog.db:
+            if self.db:
                 try:
-                    await cog.db.close()
+                    self.db.close()
                 except Exception as e:
                     logger.error(f"Error closing database connection: {e}")
 
             # Remove database references
-            cog.db = None
-            if cog.processor:
-                cog.processor.db = None
-                if cog.processor.queue_handler:
-                    cog.processor.queue_handler.db = None
+            self.db = None
+            if self.processor:
+                self.processor.db = None
+                if self.processor.queue_handler:
+                    self.processor.queue_handler.db = None
 
-            await cog.config_manager.update_setting(ctx.guild.id, "use_database", False)
+            await self.config_manager.update_setting(ctx.guild.id, "use_database", False)
             await handle_response(
                 ctx,
                 "Video archive database has been disabled.",
@@ -298,11 +289,11 @@ def setup_database_commands(cog: Any) -> Any:
     @archivedb.command(name="check")
     @guild_only()
     @app_commands.describe(url="The URL of the video to check")
-    async def checkarchived(ctx: Context, url: str) -> None:
+    async def checkarchived(self, ctx: Context, url: str) -> None:
         """Check if a video URL has been archived and get its Discord link if it exists."""
         try:
             # Check if database is enabled
-            if not cog.db:
+            if not self.db:
                 await handle_response(
                     ctx,
                     "The archive database is not enabled. Ask an admin to enable it with `/archivedb enable`",
@@ -315,7 +306,7 @@ def setup_database_commands(cog: Any) -> Any:
                 await ctx.defer()
 
             try:
-                result = await cog.db.get_archived_video(url)
+                result = await self.db.get_archived_video(url)
             except Exception as e:
                 raise DatabaseError(
                     f"Failed to query database: {str(e)}",
@@ -367,20 +358,20 @@ def setup_database_commands(cog: Any) -> Any:
     @archivedb.command(name="status")
     @guild_only()
     @admin_or_permissions(administrator=True)
-    async def database_status(ctx: Context) -> None:
+    async def database_status(self, ctx: Context) -> None:
         """Show detailed database status information."""
         try:
             # Defer the response immediately for slash commands
             if hasattr(ctx, "interaction") and ctx.interaction:
                 await ctx.defer()
 
-            status = await check_database_status(cog)
+            status = await check_database_status(self)
 
             # Get additional stats if database is enabled
             stats = {}
-            if cog.db and status["connected"]:
+            if self.db and status["connected"]:
                 try:
-                    stats = await cog.db.get_stats()
+                    stats = await self.db.get_stats()
                 except Exception as e:
                     logger.error(f"Error getting database stats: {e}")
 
@@ -442,12 +433,3 @@ def setup_database_commands(cog: Any) -> Any:
                     ErrorSeverity.MEDIUM,
                 ),
             )
-
-    # Store commands in cog for access
-    cog.archivedb = archivedb
-    cog.enable_database = enable_database
-    cog.disable_database = disable_database
-    cog.checkarchived = checkarchived
-    cog.database_status = database_status
-
-    return archivedb

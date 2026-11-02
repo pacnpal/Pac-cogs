@@ -64,7 +64,9 @@ class MessageManager:
     async def cancel_all_deletions(self):
         """Cancel all scheduled message deletions"""
         async with self._lock:
-            for task in self.scheduled_deletions.values():
-                task.cancel()
-            await asyncio.gather(*self.scheduled_deletions.values(), return_exceptions=True)
+            tasks = list(self.scheduled_deletions.values())
             self.scheduled_deletions.clear()
+        for task in tasks:
+            task.cancel()
+        # Outside the lock: each task's finally takes it to unregister itself
+        await asyncio.gather(*tasks, return_exceptions=True)

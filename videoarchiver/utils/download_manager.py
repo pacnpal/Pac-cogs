@@ -1,16 +1,20 @@
 """Module for managing video downloads"""
 
 import os
+import shutil
 import logging
 import asyncio
+import tempfile
+import threading
+import contextlib
 import yt_dlp # type: ignore
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple, Callable, Any
 from pathlib import Path
 
-from ..ffmpeg.verification_manager import VerificationManager
 from ..utils.compression_manager import CompressionManager
+from .file_operations import FileOperations
 from .progress_tracker import ProgressTracker
 
 progress_tracker = ProgressTracker()  # singleton shared with processor
@@ -48,6 +52,7 @@ class DownloadManager:
     FILE_OP_RETRIES = 3
     FILE_OP_RETRY_DELAY = 1
     SHUTDOWN_TIMEOUT = 15  # seconds
+    CANCEL_GRACE = 5  # seconds to wait for yt-dlp to stop after a cancel
 
     def __init__(
         self,
@@ -64,7 +69,8 @@ class DownloadManager:
         os.chmod(str(self.download_path), 0o755)
 
         # Initialize components
-        self.verification_manager = VerificationManager(ffmpeg_mgr)
+        self.ffmpeg_mgr = ffmpeg_mgr
+        self.file_ops = FileOperations()
         self.compression_manager = CompressionManager(ffmpeg_mgr, max_file_size)
 
         # Create thread pool
@@ -86,13 +92,19 @@ class DownloadManager:
         self, video_format: str, max_quality: int, max_file_size: int, ffmpeg_mgr
     ) -> Dict[str, Any]:
         """Configure yt-dlp options"""
+        q = max_quality
+        formats = {  # pick streams that merge cleanly into the target container
+            "webm": f"bestvideo[ext=webm][height<={q}]+bestaudio[ext=webm]/best[ext=webm][height<={q}]"
+                    f"/bestvideo[height<={q}]+bestaudio/best[height<={q}]/best",
+            "mp4": f"bv*[height<={q}][ext=mp4]+ba[ext=m4a]/b[height<={q}]/best",
+        }
         return {
-            "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",
-            "outtmpl": "%(title)s.%(ext)s",
+            "format": formats.get(video_format, f"bv*[height<={q}]+ba/b[height<={q}]/best"),  # mkv: anything
+            "outtmpl": "%(title).200B [%(id)s].%(ext)s",  # bounded name, unique per video
             "merge_output_format": video_format,
             "quiet": True,
             "no_warnings": True,
-            "extract_flat": True,
+            "noplaylist": True,
             "concurrent_fragment_downloads": 1,
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
@@ -104,7 +116,7 @@ class DownloadManager:
             "ffprobe_location": str(ffmpeg_mgr.get_ffprobe_path()),
             "paths": {"home": str(self.download_path)},
             "logger": self.ytdl_logger,
-            "ignoreerrors": True,
+            "ignoreerrors": False,  # raise DownloadError so the real reason reaches the user
             "no_color": True,
             "geo_bypass": True,
             "socket_timeout": 60,
@@ -112,7 +124,7 @@ class DownloadManager:
             "external_downloader_args": {"ffmpeg": ["-timeout", "60000000"]},
             "max_sleep_interval": 5,
             "sleep_interval": 1,
-            "max_filesize": max_file_size * 1024 * 1024,
+            # No "max_filesize": oversized downloads get compressed to max_file_size instead.
         }
 
     def _check_file_size(self, info: Dict[str, Any]) -> None:
@@ -133,7 +145,16 @@ class DownloadManager:
             logger.info(f"Download completed: {d['filename']}")
         elif d["status"] == "downloading":
             try:
-                progress_tracker.update_download_progress(d)
+                info = d.get("info_dict") or {}
+                url = info.get("original_url") or info.get("webpage_url")
+                total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                downloaded = d.get("downloaded_bytes", 0)
+                if url:
+                    progress_tracker.update_download_progress(url, {
+                        "percent": downloaded / total * 100 if total else 0,
+                        "downloaded_bytes": downloaded,
+                        "total_bytes": total or 0,
+                    })
             except Exception as e:
                 logger.debug(f"Error logging progress: {str(e)}")
 
@@ -143,7 +164,6 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.cleanup()
-        progress_tracker.clear_progress()
 
     async def force_cleanup(self) -> None:
         """Force cleanup of all resources"""
@@ -151,7 +171,6 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.force_cleanup()
-        progress_tracker.clear_progress()
 
     async def download_video(
         self, url: str, progress_callback: Optional[Callable[[float], None]] = None
@@ -160,7 +179,7 @@ class DownloadManager:
         if self._shutting_down:
             return False, "", "Downloader is shutting down"
 
-        progress_tracker.start_download(url)
+        progress_tracker.update_download_progress(url, {"active": True, "percent": 0})
 
         try:
             # Download video
@@ -178,18 +197,110 @@ class DownloadManager:
             return False, "", str(e)
 
         finally:
-            progress_tracker.end_download(url)
+            progress_tracker.complete_download(url)
 
     async def _safe_download(
         self, url: str, progress_callback: Optional[Callable[[float], None]]
     ) -> Tuple[bool, str, str]:
-        """Safely download video with retries"""
-        # Implementation moved to separate method for clarity
-        pass  # Implementation would be similar to original but using new components
+        """Download with yt-dlp in the download pool (yt-dlp's own retries cover transient errors)"""
+        # Private temp dir per download, so partial/fragment files vanish on any failure.
+        tmp_dir = tempfile.mkdtemp(prefix="dl", dir=self.download_path)
+        cancel = threading.Event()
+
+        def check_cancel(_: Dict[str, Any]) -> None:
+            if cancel.is_set() or self._shutting_down:
+                raise yt_dlp.utils.DownloadCancelled()
+
+        opts = {**self.ydl_opts, "paths": {"home": tmp_dir},
+                "progress_hooks": [check_cancel, self._progress_hook],
+                "postprocessor_hooks": [check_cancel, self._check_file_size]}
+        if progress_callback:
+            loop = asyncio.get_running_loop()
+            last = [-100.0]
+
+            def report(d: Dict[str, Any]) -> None:
+                total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                if d.get("status") == "downloading" and total:
+                    pct = d.get("downloaded_bytes", 0) / total * 100
+                    # Hooks run on the pool thread; the callback needs the event loop.
+                    # Every 20% is plenty: each update edits Discord reactions.
+                    if pct - last[0] >= 20 or pct >= 100:
+                        last[0] = pct
+                        loop.call_soon_threadsafe(progress_callback, pct)
+            opts["progress_hooks"].append(report)
+
+        def run() -> Optional[str]:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+            downloads = (info or {}).get("requested_downloads") or [{}]
+            return downloads[0].get("filepath")  # final path, after any merge
+
+        def discard(f: asyncio.Future) -> None:
+            if not f.cancelled():
+                f.exception()  # mark retrieved so asyncio doesn't log it
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        try:
+            fut = asyncio.get_running_loop().run_in_executor(self.download_pool, run)
+        except RuntimeError:  # pool already shut down
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
+        try:
+            # shield: a cancel must not orphan the worker; it is stopped via `cancel` instead
+            path = await asyncio.shield(fut)
+            if not path or not os.path.isfile(path):
+                return False, "", "Download finished but no file was produced"
+            # Guilds share download_path: the temp dir's unique name keeps concurrent
+            # downloads of the same video (and their _compressed.mp4) apart.
+            stem, ext = os.path.splitext(os.path.basename(path))
+            final_path = str(self.download_path / f"{stem}_{os.path.basename(tmp_dir)}{ext}")
+            shutil.move(path, final_path)
+            return True, final_path, ""
+        except asyncio.CancelledError:
+            cancel.set()  # check_cancel aborts yt-dlp at its next progress tick
+            await asyncio.wait([fut], timeout=self.CANCEL_GRACE)
+            raise
+        except yt_dlp.utils.DownloadError as e:
+            logger.error(f"yt-dlp failed for {url}: {e}")
+            return False, "", str(e)
+        finally:
+            if fut.done():
+                discard(fut)
+            else:  # worker still running: remove its dir only once it has stopped
+                fut.add_done_callback(discard)
 
     async def _process_downloaded_file(
         self, file_path: str, progress_callback: Optional[Callable[[float], None]]
     ) -> Tuple[bool, str, str]:
-        """Process a downloaded file (verify and compress if needed)"""
-        # Implementation moved to separate method for clarity
-        pass  # Implementation would be similar to original but using new components
+        """Verify the download and compress it if it exceeds the size limit"""
+        ffprobe = str(self.ffmpeg_mgr.get_ffprobe_path())
+        verify = asyncio.ensure_future(
+            asyncio.to_thread(self.file_ops.verify_video_file, file_path, ffprobe)
+        )
+        try:
+            valid = await asyncio.shield(verify)
+        except asyncio.CancelledError:
+            # The caller gets no path back, so the file is ours to delete once ffprobe lets go
+            verify.add_done_callback(lambda _: self._remove(file_path))
+            raise
+        if not valid:
+            self._remove(file_path)
+            return False, "", "Downloaded file is not a valid video"
+        if os.path.getsize(file_path) <= self.compression_manager.max_file_size:
+            return True, file_path, ""
+
+        compressed = os.path.splitext(file_path)[0] + "_compressed.mp4"  # encoder emits h264/aac
+        success = False
+        try:
+            success, error = await self.compression_manager.compress_video(
+                file_path, compressed, progress_callback
+            )
+            return (True, compressed, "") if success else (False, "", error)
+        finally:
+            self._remove(file_path, *([] if success else [compressed]))
+
+    @staticmethod
+    def _remove(*paths: str) -> None:
+        for path in paths:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(path)

@@ -384,20 +384,23 @@ def setup_events(cog: "VideoArchiver") -> EventManager:
     """
     event_manager = EventManager(cog)
 
-    @cog.listener()
+    # Marking local functions with @cog.listener() registers nothing (CogMeta only scans
+    # class attributes), so bind them to the instance and list them for add_cog/remove_cog
     async def on_guild_join(guild: discord.Guild) -> None:
         await event_manager.guild_handler.handle_guild_join(guild)
 
-    @cog.listener()
     async def on_guild_remove(guild: discord.Guild) -> None:
         await event_manager.guild_handler.handle_guild_remove(guild)
 
-    @cog.listener()
     async def on_message(message: discord.Message) -> None:
         await event_manager.message_handler.handle_message(message)
 
-    @cog.listener()
     async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
         await event_manager.reaction_handler.handle_reaction_add(payload)
+
+    listeners = (on_guild_join, on_guild_remove, on_message, on_raw_reaction_add)
+    for listener in listeners:
+        setattr(cog, listener.__name__, listener)
+    cog.__cog_listeners__ = [*cog.__cog_listeners__, *((f.__name__, f.__name__) for f in listeners)]
 
     return event_manager

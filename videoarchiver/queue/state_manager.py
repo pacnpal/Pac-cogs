@@ -273,27 +273,61 @@ class QueueStateManager:
             self._queue.append(item)
             self._queue.sort(key=lambda x: (-x.priority, x.added_at))
 
-    async def get_guild_status(self, guild_id: int) -> Dict[str, int]:
-        """Get queue status for a specific guild"""
+    def get_guild_status(self, guild_id: int) -> Dict[str, int]:
+        """Get queue status for a specific guild (sync: reads in-memory state only)"""
+        return {
+            "pending": len([
+                item for item in self._queue
+                if item.guild_id == guild_id
+            ]),
+            "processing": len([
+                item for item in self._processing.values()
+                if item.guild_id == guild_id
+            ]),
+            "completed": len([
+                item for item in self._completed.values()
+                if item.guild_id == guild_id
+            ]),
+            "failed": len([
+                item for item in self._failed.values()
+                if item.guild_id == guild_id
+            ])
+        }
+
+    # Live containers for QueueCleaner/QueueMonitor/RecoveryManager. Cleaners mutate
+    # them in place and hand them back through update_state.
+    async def get_queue(self) -> List[QueueItem]:
+        return self._queue
+
+    async def get_processing(self) -> Dict[str, QueueItem]:
+        return self._processing
+
+    async def get_completed(self) -> Dict[str, QueueItem]:
+        return self._completed
+
+    async def get_failed(self) -> Dict[str, QueueItem]:
+        return self._failed
+
+    async def get_guild_queues(self) -> Dict[int, Set[str]]:
+        return self._guild_queues
+
+    async def get_channel_queues(self) -> Dict[int, Set[str]]:
+        return self._channel_queues
+
+    async def get_all_processing_items(self) -> List[QueueItem]:
+        return list(self._processing.values())
+
+    async def update_state(self, **containers: Any) -> None:
+        """Replace state containers, e.g. update_state(completed=..., failed=...)"""
         async with self._lock:
-            return {
-                "pending": len([
-                    item for item in self._queue
-                    if item.guild_id == guild_id
-                ]),
-                "processing": len([
-                    item for item in self._processing.values()
-                    if item.guild_id == guild_id
-                ]),
-                "completed": len([
-                    item for item in self._completed.values()
-                    if item.guild_id == guild_id
-                ]),
-                "failed": len([
-                    item for item in self._failed.values()
-                    if item.guild_id == guild_id
-                ])
-            }
+            for name, value in containers.items():
+                setattr(self, f"_{name}", value)
+
+    async def force_cleanup_item(self, item: QueueItem) -> None:
+        """Drop an item from processing and the pending queue"""
+        async with self._lock:
+            self._processing.pop(item.url, None)
+            self._queue[:] = [i for i in self._queue if i.url != item.url]
 
     async def clear_state(self) -> None:
         """Clear all state data"""
@@ -331,7 +365,7 @@ class QueueStateManager:
             self._failed = state.get("failed", {})
 
             # Validate restored items
-            for item in self._queue:
+            for item in list(self._queue):
                 if not self.validator.validate_item(item):
                     logger.warning(f"Removing invalid restored item: {item}")
                     self._queue.remove(item)

@@ -180,18 +180,8 @@ class FFmpeg:
             raise FFmpegError(f"Failed to get FFmpeg version: {e}")
 
 
-# Initialize default instance
-try:
-    ffmpeg = FFmpeg()
-    logger.info(f"Default FFmpeg instance initialized (version {ffmpeg.version})")
-except Exception as e:
-    logger.error(f"Failed to initialize default FFmpeg instance: {e}")
-    ffmpeg = None
-
-
 __all__ = [
     'FFmpeg',
-    'ffmpeg',
     'FFmpegManager',
     'VideoAnalyzer',
     'GPUDetector',

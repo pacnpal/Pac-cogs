@@ -9,7 +9,7 @@ from datetime import datetime
 
 # try:
 # Try relative imports first
-from .cleanup import cleanup_resources, force_cleanup_resources
+from .cleanup import cleanup_resources, force_cleanup_resources, clear_component, stop_update_checker
 from ..utils.exceptions import (
     VideoArchiverError,
     ErrorContext,
@@ -286,7 +286,7 @@ class StateTracker:
 class LifecycleManager:
     """Manages the lifecycle of the VideoArchiver cog"""
 
-    INIT_TIMEOUT: ClassVar[int] = 60  # 1 minute timeout for initialization
+    INIT_TIMEOUT: ClassVar[int] = 600  # first run may download FFmpeg (100MB+)
     UNLOAD_TIMEOUT: ClassVar[int] = 30  # 30 seconds timeout for unloading
     CLEANUP_TIMEOUT: ClassVar[int] = 15  # 15 seconds timeout for cleanup
 
@@ -473,10 +473,10 @@ class LifecycleManager:
         """Clean up all references"""
         self.cog.ready.clear()
         self.cog.bot = None
-        self.cog.processor = None
-        self.cog.queue_manager = None
-        self.cog.update_checker = None
-        self.cog.ffmpeg_mgr = None
+        clear_component(self.cog, "processor")
+        clear_component(self.cog, "queue_manager")
+        await stop_update_checker(self.cog)
+        clear_component(self.cog, "ffmpeg_mgr")
         self.cog.components.clear()
         self.cog.db = None
 
