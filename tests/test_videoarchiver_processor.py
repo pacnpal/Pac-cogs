@@ -68,9 +68,10 @@ async def main():
     m.content = f"look <https://youtu.be/{ID}>."
     m.reactions = [MagicMock(emoji=REACTIONS["success"]), MagicMock(emoji=REACTIONS["archived"])]
     m.reply = AsyncMock()
+    m.guild.id = 42
     db = MagicMock(get_archived_video=AsyncMock(return_value={"discord_url": "https://cdn/x.mp4"}))
     await handle_archived_reaction(m, None, db)  # get_user() cache miss -> None
-    db.get_archived_video.assert_awaited_with(f"https://youtu.be/{ID}")
+    db.get_archived_video.assert_awaited_with(f"https://youtu.be/{ID}", 42)
     m.reply.assert_awaited_once()
     print("videoarchiver processor ok")
 

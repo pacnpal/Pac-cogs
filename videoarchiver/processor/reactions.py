@@ -67,7 +67,7 @@ async def handle_archived_reaction(
             except Exception:
                 continue
 
-            result = await db.get_archived_video(url)
+            result = await db.get_archived_video(url, message.guild.id)
             if result:
                 discord_url = result["discord_url"]
                 await message.reply(

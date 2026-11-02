@@ -168,8 +168,8 @@ class QueueHandler:
             return False
 
         # One DB serves every guild: only this guild's own archive counts as a duplicate
-        archived_info = await self.db.get_archived_video(item.url)
-        if archived_info and archived_info.get("guild_id") == item.guild_id:
+        archived_info = await self.db.get_archived_video(item.url, item.guild_id)
+        if archived_info:
             logger.info(f"Video already archived: {item.url}")
             if original_message := await self._get_original_message(item):
                 await self._update_message_reactions(
@@ -341,9 +341,9 @@ class QueueHandler:
                 content=message, file=discord.File(file_path)
             )
             # ponytail: deletion timers live in memory, so a restart keeps those messages
-            async def expire(msg=archive_message, db=self.db, u=url):
+            async def expire(msg=archive_message, db=self.db, u=url, g=guild_id):
                 if db:  # forget it first, or the URL reads as archived forever
-                    await db.remove_archived_video(u)
+                    await db.remove_archived_video(u, g)
                 await msg.delete()
 
             await message_manager.schedule_message_deletion(archive_message.id, expire)

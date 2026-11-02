@@ -312,7 +312,7 @@ class DatabaseCommands:
                 await ctx.defer()
 
             try:
-                result = await self.db.get_archived_video(url)
+                result = await self.db.get_archived_video(url, ctx.guild.id)
             except Exception as e:
                 raise DatabaseError(
                     f"Failed to query database: {str(e)}",

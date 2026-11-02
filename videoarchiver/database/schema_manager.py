@@ -69,7 +69,7 @@ class SchemaStatus(TypedDict):
 class DatabaseSchemaManager:
     """Manages database schema creation and updates"""
 
-    SCHEMA_VERSION: ClassVar[int] = 1  # Increment when schema changes
+    SCHEMA_VERSION: ClassVar[int] = 2  # Increment when schema changes
     MIGRATION_TIMEOUT: ClassVar[float] = 30.0  # Seconds
 
     def __init__(self, db_path: Path) -> None:
@@ -138,10 +138,12 @@ class DatabaseSchemaManager:
                     """
                 )
                 # Insert initial version if table is empty
+                # Only into an empty table: version is the primary key, so OR IGNORE alone
+                # added a second row (0) next to the real one on every open
                 cursor.execute(
                     """
-                    INSERT OR IGNORE INTO schema_version (version, migrations_applied)
-                    VALUES (0, '[]')
+                    INSERT INTO schema_version (version, migrations_applied)
+                    SELECT 0, '[]' WHERE NOT EXISTS (SELECT 1 FROM schema_version)
                     """
                 )
                 conn.commit()
@@ -172,9 +174,10 @@ class DatabaseSchemaManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT version FROM schema_version LIMIT 1")
+                # MAX: databases opened by older versions can hold a stray 0 row
+                cursor.execute("SELECT MAX(version) FROM schema_version")
                 result = cursor.fetchone()
-                return result[0] if result else 0
+                return result[0] if result and result[0] is not None else 0
 
         except sqlite3.Error as e:
             error = f"Failed to get schema version: {str(e)}"
@@ -196,11 +199,10 @@ class DatabaseSchemaManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
+                # Replace rather than UPDATE: with a stray row, UPDATE hits the primary key
+                cursor.execute("DELETE FROM schema_version")
                 cursor.execute(
-                    """
-                    UPDATE schema_version 
-                    SET version = ?, last_updated = CURRENT_TIMESTAMP
-                    """,
+                    "INSERT INTO schema_version (version, migrations_applied) VALUES (?, '[]')",
                     (self.SCHEMA_VERSION,),
                 )
                 conn.commit()
@@ -321,9 +323,49 @@ class DatabaseSchemaManager:
             """
             )
 
-        # Add more migrations here as schema evolves
-        # if current_version < 2:
-        #     migrations.append(...)
+        # Version 1 to 2: one row per (guild, URL). The DB is shared by every guild, and
+        # keying by URL alone let one guild's archive overwrite or delete another's.
+        if current_version < 2:
+            migrations.append(
+                """
+                CREATE TABLE archived_videos_v2 (
+                    original_url TEXT NOT NULL,
+                    discord_url TEXT NOT NULL,
+                    message_id INTEGER NOT NULL,
+                    channel_id INTEGER NOT NULL,
+                    guild_id INTEGER NOT NULL,
+                    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    file_size INTEGER,
+                    duration INTEGER,
+                    format TEXT,
+                    resolution TEXT,
+                    bitrate INTEGER,
+                    error_count INTEGER DEFAULT 0,
+                    last_error TEXT,
+                    last_accessed TIMESTAMP,
+                    metadata TEXT,
+                    PRIMARY KEY (guild_id, original_url)
+                );
+
+                INSERT INTO archived_videos_v2 SELECT
+                    original_url, discord_url, message_id, channel_id, guild_id,
+                    archived_at, file_size, duration, format, resolution, bitrate,
+                    error_count, last_error, last_accessed, metadata
+                FROM archived_videos;
+
+                DROP TABLE archived_videos;
+                ALTER TABLE archived_videos_v2 RENAME TO archived_videos;
+
+                CREATE INDEX IF NOT EXISTS idx_guild_channel
+                ON archived_videos(guild_id, channel_id);
+
+                CREATE INDEX IF NOT EXISTS idx_archived_at
+                ON archived_videos(archived_at);
+
+                CREATE INDEX IF NOT EXISTS idx_last_accessed
+                ON archived_videos(last_accessed);
+            """
+            )
 
         return migrations
 
