@@ -25,7 +25,8 @@ if TYPE_CHECKING:
     # try:
     # Try relative imports first
     from ..ffmpeg.ffmpeg_manager import FFmpegManager
-    from ..utils.exceptions import CleanupError
+
+from ..utils.exceptions import CleanupError
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
 #   # from videoarchiver.ffmpeg.ffmpeg_manager import FFmpegManager
@@ -202,7 +203,7 @@ class CleanupManager:
     def __init__(
         self,
         queue_handler: "QueueHandler",
-        ffmpeg_mgr: Optional[FFmpegManager] = None,
+        ffmpeg_mgr: Optional["FFmpegManager"] = None,
         strategy: CleanupStrategy = CleanupStrategy.NORMAL,
     ) -> None:
         self.queue_handler = queue_handler

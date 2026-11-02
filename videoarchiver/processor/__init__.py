@@ -206,7 +206,11 @@ def get_active_operations() -> Dict[str, Dict[str, Any]]:
     Returns:
         Dictionary containing information about all active operations
     """
-    return progress_tracker.get_active_operations()
+    return {
+        url: data
+        for url, data in progress_tracker.get_download_progress().items()
+        if data.get("active")
+    }
 
 
 def get_validation_stats() -> ValidationStats:

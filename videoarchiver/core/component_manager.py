@@ -20,13 +20,15 @@ from datetime import datetime
 from pathlib import Path
 import importlib
 
+from redbot.core.data_manager import cog_data_path  # type: ignore
+
 # try:
 # Try relative imports first
 from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
 from ..utils.path_manager import PathManager
 from ..config_manager import ConfigManager
 from ..processor.core import VideoProcessor
-from ..queue.manager import EnhancedVideoQueueManager
+from ..queue.manager import EnhancedVideoQueueManager, QueueConfig
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 
 # except ImportError:
@@ -74,18 +76,6 @@ class ComponentStatus(TypedDict):
     health: bool
 
 
-class Initializable(Protocol):
-    """Protocol for initializable components"""
-
-    async def initialize(self) -> None:
-        """Initialize the component"""
-        ...
-
-    async def shutdown(self) -> None:
-        """Shutdown the component"""
-        ...
-
-
 class Component:
     """Base class for managed components"""
 
@@ -98,6 +88,7 @@ class Component:
         self.initialization_time: Optional[datetime] = None
         self.error: Optional[str] = None
         self._health_check_task: Optional[asyncio.Task] = None
+        self.instance: Any = self  # the real object a wrapper stands for
 
     async def initialize(self) -> None:
         """
@@ -290,13 +281,6 @@ class DependencyManager:
 class ComponentManager:
     """Manages VideoArchiver components"""
 
-    CORE_COMPONENTS: ClassVar[Dict[str, Tuple[Type[Any], Set[str]]]] = {
-        "config_manager": (ConfigManager, set()),
-        "processor": (VideoProcessor, {"config_manager"}),
-        "queue_manager": (EnhancedVideoQueueManager, {"config_manager"}),
-        "ffmpeg_mgr": (FFmpegManager, set()),
-    }
-
     def __init__(self, cog: Any) -> None:
         self.cog = cog
         self._components: Dict[str, Component] = {}
@@ -325,8 +309,10 @@ class ComponentManager:
             # Wrap non-Component objects
             if not isinstance(component, Component):
                 wrapped = Component(name)
-                if isinstance(component, Initializable):
+                wrapped.instance = component
+                if hasattr(component, "initialize"):
                     wrapped.initialize = component.initialize
+                if hasattr(component, "shutdown"):
                     wrapped.shutdown = component.shutdown
                 component = wrapped
 
@@ -376,8 +362,9 @@ class ComponentManager:
             # Initialize core components first
             await self._initialize_core_components()
 
-            # Get initialization order
+            # Get initialization order (components with no dependency edges go last)
             init_order = self.dependency_manager.get_initialization_order()
+            init_order += [n for n in self._components if n not in init_order]
 
             # Initialize remaining components
             for name in init_order:
@@ -389,6 +376,7 @@ class ComponentManager:
                     self.tracker.update_state(name, ComponentState.INITIALIZING)
                     await component.initialize()
                     component.initialization_time = datetime.utcnow()
+                    component.state = ComponentState.READY
                     self.tracker.update_state(name, ComponentState.READY)
                 except Exception as e:
                     error = f"Failed to initialize component {name}: {str(e)}"
@@ -425,18 +413,30 @@ class ComponentManager:
             ComponentError: If core component initialization fails
         """
         try:
-            for name, (component_class, deps) in self.CORE_COMPONENTS.items():
-                if name == "processor":
-                    component = component_class(self.cog)
-                elif name == "ffmpeg_mgr":
-                    component = component_class(self.cog)
-                else:
-                    component = component_class()
+            cog = self.cog
+            # Paths first: the queue persists its state under the data dir
+            data_dir = await self._initialize_paths()
 
-                self.register(name, component, deps)
+            config_manager = ConfigManager(cog.config)
+            self.register("config_manager", config_manager)
 
-            # Initialize paths
-            await self._initialize_paths()
+            # FFmpegManager.__init__ does blocking binary/GPU setup
+            ffmpeg_mgr = await asyncio.to_thread(FFmpegManager)
+            self.register("ffmpeg_mgr", ffmpeg_mgr)
+
+            queue_manager = EnhancedVideoQueueManager(
+                QueueConfig(persistence_path=str(data_dir / "queue_state.json"))
+            )
+            self.register("queue_manager", queue_manager, {"config_manager"})
+
+            processor = VideoProcessor(
+                cog.bot, config_manager, cog.components, queue_manager, ffmpeg_mgr, cog.db
+            )
+            self.register(
+                "processor",
+                processor,
+                {"config_manager", "queue_manager", "ffmpeg_mgr"},
+            )
 
         except Exception as e:
             error = f"Failed to initialize core components: {str(e)}"
@@ -451,7 +451,7 @@ class ComponentManager:
                 ),
             )
 
-    async def _initialize_paths(self) -> None:
+    async def _initialize_paths(self) -> Path:
         """
         Initialize required paths.
 
@@ -459,7 +459,7 @@ class ComponentManager:
             ComponentError: If path initialization fails
         """
         try:
-            data_dir = Path(self.cog.bot.data_path) / "VideoArchiver"
+            data_dir = cog_data_path(self.cog)
             download_dir = data_dir / "downloads"
 
             # Ensure directories exist
@@ -469,6 +469,7 @@ class ComponentManager:
             # Register paths
             self.register("data_path", data_dir)
             self.register("download_path", download_dir)
+            return data_dir
 
         except Exception as e:
             error = f"Failed to initialize paths: {str(e)}"

@@ -1,11 +1,7 @@
-"""Command handlers for VideoArchiver"""
+"""Command mixins for VideoArchiver"""
 
-from .archiver_commands import setup_archiver_commands
-from .database_commands import setup_database_commands
-from .settings_commands import setup_settings_commands
+from .archiver_commands import ArchiverCommands
+from .database_commands import DatabaseCommands
+from .settings_commands import SettingsCommands
 
-__all__ = [
-    "setup_archiver_commands",
-    "setup_database_commands",
-    "setup_settings_commands",
-]
+__all__ = ["ArchiverCommands", "DatabaseCommands", "SettingsCommands"]

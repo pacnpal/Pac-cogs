@@ -180,7 +180,7 @@ class VideoProcessor(IComponent):
 
             # Initialize handlers
             self.queue_handler: "QueueHandler" = QueueHandler(
-                bot, config_manager, components
+                bot, config_manager, ProgressTracker(), components
             )
             self.message_handler: "MessageHandler" = MessageHandler(
                 bot, config_manager, queue_manager

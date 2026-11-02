@@ -5,7 +5,7 @@ import asyncio
 import os
 from enum import Enum, auto
 from typing import Optional, Dict, Any, List, Tuple, Set, TypedDict, ClassVar, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import discord  # type: ignore
 
 # try:
@@ -395,13 +395,11 @@ class QueueHandler:
                         return
 
                     # Update progress tracking
-                    ProgressTracker.update_download_progress(
+                    self.progress_tracker.update_download_progress(
                         url,
                         {
                             "percent": progress,
-                            "last_update": datetime.now(
-                                datetime.timezone.utc
-                            )().isoformat(),
+                            "last_update": datetime.now(timezone.utc).isoformat(),
                         },
                     )
 
@@ -444,9 +442,9 @@ class QueueHandler:
                 download_task, timeout=self.DOWNLOAD_TIMEOUT
             )
             if success:
-                ProgressTracker.complete_download(url)
+                self.progress_tracker.complete_download(url)
             else:
-                ProgressTracker.increment_download_retries(url)
+                self.progress_tracker.increment_download_retries(url)
             return success, file_path, error
 
         except asyncio.TimeoutError:

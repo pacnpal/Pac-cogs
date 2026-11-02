@@ -12,8 +12,8 @@ from .state_manager import QueueStateManager
 from .processor import QueueProcessor
 from .metrics_manager import QueueMetricsManager
 from .persistence import QueuePersistenceManager, QueueError
-from .monitoring import QueueMonitor, MonitoringLevel
-from .cleanup import QueueCleaner, CleanupError
+from .monitoring import QueueMonitor, MonitoringLevel, MonitoringThresholds
+from .cleanup import QueueCleaner, CleanupError, CleanupConfig
 from .models import QueueItem
 from .q_types import ProcessingStrategy
 
@@ -43,6 +43,7 @@ class QueueConfig:
     batch_size: int = 10
     max_concurrent: int = 3
     persistence_enabled: bool = True
+    persistence_path: Optional[str] = None
     monitoring_level: MonitoringLevel = MonitoringLevel.NORMAL
 
 
@@ -113,18 +114,24 @@ class EnhancedVideoQueueManager(IQueueManager):
         self.state_manager = QueueStateManager(self.config.max_queue_size)
         self.metrics_manager = QueueMetricsManager()
         self.monitor = QueueMonitor(
-            deadlock_threshold=self.config.deadlock_threshold,
-            max_retries=self.config.max_retries,
-            check_interval=self.config.check_interval,
+            thresholds=MonitoringThresholds(
+                deadlock_threshold=self.config.deadlock_threshold,
+                max_retries=self.config.max_retries,
+                check_interval=self.config.check_interval,
+            )
         )
         self.cleaner = QueueCleaner(
-            cleanup_interval=self.config.cleanup_interval,
-            max_history_age=self.config.max_history_age,
+            CleanupConfig(
+                cleanup_interval=self.config.cleanup_interval,
+                max_history_age=self.config.max_history_age,
+            )
         )
 
         # Initialize persistence if enabled
         self.persistence = (
-            QueuePersistenceManager() if self.config.persistence_enabled else None
+            QueuePersistenceManager(self.config.persistence_path)
+            if self.config.persistence_enabled and self.config.persistence_path
+            else None
         )
 
         # Initialize processor

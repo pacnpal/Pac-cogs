@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Set
 from datetime import datetime, timedelta
 
-from .health_checker import HealthChecker, HealthStatus, HealthCategory
-from .recovery_manager import RecoveryManager, RecoveryStrategy
+from .health_checker import HealthChecker, HealthStatus, HealthCategory, HealthThresholds
+from .recovery_manager import RecoveryManager, RecoveryStrategy, RecoveryThresholds
 
 logger = logging.getLogger("QueueMonitoring")
 
@@ -177,10 +177,17 @@ class QueueMonitor:
         
         # Initialize components
         self.health_checker = HealthChecker(
-            memory_threshold=self.thresholds.memory_threshold,
-            deadlock_threshold=self.thresholds.deadlock_threshold
+            HealthThresholds(
+                memory_critical_mb=self.thresholds.memory_threshold,
+                deadlock_critical_sec=self.thresholds.deadlock_threshold,
+            )
         )
-        self.recovery_manager = RecoveryManager(max_retries=self.thresholds.max_retries)
+        self.recovery_manager = RecoveryManager(
+            RecoveryThresholds(
+                max_retries=self.thresholds.max_retries,
+                deadlock_threshold=self.thresholds.deadlock_threshold,
+            )
+        )
         self.alert_manager = AlertManager()
         
         self._shutdown = False
