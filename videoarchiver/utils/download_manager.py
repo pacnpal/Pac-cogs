@@ -234,7 +234,9 @@ class DownloadManager:
         def run() -> Optional[str]:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-            entry = ((info or {}).get("entries") or [info])[0] or {}  # playlist -> its one entry
+            entry = info or {}
+            while entry.get("entries"):  # playlist (maybe of tab playlists) -> its one video
+                entry = entry["entries"][0] or {}
             downloads = entry.get("requested_downloads") or [{}]
             return downloads[0].get("filepath")  # final path, after any merge
 

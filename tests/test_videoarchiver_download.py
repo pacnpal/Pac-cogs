@@ -22,7 +22,7 @@ from videoarchiver.utils.file_operations import FileOperations  # noqa: E402
 MB = 1024 * 1024
 
 
-def fake_ytdl(size=None, error=None, playlist=False):
+def fake_ytdl(size=None, error=None, playlist=0):
     """YoutubeDL stand-in: writes a `size`-byte file into paths.home (or a .part then raises)."""
     class FakeYDL:
         def __init__(self, opts):
@@ -48,7 +48,9 @@ def fake_ytdl(size=None, error=None, playlist=False):
                       "info_dict": {"original_url": url}})
                 hook({"status": "finished", "filename": path})
             entry = {"requested_downloads": [{"filepath": path}]}
-            return {"_type": "playlist", "entries": [entry]} if playlist else entry
+            for _ in range(playlist):  # channel URL: a playlist of tab playlists
+                entry = {"_type": "playlist", "entries": [entry]}
+            return entry
     return FakeYDL
 
 
@@ -135,7 +137,7 @@ def main():
     tmp = Path(tempfile.mkdtemp())
     dm, downloads, _ = make_manager(tmp, 8)
     assert dm.ydl_opts["playlist_items"] == "1"
-    (ok, path, err), _ = run(dm, "https://example.com/p", fake_ytdl(size=1000, playlist=True))
+    (ok, path, err), _ = run(dm, "https://example.com/p", fake_ytdl(size=1000, playlist=2))
     assert (ok, err) == (True, "") and os.path.getsize(path) == 1000, err
 
     # yt-dlp error: clean failure, partial files gone.
