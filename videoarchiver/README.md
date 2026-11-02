@@ -149,7 +149,9 @@ Channel: {channel}
 
 ## Site Support
 
-The cog picks up YouTube (including Shorts, live and `youtu.be` links), Vimeo and Twitter/X links, plus direct links to video files. Links in `<...>` or spoiler tags still count. Other sites yt-dlp supports are ignored for now.
+The cog picks up links to any site yt-dlp supports (its [supported sites list](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)), plus direct links to video files. The list comes from the installed yt-dlp, so updating yt-dlp adds sites with no cog change. Links yt-dlp treats as playlist-only are skipped; anything else that turns out to hold several videos (a multi-video tweet, a YouTube channel or playlist) archives just the first one. Links in `<...>` or spoiler tags still count.
+
+`enabled_sites` takes yt-dlp site names (`youtube`, `twitter`, `tiktok`, ...) or domain fragments (`vimeo.com`); empty means every site.
 
 ## Performance & Limitations
 

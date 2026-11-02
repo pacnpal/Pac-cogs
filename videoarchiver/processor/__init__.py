@@ -20,7 +20,6 @@ from .core import VideoProcessor
 from .url_extractor import (
     URLExtractor,
     URLMetadata,
-    URLPattern,
     URLType,
     URLPatternManager,
     URLValidator,
@@ -66,7 +65,6 @@ __all__ = [
     # URL Extraction
     "URLExtractor",
     "URLMetadata",
-    "URLPattern",
     "URLType",
     "URLPatternManager",
     "URLValidator",
