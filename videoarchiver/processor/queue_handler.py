@@ -167,16 +167,17 @@ class QueueHandler:
         if not self.db:
             return False
 
-        if self.db.is_url_archived(item.url):
+        if await self.db.is_url_archived(item.url):
             logger.info(f"Video already archived: {item.url}")
             if original_message := await self._get_original_message(item):
                 await self._update_message_reactions(
                     original_message, QueueItemStatus.COMPLETED
                 )
-                archived_info = self.db.get_archived_video(item.url)
+                archived_info = await self.db.get_archived_video(item.url)
                 if archived_info:
                     await original_message.reply(
-                        f"This video was already archived. You can find it here: {archived_info[0]}"
+                        "This video was already archived. You can find it here: "
+                        f"{archived_info['discord_url']}"
                     )
             item.finish_processing(True)
             return True
@@ -337,14 +338,17 @@ class QueueHandler:
                 content=message, file=discord.File(file_path)
             )
             # ponytail: deletion timers live in memory, so a restart keeps those messages
-            await message_manager.schedule_message_deletion(
-                archive_message.id, archive_message.delete
-            )
+            async def expire(msg=archive_message, db=self.db, u=url):
+                if db:  # forget it first, or the URL reads as archived forever
+                    await db.remove_archived_video(u)
+                await msg.delete()
+
+            await message_manager.schedule_message_deletion(archive_message.id, expire)
 
             # Store in database if available
             if self.db and archive_message.attachments:
                 discord_url = archive_message.attachments[0].url
-                self.db.add_archived_video(
+                await self.db.add_archived_video(
                     url, discord_url, archive_message.id, archive_channel.id, guild_id
                 )
                 logger.info(f"Added video to archive database: {url} -> {discord_url}")

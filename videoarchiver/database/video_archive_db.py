@@ -73,6 +73,10 @@ class VideoArchiveDB:
         """Get archived videos for a channel"""
         return await self.query_manager.get_channel_videos(channel_id, limit, offset)
 
+    async def remove_archived_video(self, url: str) -> None:
+        """Forget an archived video, e.g. once its archive message is deleted"""
+        await self.query_manager.remove_archived_video(url)
+
     async def cleanup_old_records(self, days: int) -> int:
         """Clean up records older than specified days"""
         return await self.query_manager.cleanup_old_records(days)

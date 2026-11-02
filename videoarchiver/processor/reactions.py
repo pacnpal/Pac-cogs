@@ -66,9 +66,9 @@ async def handle_archived_reaction(
             except Exception:
                 continue
 
-            result = db.get_archived_video(url)
+            result = await db.get_archived_video(url)
             if result:
-                discord_url = result[0]
+                discord_url = result["discord_url"]
                 await message.reply(
                     f"This video was already archived. You can find it here: {discord_url}"
                 )

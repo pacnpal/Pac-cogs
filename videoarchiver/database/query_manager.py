@@ -184,6 +184,15 @@ class DatabaseQueryManager:
             logger.error(f"Error getting channel videos: {e}")
             return []
 
+    async def remove_archived_video(self, url: str) -> None:
+        """Forget an archived video (its archive message is gone)"""
+        try:
+            with self.connection_manager.get_connection() as conn:
+                conn.execute("DELETE FROM archived_videos WHERE original_url = ?", (url,))
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Error removing archived video: {e}")
+
     async def cleanup_old_records(self, days: int) -> int:
         """Clean up records older than specified days"""
         try:

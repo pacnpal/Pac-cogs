@@ -129,6 +129,15 @@ async def main():
         add_to_queue = AsyncMock(wraps=qm.add_to_queue)
         processor.message_handler.queue_manager.add_to_queue = add_to_queue
 
+        # A real archive DB, wired in the way `archivedb enable` does it
+        from videoarchiver.database.video_archive_db import VideoArchiveDB
+        db = VideoArchiveDB(Path(tempfile.mkdtemp()))
+        processor.db = processor.queue_handler.db = db
+        archive.send.return_value = MagicMock(id=9999, delete=AsyncMock(),
+                                              attachments=[MagicMock(url="https://cdn.example/v.mp4")])
+        mm = cog.components[GUILD]["message_manager"]
+        schedule = mm.schedule_message_deletion = AsyncMock(wraps=mm.schedule_message_deletion)
+
         on_message = bot.extra_events["on_message"]
         assert len(on_message) == 1, on_message
 
@@ -146,9 +155,14 @@ async def main():
         assert isinstance(sent["file"], discord.File), sent
         assert "poster" in sent["content"] and "clips" in sent["content"], sent["content"]
         # message_duration (default 24h) schedules the archive message for deletion
-        mm = cog.components[GUILD]["message_manager"]
         archived = archive.send.return_value
         assert archived.id in mm.scheduled_deletions, mm.scheduled_deletions
+        # The archive DB calls are awaited: the row exists, and expiring the message drops it,
+        # so the URL can be archived again later
+        assert (await db.get_archived_video(URL))["discord_url"] == "https://cdn.example/v.mp4"
+        await schedule.call_args.args[1]()
+        archived.delete.assert_awaited_once()
+        assert not await db.is_url_archived(URL)
 
         # #3: real counts, not the error default
         await wait_for(lambda: qm.get_queue_status(GUILD)["completed"] == 1, "completed count")
