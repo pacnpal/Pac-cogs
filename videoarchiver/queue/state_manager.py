@@ -295,6 +295,41 @@ class QueueStateManager:
                 ])
             }
 
+    # Live containers for QueueCleaner/QueueMonitor/RecoveryManager. Cleaners mutate
+    # them in place and hand them back through update_state.
+    async def get_queue(self) -> List[QueueItem]:
+        return self._queue
+
+    async def get_processing(self) -> Dict[str, QueueItem]:
+        return self._processing
+
+    async def get_completed(self) -> Dict[str, QueueItem]:
+        return self._completed
+
+    async def get_failed(self) -> Dict[str, QueueItem]:
+        return self._failed
+
+    async def get_guild_queues(self) -> Dict[int, Set[str]]:
+        return self._guild_queues
+
+    async def get_channel_queues(self) -> Dict[int, Set[str]]:
+        return self._channel_queues
+
+    async def get_all_processing_items(self) -> List[QueueItem]:
+        return list(self._processing.values())
+
+    async def update_state(self, **containers: Any) -> None:
+        """Replace state containers, e.g. update_state(completed=..., failed=...)"""
+        async with self._lock:
+            for name, value in containers.items():
+                setattr(self, f"_{name}", value)
+
+    async def force_cleanup_item(self, item: QueueItem) -> None:
+        """Drop an item from processing and the pending queue"""
+        async with self._lock:
+            self._processing.pop(item.url, None)
+            self._queue[:] = [i for i in self._queue if i.url != item.url]
+
     async def clear_state(self) -> None:
         """Clear all state data"""
         async with self._lock:

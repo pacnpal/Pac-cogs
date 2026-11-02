@@ -199,8 +199,8 @@ class ValidationRuleManager:
 
     def _validate_channel(self, ctx: ValidationContext) -> Tuple[bool, Optional[str]]:
         """Validate channel settings"""
-        enabled_channels = ctx.settings.get("enabled_channels", [])
-        if enabled_channels and ctx.channel_id not in enabled_channels:
+        monitored_channels = ctx.settings.get("monitored_channels", [])
+        if monitored_channels and ctx.channel_id not in monitored_channels:
             return False, "Channel not enabled for archiving"
         return True, None
 

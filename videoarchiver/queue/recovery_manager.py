@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+import time
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import List, Tuple, Dict, Optional, Any, Set
@@ -171,7 +172,7 @@ class RecoveryManager:
             return RecoveryStrategy.FAIL
 
         processing_time = (
-            datetime.utcnow().timestamp() - item.start_time
+            time.time() - item.start_time
             if item.start_time
             else 0
         )
@@ -343,7 +344,7 @@ class RecoveryManager:
         if not hasattr(item, 'start_time') or not item.start_time:
             return False
 
-        processing_time = datetime.utcnow().timestamp() - item.start_time
+        processing_time = time.time() - item.start_time
         return processing_time > self.thresholds.deadlock_threshold
 
     def get_recovery_stats(self) -> Dict[str, Any]:

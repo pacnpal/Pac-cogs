@@ -60,7 +60,9 @@ async def main():
 
     # FFmpegManager may download binaries; startup only needs an object.
     with patch("videoarchiver.core.component_manager.FFmpegManager",
-               lambda: MagicMock(spec=FFmpegManager)):
+               lambda: MagicMock(spec=FFmpegManager)), \
+         patch("videoarchiver.update_checker.UpdateChecker.update_yt_dlp",
+               AsyncMock(return_value=(True, "stub"))):
         await load_and_check(bot)
 
         await videoarchiver.teardown(bot)

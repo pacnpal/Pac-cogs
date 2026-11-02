@@ -14,7 +14,7 @@ from .metrics_manager import QueueMetricsManager
 from .persistence import QueuePersistenceManager, QueueError
 from .monitoring import QueueMonitor, MonitoringLevel, MonitoringThresholds
 from .cleanup import QueueCleaner, CleanupError, CleanupConfig
-from .models import QueueItem
+from .models import QueueItem, QueueMetrics
 from .q_types import ProcessingStrategy
 
 logger = logging.getLogger("QueueManager")
@@ -128,9 +128,13 @@ class EnhancedVideoQueueManager(IQueueManager):
         )
 
         # Initialize persistence if enabled
+        if self.config.persistence_enabled and not self.config.persistence_path:
+            raise ValueError(
+                "QueueConfig.persistence_path is required when persistence_enabled is True"
+            )
         self.persistence = (
             QueuePersistenceManager(self.config.persistence_path)
-            if self.config.persistence_enabled and self.config.persistence_path
+            if self.config.persistence_enabled
             else None
         )
 
@@ -295,6 +299,24 @@ class EnhancedVideoQueueManager(IQueueManager):
             logger.error(f"Error during cleanup: {e}")
             raise CleanupError(f"Failed to clean up queue manager: {str(e)}")
 
+    def force_stop(self) -> None:
+        """Cancel every background task without awaiting (for timed-out cleanup)"""
+        self.monitor._shutdown = True
+        self.cleaner._shutdown = True
+        self.processor._shutdown = True
+        for task in (
+            self._maintenance_task,
+            self._stats_task,
+            self._processing_task,
+            self.monitor._monitoring_task,
+            self.cleaner._cleanup_task,
+            *self.processor._active_tasks,
+        ):
+            if task and not task.done():
+                task.cancel()
+        self.coordinator._state = QueueState.STOPPED  # set_state() only adds a lock
+        logger.info("Queue manager force stopped")
+
     def get_status(self) -> ComponentStatus:
         """Get component status"""
         return ComponentStatus(
@@ -319,10 +341,14 @@ class EnhancedVideoQueueManager(IQueueManager):
     async def _load_persisted_state(self) -> None:
         """Load persisted queue state"""
         try:
-            state = await self.persistence.load_queue_state()
+            state = await asyncio.to_thread(self.persistence.load_queue_state)
             if state:
                 await self.state_manager.restore_state(state)
-                self.metrics_manager.restore_metrics(state.get("metrics", {}))
+                # Persistence stores flat QueueMetrics fields; each category reads its own keys
+                metrics = state.get("metrics", {})
+                self.metrics_manager.restore_metrics(
+                    {"processing": metrics, "errors": metrics, "performance": metrics}
+                )
                 logger.info("Loaded persisted queue state")
         except Exception as e:
             logger.error(f"Failed to load persisted state: {e}")
@@ -367,8 +393,7 @@ class EnhancedVideoQueueManager(IQueueManager):
             previous_mode = self.coordinator.mode
             await self.coordinator.set_mode(QueueMode.MAINTENANCE)
 
-            # Perform maintenance tasks
-            await self._cleanup_old_data()
+            # Perform maintenance tasks (old data is pruned by QueueCleaner's own loop)
             await self._optimize_queue()
             await self._persist_state()
 
@@ -378,23 +403,11 @@ class EnhancedVideoQueueManager(IQueueManager):
         except Exception as e:
             logger.error(f"Error during maintenance: {e}")
 
-    async def _cleanup_old_data(self) -> None:
-        """Clean up old data"""
-        try:
-            await self.cleaner.cleanup_old_data(
-                self.state_manager, self.metrics_manager
-            )
-        except Exception as e:
-            logger.error(f"Error cleaning up old data: {e}")
-
     async def _optimize_queue(self) -> None:
         """Optimize queue performance"""
         try:
-            # Reorder queue based on priorities
-            await self.state_manager.optimize_queue()
-
-            # Update monitoring level based on queue size
-            queue_size = len(await self.state_manager.get_all_items())
+            # The queue is kept priority-sorted on insert, so only adjust monitoring
+            queue_size = len(await self.state_manager.get_queue())
             if queue_size > self.config.max_queue_size * 0.8:
                 self.monitor.strategy.level = MonitoringLevel.INTENSIVE
             elif queue_size < self.config.max_queue_size * 0.2:
@@ -409,10 +422,10 @@ class EnhancedVideoQueueManager(IQueueManager):
             self.stats.uptime = datetime.utcnow() - self.stats.start_time
 
             # Update peak values
-            queue_size = len(await self.state_manager.get_all_items())
+            queue_size = len(await self.state_manager.get_queue())
             self.stats.peak_queue_size = max(self.stats.peak_queue_size, queue_size)
 
-            memory_usage = self.metrics_manager.peak_memory_usage
+            memory_usage = self.metrics_manager.performance.peak_memory_usage
             self.stats.peak_memory_usage = max(
                 self.stats.peak_memory_usage, memory_usage
             )
@@ -427,15 +440,22 @@ class EnhancedVideoQueueManager(IQueueManager):
 
         try:
             state = await self.state_manager.get_state_for_persistence()
-            state["metrics"] = self.metrics_manager.get_metrics()
-            state["stats"] = {
-                "uptime": self.stats.uptime.total_seconds(),
-                "peak_queue_size": self.stats.peak_queue_size,
-                "peak_memory_usage": self.stats.peak_memory_usage,
-                "total_processed": self.stats.total_processed,
-                "total_failed": self.stats.total_failed,
-            }
-            await self.persistence.persist_queue_state(state)
+            mm = self.metrics_manager
+            await self.persistence.persist_queue_state(
+                state["queue"],
+                state["processing"],
+                state["completed"],
+                state["failed"],
+                QueueMetrics(
+                    total_processed=mm.processing.total_processed,
+                    total_failed=mm.processing.total_failed,
+                    avg_processing_time=mm.processing.avg_processing_time,
+                    success_rate=mm.processing.success_rate,
+                    errors_by_type=mm.errors.errors_by_type,
+                    compression_failures=mm.performance.compression_failures,
+                    hardware_accel_failures=mm.performance.hardware_accel_failures,
+                ),
+            )
         except Exception as e:
             logger.error(f"Failed to persist state: {e}")
 

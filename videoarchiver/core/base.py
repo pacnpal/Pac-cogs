@@ -274,27 +274,25 @@ class VideoArchiver(ArchiverCommands, DatabaseCommands, SettingsCommands, Cog, S
         """Monitor system health metrics"""
         while True:
             try:
-                # Check queue health
+                # Check queue health (component-wide; get_queue_status is per-guild)
                 if queue_manager := self.queue_manager:
-                    queue_status = await queue_manager.get_queue_status()
+                    queue_status = queue_manager.get_status()
                     self.status_tracker.update_health_check(
-                        "queue_health",
-                        queue_status["active"] and not queue_status["stalled"],
-                        queue_status,
+                        "queue_health", queue_status["health"], queue_status
                     )
 
                 # Check processor health
                 if processor := self.processor:
-                    processor_status = await processor.get_status()
+                    processor_status = processor.get_status()
                     self.status_tracker.update_health_check(
-                        "processor_health", processor_status["active"], processor_status
+                        "processor_health", processor_status["health"], processor_status
                     )
 
                 # Check database health
                 if db := self.db:
-                    db_status = await db.get_status()
+                    db_status = db.connection_manager.get_status()
                     self.status_tracker.update_health_check(
-                        "database_health", db_status["connected"], db_status
+                        "database_health", db_status["state"] == "healthy", db_status
                     )
 
                 # Check event system health
