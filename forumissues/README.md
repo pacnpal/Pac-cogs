@@ -45,6 +45,8 @@ Attachments are copied into the repository on an orphan `discord-attachments` br
 
 Issues, comments and uploads show up on GitHub as `APP-SLUG[bot]`. Any `@` in text copied from Discord gets a zero-width space after it, so Discord users can't ping GitHub users or teams through the App. GitHub doesn't autocomplete App names, so maintainers have to type `@APP-SLUG` in full.
 
+If a post's work fails five polls in a row, the cog logs that it gave up and stops tracking that post. That's mostly for posts whose Discord thread or GitHub issue was deleted. GitHub outages, timeouts and rate limits don't count toward the five. A given-up post stays in the Config data with `gave_up` set to `true`. To retry it, stop the bot, remove that field, and start it again.
+
 Each poll reads every linked issue once. That's fine for a community server. If you have thousands of open posts, raise the interval.
 
 ## When an issue create is uncertain
@@ -53,7 +55,7 @@ GitHub has no idempotency key for creating issues. Before sending the request, t
 
 For up to an hour after an uncertain create, the cog also holds back GitHub comment relay for that repository, so comments on a recovered issue aren't skipped. After that, relay resumes for the repository's other issues.
 
-If an uncertain create really made nothing, the post stays stuck and the log says so. Check the repository's open and closed issues for the marker first. If there's truly no issue, stop the bot, set that post's `attempted` to `false` in the cog's Config data (`cogs/ForumIssues/settings.json` under Red's data path with the JSON backend), and start it again.
+If an uncertain create really made nothing, the cog gives up on the post after five polls and the log says so. Check the repository's open and closed issues for the marker first. If there's truly no issue, stop the bot, set that post's `attempted` to `false` and remove its `gave_up` in the cog's Config data (`cogs/ForumIssues/settings.json` under Red's data path with the JSON backend), and start it again.
 
 ## Data
 
