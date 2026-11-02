@@ -41,8 +41,8 @@ async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> No
             old_components = cog.components[guild_id]
             if "message_manager" in old_components:
                 await old_components["message_manager"].cancel_all_deletions()
-            if "downloader" in old_components:
-                old_components["downloader"] = None
+            if old_components.get("downloader"):
+                await old_components.pop("downloader").cleanup()
 
         # Initialize new components with validated settings
         cog.components[guild_id] = {
@@ -75,8 +75,8 @@ async def cleanup_guild_components(cog: "VideoArchiver", guild_id: int) -> None:
             components = cog.components[guild_id]
             if "message_manager" in components:
                 await components["message_manager"].cancel_all_deletions()
-            if "downloader" in components:
-                components["downloader"] = None
+            if components.get("downloader"):
+                await components.pop("downloader").cleanup()
             if "ffmpeg_mgr" in components:
                 components["ffmpeg_mgr"] = None
 

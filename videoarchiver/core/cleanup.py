@@ -216,8 +216,8 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
                     try:
                         if "message_manager" in components:
                             await components["message_manager"].cancel_all_deletions()
-                        if "downloader" in components:
-                            components["downloader"] = None
+                        if components.get("downloader"):
+                            await components.pop("downloader").cleanup()
                         if "ffmpeg_mgr" in components:
                             components["ffmpeg_mgr"] = None
                     except Exception as e:
@@ -414,6 +414,9 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
         try:
             logger.info("Force clearing components")
             if hasattr(cog, "components"):
+                for components in cog.components.values():
+                    if components.get("downloader"):
+                        await components.pop("downloader").force_cleanup()
                 cog.components.clear()
             cleanup_manager.record_result(
                 CleanupPhase.COMPONENTS,
