@@ -16,6 +16,7 @@ from ..processor.constants import (
     get_progress_emoji,
 )
 from ..database.video_archive_db import VideoArchiveDB
+from .url_extractor import URL_WRAPPING_CHARS
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -42,10 +43,9 @@ async def handle_archived_reaction(
         db: Database instance for checking archived videos
     """
     try:
-        # Check if the reaction is from a user (not the bot) and is the archived reaction
-        if user.bot or str(message.reactions[0].emoji) != get_reaction(
-            ReactionType.ARCHIVED
-        ):
+        # The caller already matched the archived emoji; message.reactions[0] is
+        # usually the bot's own status reaction. get_user() can miss the cache.
+        if user is not None and user.bot:
             return
 
         # Extract URLs from the message using regex
@@ -54,6 +54,7 @@ async def handle_archived_reaction(
 
         # Check each URL in the database
         for url in urls:
+            url = url.strip(URL_WRAPPING_CHARS)  # same key URLExtractor queued it under
             # Ensure URL has proper scheme
             if url.startswith("www."):
                 url = "http://" + url

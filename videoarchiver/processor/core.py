@@ -298,8 +298,16 @@ class VideoProcessor(IComponent):
             # Get queue status
             queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
 
-            # Get active operations
-            active_ops = self.operation_tracker.get_active_operations()
+            # Active downloads/compressions, in the shape StatusDisplay reads
+            progress = ProgressTracker()
+            active_ops = {
+                "downloads": {
+                    k: v for k, v in progress.get_download_progress().items() if v.get("active")
+                },
+                "compressions": {
+                    k: v for k, v in progress.get_compression_progress().items() if v.get("active")
+                },
+            }
 
             # Import StatusDisplay here to avoid circular imports
             from .status_display import StatusDisplay

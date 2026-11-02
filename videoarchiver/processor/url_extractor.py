@@ -11,6 +11,9 @@ from urllib.parse import urlparse, parse_qs, ParseResult
 
 logger = logging.getLogger("VideoArchiver")
 
+# Discord markup and punctuation around a link: <url> (no embed), ||url||, (url), "url.", ...
+URL_WRAPPING_CHARS = "<>()[]|*`'\",.!?"
+
 @dataclass
 class URLPattern:
     """Defines a URL pattern for a video site"""
@@ -46,18 +49,18 @@ class URLPatternManager:
     """Manages URL patterns for different video sites"""
 
     YOUTUBE_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:www\.)?'
-        r'(?:youtube\.com/watch\?v=|youtu\.be/)'
+        r'(?:https?://)?(?:(?:www|m|music)\.)?'
+        r'(?:youtube\.com/(?:watch\?(?:[^#\s]*&)?v=|shorts/|live/|embed/)|youtu\.be/)'
         r'([a-zA-Z0-9_-]{11})'
     )
     VIMEO_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:www\.)?'
-        r'vimeo\.com/(?:channels/(?:\w+/)?|groups/(?:[^/]*/)*|)'
+        r'(?:https?://)?(?:(?:www|player)\.)?'
+        r'vimeo\.com/(?:video/|channels/(?:\w+/)?|groups/(?:[^/]*/)*|)'
         r'(\d+)(?:|/\w+)*'
     )
     TWITTER_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:www\.)?'
-        r'(?:twitter\.com|x\.com)/\w+/status/(\d+)'
+        r'(?:https?://)?(?:(?:www|mobile)\.)?'
+        r'(?:twitter\.com|x\.com)/(?:\w+|i/web)/status/(\d+)'
     )
 
     def __init__(self) -> None:
@@ -293,7 +296,9 @@ class URLExtractor:
                 else:
                     logger.debug(f"Could not extract metadata from URL: {url}")
 
-            # Update cache
+            # Update cache (ponytail: FIFO cap, one entry per message would grow forever)
+            if len(self._url_cache) >= 1000:
+                self._url_cache.pop(next(iter(self._url_cache)))
             self._url_cache[cache_key] = valid_urls
             
             return urls
@@ -314,6 +319,7 @@ class URLExtractor:
         try:
             urls = []
             for word in content.split():
+                word = word.strip(URL_WRAPPING_CHARS)
                 if self.validator.get_url_type(word) != URLType.UNKNOWN:
                     urls.append(word)
             return urls

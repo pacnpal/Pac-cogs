@@ -167,18 +167,18 @@ class QueueHandler:
         if not self.db:
             return False
 
-        if await self.db.is_url_archived(item.url):
+        # One DB serves every guild: only this guild's own archive counts as a duplicate
+        archived_info = await self.db.get_archived_video(item.url)
+        if archived_info and archived_info.get("guild_id") == item.guild_id:
             logger.info(f"Video already archived: {item.url}")
             if original_message := await self._get_original_message(item):
                 await self._update_message_reactions(
                     original_message, QueueItemStatus.COMPLETED
                 )
-                archived_info = await self.db.get_archived_video(item.url)
-                if archived_info:
-                    await original_message.reply(
-                        "This video was already archived. You can find it here: "
-                        f"{archived_info['discord_url']}"
-                    )
+                await original_message.reply(
+                    "This video was already archived. You can find it here: "
+                    f"{archived_info['discord_url']}"
+                )
             item.finish_processing(True)
             return True
         return False
@@ -207,10 +207,13 @@ class QueueHandler:
         if not success:
             raise QueueHandlerError(f"Failed to download video: {error}")
 
-        # Archive video
-        success, error = await self._archive_video(
-            item.guild_id, original_message, message_manager, item.url, file_path
-        )
+        # Archive video; the file goes either way (process_video never sees the path if this raises)
+        try:
+            success, error = await self._archive_video(
+                item.guild_id, original_message, message_manager, item.url, file_path
+            )
+        finally:
+            await self._cleanup_file(file_path)
         if not success:
             raise QueueHandlerError(f"Failed to archive video: {error}")
 
@@ -349,7 +352,8 @@ class QueueHandler:
             if self.db and archive_message.attachments:
                 discord_url = archive_message.attachments[0].url
                 await self.db.add_archived_video(
-                    url, discord_url, archive_message.id, archive_channel.id, guild_id
+                    url, discord_url, archive_message.id, archive_channel.id, guild_id,
+                    {"file_size": archive_message.attachments[0].size},
                 )
                 logger.info(f"Added video to archive database: {url} -> {discord_url}")
 
@@ -397,8 +401,13 @@ class QueueHandler:
             Callback function for progress updates
         """
 
+        last_step: List[Optional[int]] = [None]
+
         def progress_callback(progress: float) -> None:
-            if message:
+            # Compression reports every ffmpeg tick; only touch reactions when the emoji changes
+            step = self._progress_step(progress)
+            if message and step != last_step[0]:
+                last_step[0] = step
                 try:
                     loop = asyncio.get_running_loop()
                     if not loop.is_running():
@@ -545,23 +554,19 @@ class QueueHandler:
 
             # Add new reaction based on progress
             try:
-                if progress <= 20:
-                    await message.add_reaction(REACTIONS["download"][0])
-                elif progress <= 40:
-                    await message.add_reaction(REACTIONS["download"][1])
-                elif progress <= 60:
-                    await message.add_reaction(REACTIONS["download"][2])
-                elif progress <= 80:
-                    await message.add_reaction(REACTIONS["download"][3])
-                elif progress < 100:
-                    await message.add_reaction(REACTIONS["download"][4])
-                else:
-                    await message.add_reaction(REACTIONS["download"][5])
+                await message.add_reaction(
+                    REACTIONS["download"][self._progress_step(progress)]
+                )
             except Exception as e:
                 logger.error(f"Failed to add download reaction: {e}")
 
         except Exception as e:
             logger.error(f"Failed to update download progress reaction: {e}")
+
+    @staticmethod
+    def _progress_step(progress: float) -> int:
+        """Index into REACTIONS["download"]: one emoji per 20%, the last at 100%"""
+        return 5 if progress >= 100 else min(4, max(0, int((progress - 1e-9) // 20)))
 
     def is_healthy(self) -> bool:
         """
