@@ -48,26 +48,27 @@ class ArchivedVideo(TypedDict):
     archived_at: str
 
 
-async def check_database_status(cog: Any) -> DatabaseStatus:
+async def check_database_status(cog: Any, guild_id: int) -> DatabaseStatus:
     """
     Check database status.
 
     Args:
         cog: VideoArchiver cog instance
+        guild_id: Guild whose use_database setting to report
 
     Returns:
         Database status information
     """
     try:
         enabled = (
-            await cog.config_manager.get_setting(None, "use_database")
+            await cog.config_manager.get_setting(guild_id, "use_database")
             if cog.config_manager
             else False
         )
 
         return DatabaseStatus(
             enabled=enabled,
-            connected=cog.db is not None and cog.db.is_connected(),
+            connected=cog.db is not None,  # VideoArchiveDB connects in __init__
             initialized=cog.db is not None,
             error=None,
             last_operation=None,
@@ -94,7 +95,7 @@ class DatabaseCommands:
         if ctx.invoked_subcommand is None:
             try:
                 # Get database status
-                status = await check_database_status(self)
+                status = await check_database_status(self, ctx.guild.id)
 
                 # Create status embed
                 embed = discord.Embed(
@@ -176,9 +177,10 @@ class DatabaseCommands:
                 )
                 return
 
-            # Initialize database
+            # Initialize database (one shared by every guild; reuse it if open)
             try:
-                self.db = VideoArchiveDB(self.data_path)  # creates the schema
+                if self.db is None:
+                    self.db = VideoArchiveDB(self.data_path)  # creates the schema
             except Exception as e:
                 raise DatabaseError(
                     f"Failed to initialize database: {str(e)}",
@@ -252,21 +254,25 @@ class DatabaseCommands:
                 )
                 return
 
-            # Close database connection if active
-            if self.db:
-                try:
-                    self.db.close()
-                except Exception as e:
-                    logger.error(f"Error closing database connection: {e}")
-
-            # Remove database references
-            self.db = None
-            if self.processor:
-                self.processor.db = None
-                if self.processor.queue_handler:
-                    self.processor.queue_handler.db = None
-
             await self.config_manager.update_setting(ctx.guild.id, "use_database", False)
+
+            # The DB is shared: only close it once no guild uses it any more
+            if not any(
+                g.get("use_database") for g in (await self.config.all_guilds()).values()
+            ):
+                if self.db:
+                    try:
+                        self.db.close()
+                    except Exception as e:
+                        logger.error(f"Error closing database connection: {e}")
+
+                # Remove database references
+                self.db = None
+                if self.processor:
+                    self.processor.db = None
+                    if self.processor.queue_handler:
+                        self.processor.queue_handler.db = None
+
             await handle_response(
                 ctx,
                 "Video archive database has been disabled.",
@@ -319,7 +325,10 @@ class DatabaseCommands:
                 )
 
             if result:
-                discord_url, message_id, channel_id, guild_id = result
+                # get_archived_video returns a dict
+                discord_url, message_id, channel_id, guild_id = (
+                    result[k] for k in ("discord_url", "message_id", "channel_id", "guild_id")
+                )
                 embed = discord.Embed(
                     title="Video Found in Archive",
                     description=f"This video has been archived!\n\nOriginal URL: {url}",
@@ -365,13 +374,13 @@ class DatabaseCommands:
             if hasattr(ctx, "interaction") and ctx.interaction:
                 await ctx.defer()
 
-            status = await check_database_status(self)
+            status = await check_database_status(self, ctx.guild.id)
 
             # Get additional stats if database is enabled
             stats = {}
             if self.db and status["connected"]:
                 try:
-                    stats = await self.db.get_stats()
+                    stats = await self.db.get_guild_stats(ctx.guild.id)
                 except Exception as e:
                     logger.error(f"Error getting database stats: {e}")
 
@@ -407,12 +416,12 @@ class DatabaseCommands:
                 )
                 embed.add_field(
                     name="Total Size",
-                    value=f"{stats.get('total_size', 0)} MB",
+                    value=f"{stats.get('total_size', 0) / (1024 * 1024):.1f} MB",  # stored in bytes
                     inline=True,
                 )
                 embed.add_field(
                     name="Last Update",
-                    value=stats.get("last_update", "Never"),
+                    value=stats.get("last_archived") or "Never",
                     inline=True,
                 )
 

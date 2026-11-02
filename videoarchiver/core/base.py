@@ -27,7 +27,7 @@ from ..queue.manager import EnhancedVideoQueueManager
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..database.video_archive_db import VideoArchiveDB
 from ..config_manager import ConfigManager
-from ..utils.exceptions import CogError, ErrorContext, ErrorSeverity
+from ..utils.exceptions import CogError, ErrorContext, ErrorSeverity, VideoArchiverError
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -243,7 +243,15 @@ class VideoArchiver(ArchiverCommands, DatabaseCommands, SettingsCommands, Cog, S
     async def cog_command_error(self, ctx: Context, error: Exception) -> None:
         """Handle command errors"""
         self.status_tracker.record_error(str(error))
-        await handle_command_error(ctx, error)
+        # Command bodies raise our errors, which arrive wrapped in CommandInvokeError
+        # (or HybridCommandError -> app CommandInvokeError for slash invocations)
+        original = error
+        while getattr(original, "original", None) is not None:
+            original = original.original
+        if isinstance(original, VideoArchiverError):
+            await handle_command_error(ctx, original)
+        else:  # checks, bad arguments, cooldowns...: Red's handler knows these
+            await self.bot.on_command_error(ctx, error, unhandled_by_cog=True)
 
     async def cog_before_invoke(self, ctx: Context) -> bool:
         """Pre-command hook"""
