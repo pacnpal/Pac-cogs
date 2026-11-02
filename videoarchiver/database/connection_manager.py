@@ -235,6 +235,8 @@ class DatabaseConnectionManager:
                         self._connection_info[id(conn)].record_error()
                 except Exception:
                     pass
+            if isinstance(e, sqlite3.Error):
+                raise  # query errors: callers handle sqlite3.Error themselves
             raise DatabaseError(
                 error,
                 context=ErrorContext(
@@ -411,10 +413,12 @@ class DatabaseConnectionManager:
         return ConnectionStatus(
             state="healthy" if active_connections < self.pool_size else "exhausted",
             created_at=min(
-                info.created_at.isoformat() for info in self._connection_info.values()
+                (info.created_at.isoformat() for info in self._connection_info.values()),
+                default=None,
             ),
             last_used=max(
-                info.last_used.isoformat() for info in self._connection_info.values()
+                (info.last_used.isoformat() for info in self._connection_info.values()),
+                default=None,
             ),
             error=None,
             transaction_count=sum(

@@ -38,9 +38,9 @@ REACTIONS: Dict[str, Union[str, List[str]]] = {
     ReactionType.SUCCESS.value: ReactionEmojis.SUCCESS,
     ReactionType.ERROR.value: ReactionEmojis.ERROR,
     ReactionType.ARCHIVED.value: ReactionEmojis.ARCHIVED,
-    ReactionType.NUMBERS.value: ProgressEmojis.NUMBERS,
-    ReactionType.PROGRESS.value: ProgressEmojis.PROGRESS,
-    ReactionType.DOWNLOAD.value: ProgressEmojis.DOWNLOAD
+    ReactionType.NUMBERS.value: list(ProgressEmojis.NUMBERS),
+    ReactionType.PROGRESS.value: list(ProgressEmojis.PROGRESS),
+    ReactionType.DOWNLOAD.value: list(ProgressEmojis.DOWNLOAD)
 }
 
 def get_reaction(reaction_type: Union[ReactionType, str]) -> Union[str, List[str]]:

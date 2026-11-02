@@ -12,16 +12,6 @@ To install the cogs in this repository, follow these steps:
     [p]repo add Pac-cogs https://github.com/pacnpal/Pac-cogs
     ```
 3. Install the desired cog:
-    ```bash
-    [p]cog install Pac-cogs videoarchiver
-    ```
-4. Load the installed cog:
-    ```bash
-    [p]load videoarchiver
-    ```
-
-
-3. Install the desired cog:
 
     ```bash
     # For Birthday cog:
@@ -85,27 +75,4 @@ All cogs target Red-DiscordBot 3.5 (tested on 3.5.24). Slash commands and contex
 
 - **ThrillWiki**: No setup. It reads the public [ThrillWiki](https://www.thrillwiki.com/) API, so there's no key or URL to configure. Try `[p]tw ride steel vengeance` once it's loaded. For the slash commands, run `[p]slash enable thrillwiki` and then `[p]slash sync`. See [thrillwiki/README.md](thrillwiki/README.md) for the full command list.
 
-- **VideoArchiver**: The cog requires FFmpeg for video processing. The cog will attempt to download and manage FFmpeg automatically if it's not found on your system. The required Python packages (yt-dlp, ffmpeg-python, requests) will be installed automatically during cog installation.
-
-## VideoArchiver Commands and Features
-
-The VideoArchiver cog now comes with enhanced features and a comprehensive set of slash commands for easy management.
-
-### Default Behavior
-- Video archiving is enabled by default for new servers
-- All channels are monitored by default (can be restricted using commands)
-- All users can trigger archiving by default (can be restricted using commands)
-- All video sites are supported by default (can be restricted using commands)
-
-### Core Commands
-- `/archiver settings` - View all current settings
-- `/archiver enable`, `/archiver disable` - Toggle video archiving
-- `/archiver queue` - View the current processing queue
-
-### Channel Management
-- `/archiver setchannel` - Set the archive channel
-- `/archiver setlog` - Set the log channel
-- `/archiver addchannel` - Add a channel to monitor
-- `/archiver removechannel` - Remove a channel from monitoring
-
-### Video Settings
+- **VideoArchiver**: Needs FFmpeg. If it isn't on the system, the cog downloads its own copy the first time it starts. Red installs the Python packages (yt-dlp, ffmpeg-python and the rest) when you install the cog. Set an archive channel with `[p]settings setchannel #channel` before it'll post anything. See [videoarchiver/README.md](videoarchiver/README.md) for the full command list.

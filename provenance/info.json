@@ -21,7 +21,7 @@
     "min_python_version": [
         3,
         8,
-        0
+        1
     ],
     "hidden": false,
     "disabled": false,

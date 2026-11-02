@@ -322,23 +322,21 @@ class ReactionEventHandler:
             EventError: If reaction processing fails
         """
         try:
-            # Get the channel and message
+            # Only the archived reaction matters, and only with the database on;
+            # check before fetching, or every reaction anywhere costs an API call
+            if str(payload.emoji) != REACTIONS["archived"] or not self.cog.db or not payload.guild_id:
+                return
+            # The DB is shared and stays open while any guild uses it: honour this guild's setting
+            if not await self.cog.config_manager.get_setting(payload.guild_id, "use_database"):
+                return
+
             channel = self.cog.bot.get_channel(payload.channel_id)
             if not channel:
                 return
 
             message = await channel.fetch_message(payload.message_id)
-            if not message:
-                return
-
-            # Check if it's the archived reaction
-            if str(payload.emoji) == REACTIONS["archived"]:
-                # Only process if database is enabled
-                if self.cog.db:
-                    user = self.cog.bot.get_user(payload.user_id)
-                    asyncio.create_task(
-                        handle_archived_reaction(message, user, self.cog.db)
-                    )
+            user = self.cog.bot.get_user(payload.user_id)
+            asyncio.create_task(handle_archived_reaction(message, user, self.cog.db))
 
         except Exception as e:
             error = f"Failed to process reaction: {str(e)}"

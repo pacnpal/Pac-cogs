@@ -151,6 +151,11 @@ class ProcessingTracker:
         Args:
             message_id: Discord message ID
         """
+        # ponytail: FIFO cap; every guild message lands here, is_healthy() walks it all
+        if len(self.start_times) >= 1000 and message_id not in self.start_times:
+            oldest = next(iter(self.start_times))
+            for d in (self.states, self.stages, self.errors, self.start_times, self.end_times):
+                d.pop(oldest, None)
         self.states[message_id] = MessageState.RECEIVED
         self.start_times[message_id] = datetime.utcnow()
 

@@ -35,29 +35,35 @@ async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> No
         # never here (a guild join would delete another guild's in-progress download)
         cog.download_path.mkdir(parents=True, exist_ok=True)
 
-        # Clean up old components if they exist
-        if guild_id in cog.components:
-            old_components = cog.components[guild_id]
-            if "message_manager" in old_components:
-                await old_components["message_manager"].cancel_all_deletions()
-            if old_components.get("downloader"):
-                await old_components.pop("downloader").cleanup()
+        downloader = DownloadCore(
+            str(cog.download_path),
+            settings["video_format"],
+            settings["video_quality"],
+            settings["max_file_size"],
+            settings["enabled_sites"] if settings["enabled_sites"] else None,
+            settings["concurrent_downloads"],
+            ffmpeg_mgr=cog.ffmpeg_mgr,  # Use shared FFmpeg manager
+        )
 
-        # Initialize new components with validated settings
-        cog.components[guild_id] = {
-            "downloader": DownloadCore(
-                str(cog.download_path),
-                settings["video_format"],
-                settings["video_quality"],
-                settings["max_file_size"],
-                settings["enabled_sites"] if settings["enabled_sites"] else None,
-                settings["concurrent_downloads"],
-                ffmpeg_mgr=cog.ffmpeg_mgr,  # Use shared FFmpeg manager
-            ),
-            "message_manager": MessageManager(
+        # Re-run after a settings change: keep the MessageManager (its pending
+        # archive-message deletions) and swap in a downloader built from the new settings
+        old_components = cog.components.get(guild_id, {})
+        message_manager = old_components.get("message_manager")
+        if message_manager:
+            message_manager.message_duration = settings["message_duration"]
+            message_manager.message_template = settings["message_template"]
+        else:
+            message_manager = MessageManager(
                 settings["message_duration"], settings["message_template"]
-            ),
+            )
+        cog.components[guild_id] = {
+            "downloader": downloader,
+            "message_manager": message_manager,
         }
+        if old_components.get("downloader"):
+            # Let a download already running on the old downloader finish; it just
+            # takes no new work. cleanup() would cancel it mid-download.
+            old_components["downloader"].download_pool.shutdown(wait=False)
 
         logger.info(f"Successfully initialized components for guild {guild_id}")
 

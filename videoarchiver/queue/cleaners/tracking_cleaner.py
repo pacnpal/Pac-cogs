@@ -255,18 +255,24 @@ class TrackingCleaner:
         for guild_id, urls in list(guild_queues.items()):
             invalid_ratio = len(urls - valid_urls) / len(urls) if urls else 0
             if invalid_ratio > self.config.max_invalid_ratio:
+                sub = {guild_id: urls}  # the helper rebinds/pops keys: copy back
                 cleaned = await self._cleanup_guild_tracking(
-                    {guild_id: urls}, valid_urls, validate_all=False
+                    sub, valid_urls, validate_all=False
                 )
+                guild_queues.pop(guild_id)
+                guild_queues.update(sub)
                 items_cleaned += cleaned[0]
                 guilds_cleaned += cleaned[1]
 
         for channel_id, urls in list(channel_queues.items()):
             invalid_ratio = len(urls - valid_urls) / len(urls) if urls else 0
             if invalid_ratio > self.config.max_invalid_ratio:
+                sub = {channel_id: urls}  # the helper rebinds/pops keys: copy back
                 cleaned = await self._cleanup_channel_tracking(
-                    {channel_id: urls}, valid_urls, validate_all=False
+                    sub, valid_urls, validate_all=False
                 )
+                channel_queues.pop(channel_id)
+                channel_queues.update(sub)
                 items_cleaned += cleaned[0]
                 channels_cleaned += cleaned[1]
 

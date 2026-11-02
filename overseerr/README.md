@@ -6,7 +6,7 @@ This cog allows interaction with [Overseerr](https://overseerr.dev/) directly fr
 
 To install this cog, follow these steps:
 
-1. Ensure you have Red-DiscordBot V3 installed.
+1. Ensure you have Red-DiscordBot 3.5 or later installed.
 2. Add the repository to your bot:
 
    ```
@@ -25,11 +25,18 @@ To install this cog, follow these steps:
    [p]load overseerr
    ```
 
+5. (Optional) Enable the slash commands:
+
+   ```
+   [p]slash enablecog overseerr
+   [p]slash sync
+   ```
+
 Replace `[p]` with your bot's prefix.
 
 ## Setup
 
-Before using the cog, you need to configure it. You can use either prefix commands or slash commands:
+Before using the cog, you need to configure it. You can use either prefix commands or slash commands. The URL, API key and admin role name are global: one Overseerr instance is shared by every server the bot is in.
 
 1. Set the Overseerr URL:
     ```
@@ -48,14 +55,15 @@ Before using the cog, you need to configure it. You can use either prefix comman
     ```
     /setapikey your_api_key
     ```
+    The cog doesn't delete the prefix command's message, so delete it yourself or use the slash command, which doesn't show the key to others.
 
-3. (Optional) Set the admin role name for approvals:
+3. (Optional) Set the name of the role allowed to approve requests. The default is `Overseerr Admin`:
     ```
-    [p]setadminrole "Overseerr Admin"
+    [p]setadminrole Media Approvers
     ```
     or
     ```
-    /setadminrole "Overseerr Admin"
+    /setadminrole Media Approvers
     ```
 
 ## Usage
@@ -81,9 +89,11 @@ This will:
 
 TV requests ask for every season. If a show is partially available, Overseerr only requests the seasons it doesn't have yet.
 
+Only the person who ran the command can use the menu. Requests are sent with the configured API key, so Overseerr records them under that key's user, not the Discord user.
+
 ### Approving Requests
 
-Admins can approve requests using the command below. It only works in a server, not in DMs, because it checks your roles.
+Members with the approval role (see `setadminrole`) can approve requests using the command below. It only works in a server, not in DMs, because it checks your roles.
 
 ```
 [p]approve request_id
@@ -109,6 +119,8 @@ or
 All commands support both prefix and slash command syntax:
 
 ### Admin Commands
+These need Red's admin role, or the server owner or bot owner.
+
 - **`[p]seturl <url>`** or **`/seturl <url>`**
   - Set the Overseerr URL for API communication
   - Example: `[p]seturl https://your-overseerr-url` or `/seturl https://your-overseerr-url`
@@ -118,8 +130,8 @@ All commands support both prefix and slash command syntax:
   - Example: `[p]setapikey 4OK6WLU8Fv2T...` or `/setapikey 4OK6WLU8Fv2T...`
 
 - **`[p]setadminrole <role_name>`** or **`/setadminrole <role_name>`**
-  - Set the admin role for request approvals
-  - Example: `[p]setadminrole "Overseerr Admin"` or `/setadminrole "Overseerr Admin"`
+  - Set the name of the role that can approve requests. Default `Overseerr Admin`. The role is matched by name in whichever server `approve` is used
+  - Example: `[p]setadminrole Overseerr Admin` or `/setadminrole Overseerr Admin`
 
 ### User Commands
 - **`[p]request <media name>`** or **`/request <media name>`**
@@ -129,7 +141,7 @@ All commands support both prefix and slash command syntax:
   - Example: `[p]request The Matrix` or `/request The Matrix`
 
 - **`[p]approve <request_id>`** or **`/approve <request_id>`**
-  - Approve a media request (requires admin role, server only)
+  - Approve a media request (requires the role set with `setadminrole`, server only)
   - Example: `[p]approve 123` or `/approve 123`
 
 ## Support

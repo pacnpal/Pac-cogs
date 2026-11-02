@@ -1,6 +1,7 @@
 """Message management utilities"""
 
 import asyncio
+from collections import defaultdict
 import logging
 from typing import Dict, List
 
@@ -14,11 +15,12 @@ class MessageManager:
         self._lock = asyncio.Lock()
 
     def format_archive_message(
-        self, author: str, url: str, original_message: str
+        self, author: str, url: str, original_message: str, **fields: str
     ) -> str:
-        return self.message_template.format(
-            author=author, url=url, original_message=original_message
-        )
+        # Templates use {username}/{channel} too; anything not passed renders as "Unknown"
+        values = defaultdict(lambda: "Unknown", fields)
+        values.update(author=author, url=url, original_message=original_message)
+        return self.message_template.format_map(values)
 
     async def get_message_reactions(self, message) -> List[Dict]:
         """Get all reactions from a message"""

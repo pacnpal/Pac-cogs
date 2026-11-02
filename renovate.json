@@ -2,5 +2,19 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Low-stakes updates merge themselves once checks pass: minor, patch, pins and digests of stable (>=1.0) dependencies",
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "matchCurrentVersion": "!/^v?0\\./",
+      "automerge": true,
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "0.x releases can break on a minor bump, so a person reviews them",
+      "matchCurrentVersion": "/^v?0\\./",
+      "automerge": false
+    }
   ]
 }

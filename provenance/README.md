@@ -16,7 +16,7 @@ This cog only detects **OpenAI's** signals. It doesn't detect images from Google
 
 To install this cog, follow these steps:
 
-1. Ensure you have Red-DiscordBot V3 installed.
+1. Ensure you have Red-DiscordBot 3.5 or later installed.
 2. Add the repository to your bot:
 
    ```
@@ -35,6 +35,13 @@ To install this cog, follow these steps:
    [p]load provenance
    ```
 
+5. (Optional) Enable the slash commands:
+
+   ```
+   [p]slash enablecog provenance
+   [p]slash sync
+   ```
+
 Replace `[p]` with your bot's prefix.
 
 ## Setup
@@ -45,7 +52,7 @@ Replace `[p]` with your bot's prefix.
    [p]set api openai api_key,sk-your-key-here
    ```
 
-   The key's organization needs access to the Content Provenance API. If OpenAI says it doesn't have access, the bot owner gets one DM and automatic scanning pauses until the `openai` token is changed.
+   The key's organization needs access to the Content Provenance API. If OpenAI rejects the key or says it doesn't have access, the bot owner gets one DM and all checks, manual and automatic, stop until the `openai` token is changed.
 
 2. Turn on the intents the cog needs in the [Discord Developer Portal](https://discord.com/developers/applications) under your bot's **Bot** page:
    - **Message Content Intent** is needed for auto scan and for prefix commands with attachments.
@@ -78,7 +85,7 @@ Replace `[p]` with your bot's prefix.
 
 Use `[p]provenance` or `/provenance` in any of these ways:
 
-- Attach one or more images or audio files to the command.
+- Attach one or more images or audio files to the command (up to 10 are checked). The slash command takes one file.
 - Reply to a message that has attachments and run `[p]provenance` with nothing else.
 - Give a link: `[p]provenance https://example.com/image.png`
 
@@ -133,7 +140,7 @@ All settings commands need the admin role or the Administrator permission.
 - Supported formats come from OpenAI's docs. Images: PNG, JPEG, WebP, GIF. Audio: MP3, Opus/Ogg, AAC, FLAC, WAV, PCM. The file extension and the reported MIME type both have to match a supported format before anything is uploaded. Files over 50 MiB are skipped, and OpenAI rejects audio longer than 60 seconds.
 - Results are cached in memory by the SHA-256 of the file for 6 hours (up to 1024 files), so reposting the same file doesn't call the API again.
 - At most 2 API calls run at once across the whole bot. Auto scans, join scans, and server avatar scans are limited to 10 API calls per server per minute. Anything past that is skipped quietly. Auto scan holds at most 4 files in memory at once, and no more than 2 of those can come from one server. Avatar scans share those same slots. Attachments and avatars that arrive while their slots are full, or after their server has hit its limit, are skipped without downloading, so a flood of uploads or a join raid can't pile up downloads or crowd out other servers.
-- Rate limits (429) and server errors are retried up to 4 times with backoff and jitter. A rejected file (400) is logged and skipped. Errors from auto scans only go to the bot's log, never to channels.
+- Rate limits (429), server errors, timeouts and connection errors are tried up to 4 times in total, with backoff and jitter. A rejected file (400) is logged and skipped. Errors from auto scans only go to the bot's log, never to channels.
 
 ## Data
 

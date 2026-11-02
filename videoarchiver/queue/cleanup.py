@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from .models import QueueItem, QueueMetrics
 from .cleaners.history_cleaner import (
     HistoryCleaner,
-    CleanupStrategy as HistoryStrategy
+    CleanupStrategy as HistoryStrategy,
+    CleanupThresholds as HistoryThresholds,
 )
 from .cleaners.guild_cleaner import (
     GuildCleaner,
@@ -187,7 +188,9 @@ class QueueCleaner:
         self.tracker = CleanupTracker()
 
         # Initialize cleaners
-        self.history_cleaner = HistoryCleaner()
+        self.history_cleaner = HistoryCleaner(
+            thresholds=HistoryThresholds(max_history_age=self.config.max_history_age)
+        )
         self.guild_cleaner = GuildCleaner()
         self.tracking_cleaner = TrackingCleaner()
 
@@ -281,7 +284,9 @@ class QueueCleaner:
                         self.history_cleaner.strategy = HistoryStrategy.AGGRESSIVE
                     elif mode == CleanupMode.MAINTENANCE:
                         self.history_cleaner.strategy = HistoryStrategy.CONSERVATIVE
-                    
+                    else:  # reset, or one MAINTENANCE run leaves it conservative for good
+                        self.history_cleaner.strategy = HistoryStrategy.BALANCED
+
                     completed_cleaned = await self.history_cleaner.cleanup_completed(
                         completed,
                         cleanup_cutoff
@@ -307,7 +312,9 @@ class QueueCleaner:
                         self.tracking_cleaner.strategy = TrackingCleanupStrategy.AGGRESSIVE
                     elif mode == CleanupMode.MAINTENANCE:
                         self.tracking_cleaner.strategy = TrackingCleanupStrategy.CONSERVATIVE
-                    
+                    else:
+                        self.tracking_cleaner.strategy = TrackingCleanupStrategy.BALANCED
+
                     tracking_cleaned, _ = await self.tracking_cleaner.cleanup_tracking(
                         guild_queues,
                         channel_queues,

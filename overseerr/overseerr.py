@@ -40,7 +40,7 @@ class Overseerr(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(role_name="The name of the admin role")
     @commands.admin()
-    async def set_adminrole(self, ctx: commands.Context, role_name: str):
+    async def set_adminrole(self, ctx: commands.Context, *, role_name: str):
         """Set the admin role name for Overseerr approvals."""
         await self.config.admin_role_name.set(role_name)
         await ctx.send(f"Admin role for Overseerr approvals set to: {role_name}")
@@ -48,7 +48,7 @@ class Overseerr(commands.Cog):
     @commands.hybrid_command(name="request")
     @app_commands.guild_only()
     @app_commands.describe(query="The name of the movie or TV show to search for")
-    async def request(self, ctx: commands.Context, query: str):
+    async def request(self, ctx: commands.Context, *, query: str):
         """Search and request a movie or TV show on Overseerr."""
         overseerr_url = await self.config.overseerr_url()
         overseerr_api_key = await self.config.overseerr_api_key()
