@@ -33,10 +33,10 @@ Admins, or anyone with Manage Server, configure the cog with `[p]birthdayset` (o
 | `birthdayset allowrole @Party Planners` | Let a role give birthday roles. |
 | `birthdayset disallowrole @Party Planners` | Take that permission away. |
 | `birthdayset message <text>` | Custom announcement. Placeholders: `{mention}` `{name}` `{server}` `{cakes}`. Leave empty to go back to the random built-in messages. |
-| `birthdayset test` | Preview the announcement without giving a role. |
+| `birthdayset test` | Preview the announcement in the current channel without giving a role. |
 | `birthdayset settings` | Show the current settings and flag permission problems. |
 
-Server mods/admins (Red's `[p]set addmodrole` / `addadminrole`) and anyone with Manage Roles can always give birthday roles. Allowed roles add to that list.
+The bot owner, server mods/admins (Red's `[p]set addmodrole` / `addadminrole`) and anyone with Manage Roles can always give birthday roles. Allowed roles add to that list.
 
 ## Usage
 
@@ -44,6 +44,8 @@ Server mods/admins (Red's `[p]set addmodrole` / `addadminrole`) and anyone with 
 - `[p]removebirthday @User` or `/removebirthday`: end the party early.
 - `[p]bdaycheck` or `/bdaycheck`: list who's celebrating and when their role comes off.
 - Right-click a member → Apps → **Give Birthday Role** / **Remove Birthday Role**.
+
+All three commands, and the context menus, need the same permission as giving a birthday role (see Setup). Replies are ephemeral when used as slash commands or context menus.
 
 ## How removal works
 
