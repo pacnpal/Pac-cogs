@@ -342,14 +342,11 @@ class QueueCleaner:
 
             # Only worth an INFO line when something was actually removed
             (logger.info if any(items_cleaned.values()) else logger.debug)(
-                f"Cleanup completed ({mode.value}):\n" +
-                "\n".join(
+                "%s%s%s", f"Cleanup completed ({mode.value}):\n", "\n".join(
                     f"- {phase.value}: {count} items"
                     for phase, count in items_cleaned.items()
                     if count > 0
-                ) +
-                f"\nTotal duration: {duration:.2f}s"
-            )
+                ), f"\nTotal duration: {duration:.2f}s")
 
         except Exception as e:
             logger.error(f"Error during cleanup: {str(e)}")
