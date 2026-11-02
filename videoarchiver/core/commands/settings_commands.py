@@ -353,7 +353,7 @@ class SettingsCommands:
                 )
 
             enabled_channels = await self.config_manager.get_setting(
-                ctx.guild.id, "enabled_channels"
+                ctx.guild.id, "monitored_channels"
             )
             if channel.id in enabled_channels:
                 await handle_response(
@@ -365,7 +365,7 @@ class SettingsCommands:
 
             enabled_channels.append(channel.id)
             await self.config_manager.update_setting(
-                ctx.guild.id, "enabled_channels", enabled_channels
+                ctx.guild.id, "monitored_channels", enabled_channels
             )
             await handle_response(
                 ctx,
@@ -412,7 +412,7 @@ class SettingsCommands:
                 await ctx.defer()
 
             enabled_channels = await self.config_manager.get_setting(
-                ctx.guild.id, "enabled_channels"
+                ctx.guild.id, "monitored_channels"
             )
             if channel.id not in enabled_channels:
                 await handle_response(
@@ -424,7 +424,7 @@ class SettingsCommands:
 
             enabled_channels.remove(channel.id)
             await self.config_manager.update_setting(
-                ctx.guild.id, "enabled_channels", enabled_channels
+                ctx.guild.id, "monitored_channels", enabled_channels
             )
             await handle_response(
                 ctx,

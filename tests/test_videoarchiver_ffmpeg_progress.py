@@ -20,12 +20,13 @@ def no_network(*args, **kwargs):
 
 def main():
     # 23: importing the ffmpeg package must not locate/download FFmpeg.
-    assert not BIN.exists(), f"remove {BIN} before running"
+    before = sorted(BIN.rglob("*")) if BIN.exists() else None
     with patch.object(socket.socket, "connect", no_network), patch.object(socket, "create_connection", no_network):
         import videoarchiver.ffmpeg as vf
         from videoarchiver.utils import download_manager as dm_mod, get_active_downloads
         from videoarchiver.utils.progress_tracker import ProgressTracker
-    assert not BIN.exists(), "import created videoarchiver/bin"
+    after = sorted(BIN.rglob("*")) if BIN.exists() else None
+    assert after == before, "import touched videoarchiver/bin"
     assert not hasattr(vf, "ffmpeg"), "module-level FFmpeg instance still built at import"
 
     # 23: FFmpegManager() sets up binaries first, then runs GPU detection on the real path.

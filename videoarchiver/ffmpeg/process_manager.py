@@ -1,7 +1,6 @@
 """Module for managing FFmpeg processes"""
 
 import logging
-import psutil # type: ignore
 import subprocess
 import time
 from typing import Set, Optional
@@ -23,7 +22,7 @@ class ProcessManager:
         self._active_processes.discard(process)
 
     def kill_all_processes(self) -> None:
-        """Kill all active FFmpeg processes"""
+        """Kill the FFmpeg processes this manager started. Never touches other ffmpeg on the host."""
         try:
             # First try graceful termination
             self._terminate_processes()
@@ -33,9 +32,6 @@ class ProcessManager:
 
             # Force kill any remaining processes
             self._kill_remaining_processes()
-
-            # Find and kill any orphaned FFmpeg processes
-            self._kill_orphaned_processes()
 
             self._active_processes.clear()
             logger.info("All FFmpeg processes terminated")
@@ -60,17 +56,6 @@ class ProcessManager:
                     process.kill()
             except Exception as e:
                 logger.error(f"Error killing FFmpeg process: {e}")
-
-    def _kill_orphaned_processes(self) -> None:
-        """Find and kill any orphaned FFmpeg processes"""
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-            try:
-                if 'ffmpeg' in proc.info['name'].lower():
-                    proc.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-            except Exception as e:
-                logger.error(f"Error killing orphaned FFmpeg process: {e}")
 
     def execute_command(
         self,

@@ -178,8 +178,7 @@ class DatabaseCommands:
 
             # Initialize database
             try:
-                self.db = VideoArchiveDB(self.data_path)
-                await self.db.initialize()
+                self.db = VideoArchiveDB(self.data_path)  # creates the schema
             except Exception as e:
                 raise DatabaseError(
                     f"Failed to initialize database: {str(e)}",
@@ -256,7 +255,7 @@ class DatabaseCommands:
             # Close database connection if active
             if self.db:
                 try:
-                    await self.db.close()
+                    self.db.close()
                 except Exception as e:
                     logger.error(f"Error closing database connection: {e}")
 

@@ -83,6 +83,19 @@ async def main():
     assert cog.components == {} and cog.db is None
 
     cleanup.clear_component(types.SimpleNamespace(), "processor")  # no registry: no-op
+
+    # ProcessManager kills only the ffmpeg it started, never a host-wide scan
+    import psutil
+    from videoarchiver.ffmpeg.process_manager import ProcessManager
+    pm = ProcessManager()
+    mine = MagicMock()
+    mine.poll.return_value = None
+    pm.add_process(mine)
+    with patch.object(psutil, "process_iter", side_effect=AssertionError("host-wide scan")), \
+         patch("time.sleep"):
+        pm.kill_all_processes()
+    mine.terminate.assert_called_once()
+    mine.kill.assert_called_once()
     print("ok")
 
 
