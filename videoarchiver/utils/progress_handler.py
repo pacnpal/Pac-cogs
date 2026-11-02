@@ -1,4 +1,5 @@
 import logging
+import yt_dlp  # type: ignore
 from datetime import datetime
 from typing import Dict, Any, Optional, Callable
 import os

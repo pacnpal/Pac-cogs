@@ -116,8 +116,8 @@ class EncoderParams:
         content_type = self._detect_content_type(video_info)
         if content_type in self.QUALITY_PRESETS:
             preset_params = self.QUALITY_PRESETS[content_type].copy()
-            # Don't copy preset if we're using NVENC
-            if self.gpu_info.get("nvidia", False):
+            # These presets are NVENC names (p5/p6); anything else keeps its own preset
+            if not self.gpu_info.get("nvidia", False):
                 preset_params.pop("preset", None)
             params.update(preset_params)
 

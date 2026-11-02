@@ -5,6 +5,7 @@ import shutil
 import logging
 import asyncio
 import tempfile
+import threading
 import contextlib
 import yt_dlp # type: ignore
 from datetime import datetime
@@ -51,6 +52,7 @@ class DownloadManager:
     FILE_OP_RETRIES = 3
     FILE_OP_RETRY_DELAY = 1
     SHUTDOWN_TIMEOUT = 15  # seconds
+    CANCEL_GRACE = 5  # seconds to wait for yt-dlp to stop after a cancel
 
     def __init__(
         self,
@@ -90,8 +92,14 @@ class DownloadManager:
         self, video_format: str, max_quality: int, max_file_size: int, ffmpeg_mgr
     ) -> Dict[str, Any]:
         """Configure yt-dlp options"""
+        q = max_quality
+        formats = {  # pick streams that merge cleanly into the target container
+            "webm": f"bestvideo[ext=webm][height<={q}]+bestaudio[ext=webm]/best[ext=webm][height<={q}]"
+                    f"/bestvideo[height<={q}]+bestaudio/best[height<={q}]/best",
+            "mp4": f"bv*[height<={q}][ext=mp4]+ba[ext=m4a]/b[height<={q}]/best",
+        }
         return {
-            "format": f"bv*[height<={max_quality}][ext=mp4]+ba[ext=m4a]/b[height<={max_quality}]/best",
+            "format": formats.get(video_format, f"bv*[height<={q}]+ba/b[height<={q}]/best"),  # mkv: anything
             "outtmpl": "%(title).200B [%(id)s].%(ext)s",  # bounded name, unique per video
             "merge_output_format": video_format,
             "quiet": True,
@@ -196,14 +204,22 @@ class DownloadManager:
     ) -> Tuple[bool, str, str]:
         """Download with yt-dlp in the download pool (yt-dlp's own retries cover transient errors)"""
         # Private temp dir per download, so partial/fragment files vanish on any failure.
-        tmp_dir = tempfile.mkdtemp(dir=self.download_path)
-        opts = {**self.ydl_opts, "paths": {"home": tmp_dir}}
+        tmp_dir = tempfile.mkdtemp(prefix="dl", dir=self.download_path)
+        cancel = threading.Event()
+
+        def check_cancel(_: Dict[str, Any]) -> None:
+            if cancel.is_set() or self._shutting_down:
+                raise yt_dlp.utils.DownloadCancelled()
+
+        opts = {**self.ydl_opts, "paths": {"home": tmp_dir},
+                "progress_hooks": [check_cancel, self._progress_hook],
+                "postprocessor_hooks": [check_cancel, self._check_file_size]}
         if progress_callback:
             def report(d: Dict[str, Any]) -> None:
                 total = d.get("total_bytes") or d.get("total_bytes_estimate")
                 if d.get("status") == "downloading" and total:
                     progress_callback(d.get("downloaded_bytes", 0) / total * 100)
-            opts["progress_hooks"] = [self._progress_hook, report]
+            opts["progress_hooks"].append(report)
 
         def run() -> Optional[str]:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -211,18 +227,39 @@ class DownloadManager:
             downloads = (info or {}).get("requested_downloads") or [{}]
             return downloads[0].get("filepath")  # final path, after any merge
 
+        def discard(f: asyncio.Future) -> None:
+            if not f.cancelled():
+                f.exception()  # mark retrieved so asyncio doesn't log it
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
         try:
-            path = await asyncio.get_running_loop().run_in_executor(self.download_pool, run)
+            fut = asyncio.get_running_loop().run_in_executor(self.download_pool, run)
+        except RuntimeError:  # pool already shut down
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
+        try:
+            # shield: a cancel must not orphan the worker; it is stopped via `cancel` instead
+            path = await asyncio.shield(fut)
             if not path or not os.path.isfile(path):
                 return False, "", "Download finished but no file was produced"
-            final_path = str(self.download_path / os.path.basename(path))
+            # Guilds share download_path: the temp dir's unique name keeps concurrent
+            # downloads of the same video (and their _compressed.mp4) apart.
+            stem, ext = os.path.splitext(os.path.basename(path))
+            final_path = str(self.download_path / f"{stem}_{os.path.basename(tmp_dir)}{ext}")
             shutil.move(path, final_path)
             return True, final_path, ""
+        except asyncio.CancelledError:
+            cancel.set()  # check_cancel aborts yt-dlp at its next progress tick
+            await asyncio.wait([fut], timeout=self.CANCEL_GRACE)
+            raise
         except yt_dlp.utils.DownloadError as e:
             logger.error(f"yt-dlp failed for {url}: {e}")
             return False, "", str(e)
         finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+            if fut.done():
+                discard(fut)
+            else:  # worker still running: remove its dir only once it has stopped
+                fut.add_done_callback(discard)
 
     async def _process_downloaded_file(
         self, file_path: str, progress_callback: Optional[Callable[[float], None]]

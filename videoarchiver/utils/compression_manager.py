@@ -8,9 +8,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Callable, List, Set, Tuple
 
 from ..shared.progress import update_compression_progress
-from ..utils.compression_handler import CompressionHandler
-from ..utils.progress_handler import ProgressHandler
 from ..utils.file_operations import FileOperations
+from ..ffmpeg.encoder_params import EncoderParams
 from ..ffmpeg.exceptions import CompressionError
 from ..utils.exceptions import VideoVerificationError
 
@@ -62,14 +61,14 @@ class CompressionManager:
             )
 
             # Fall back to CPU if hardware acceleration fails
-            if not success:
+            if not success and compression_params.get("c:v") != "libx264":
                 logger.warning(
                     f"Hardware acceleration failed: {error}, falling back to CPU encoding"
                 )
                 success, error = await self._try_compression(
                     input_file,
                     output_file,
-                    compression_params,
+                    await asyncio.to_thread(self._cpu_params, input_file),
                     progress_callback,
                     use_hardware=False,
                 )
@@ -86,6 +85,12 @@ class CompressionManager:
         except Exception as e:
             logger.error(f"Error during compression: {e}")
             return False, str(e)
+
+    def _cpu_params(self, input_file: str) -> Dict[str, str]:
+        """libx264 params without the GPU preset/options (e.g. NVENC "p5") a GPU host gets"""
+        no_gpu = {"nvidia": False, "amd": False, "intel": False}
+        encoder = EncoderParams(self.ffmpeg_mgr.cpu_cores, no_gpu)
+        return encoder.get_params(self.ffmpeg_mgr.analyze_video(input_file), self.max_file_size)
 
     async def _try_compression(
         self,
