@@ -32,7 +32,6 @@ def temp_path_context():
     """Context manager for temporary path creation and cleanup"""
     temp_dir = tempfile.mkdtemp(prefix="ffmpeg_")
     try:
-        os.chmod(temp_dir, 0o777)
         yield temp_dir
     finally:
         try:
@@ -125,7 +124,6 @@ class FFmpegDownloader:
 
                 # Ensure base directory exists with proper permissions
                 self.base_dir.mkdir(parents=True, exist_ok=True)
-                os.chmod(str(self.base_dir), 0o777)
 
                 # Clean up any existing files
                 for binary_path in [self.ffmpeg_path, self.ffprobe_path]:
@@ -148,7 +146,7 @@ class FFmpegDownloader:
 
                     # Set proper permissions
                     for binary_path in [self.ffmpeg_path, self.ffprobe_path]:
-                        os.chmod(str(binary_path), 0o755)
+                        os.chmod(str(binary_path), 0o755)  # nosec B103
 
                     # Verify binaries
                     if not self.verify():
@@ -338,8 +336,8 @@ class FFmpegDownloader:
 
             # Ensure proper permissions
             try:
-                os.chmod(str(self.ffmpeg_path), 0o755)
-                os.chmod(str(self.ffprobe_path), 0o755)
+                os.chmod(str(self.ffmpeg_path), 0o755)  # nosec B103
+                os.chmod(str(self.ffprobe_path), 0o755)  # nosec B103
             except Exception as e:
                 logger.error(f"Failed to set binary permissions: {e}")
                 return False

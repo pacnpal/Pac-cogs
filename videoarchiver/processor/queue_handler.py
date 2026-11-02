@@ -270,7 +270,7 @@ class QueueHandler:
             ]:
                 try:
                     await message.remove_reaction(reaction, self.bot.user)
-                except:
+                except Exception:
                     pass
 
             # Add new reaction

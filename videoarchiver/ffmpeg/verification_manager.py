@@ -156,6 +156,6 @@ class VerificationManager:
         """Verify and set binary permissions"""
         try:
             if os.name != "nt":  # Not Windows
-                os.chmod(str(binary_path), 0o755)
+                os.chmod(str(binary_path), 0o755)  # nosec B103
         except Exception as e:
             raise VerificationError(f"Failed to set binary permissions: {e}")

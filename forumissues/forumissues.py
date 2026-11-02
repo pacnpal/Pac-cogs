@@ -19,7 +19,7 @@ from .text import code_safe, fit, md_text, mentions, neutralize, quote, safe_fil
 
 log = logging.getLogger("red.pac-cogs.forumissues")
 
-TOKEN_SERVICE = "forumissues"
+TOKEN_SERVICE = "forumissues"  # nosec B105
 # Overlap for activation/archive cutoffs, so a host clock ahead of Discord does not drop new posts.
 CLOCK_SKEW = timedelta(minutes=5)
 # How long an uncertain create holds its repo's comment cursor, so a recovered issue's comments

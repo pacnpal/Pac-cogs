@@ -66,7 +66,7 @@ class DownloadManager:
     ):
         self.download_path = Path(download_path)
         self.download_path.mkdir(parents=True, exist_ok=True)
-        os.chmod(str(self.download_path), 0o755)
+        os.chmod(str(self.download_path), 0o755)  # nosec B103
 
         # Initialize components
         self.ffmpeg_mgr = ffmpeg_mgr
