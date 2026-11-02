@@ -325,9 +325,13 @@ class DatabaseSchemaManager:
 
         # Version 1 to 2: one row per (guild, URL). The DB is shared by every guild, and
         # keying by URL alone let one guild's archive overwrite or delete another's.
+        # One transaction: executescript autocommits each statement otherwise, and a run
+        # stopped partway would strand the rows in archived_videos_v2.
         if current_version < 2:
             migrations.append(
                 """
+                BEGIN;
+                DROP TABLE IF EXISTS archived_videos_v2;
                 CREATE TABLE archived_videos_v2 (
                     original_url TEXT NOT NULL,
                     discord_url TEXT NOT NULL,
@@ -351,7 +355,7 @@ class DatabaseSchemaManager:
                     original_url, discord_url, message_id, channel_id, guild_id,
                     archived_at, file_size, duration, format, resolution, bitrate,
                     error_count, last_error, last_accessed, metadata
-                FROM archived_videos;
+                FROM archived_videos WHERE original_url IS NOT NULL;
 
                 DROP TABLE archived_videos;
                 ALTER TABLE archived_videos_v2 RENAME TO archived_videos;
@@ -364,6 +368,7 @@ class DatabaseSchemaManager:
 
                 CREATE INDEX IF NOT EXISTS idx_last_accessed
                 ON archived_videos(last_accessed);
+                COMMIT;
             """
             )
 
