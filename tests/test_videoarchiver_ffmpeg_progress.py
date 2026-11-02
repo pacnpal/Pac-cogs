@@ -41,7 +41,7 @@ def main():
         mgr = fm.FFmpegManager()
     assert calls == ["bin", tmp / "ffmpeg"], calls
     assert mgr.video_analyzer.ffprobe_path == tmp / "ffprobe"
-    assert not BIN.exists()
+    assert (sorted(BIN.rglob("*")) if BIN.exists() else None) == before, "FFmpegManager() touched videoarchiver/bin"
 
     # 25: download_manager progress path against the real ProgressTracker.
     tracker = ProgressTracker()

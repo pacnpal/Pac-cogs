@@ -188,6 +188,9 @@ class QueueMonitor:
             RecoveryThresholds(
                 max_retries=self.thresholds.max_retries,
                 deadlock_threshold=self.thresholds.deadlock_threshold,
+                # Above the deadlock threshold, or every stuck item goes EMERGENCY
+                # and its retry count resets, so it never hits max_retries
+                emergency_threshold=self.thresholds.deadlock_threshold * 2,
             )
         )
         self.alert_manager = AlertManager()

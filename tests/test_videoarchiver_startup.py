@@ -63,7 +63,9 @@ async def main():
                lambda: MagicMock(spec=FFmpegManager)), \
          patch("videoarchiver.update_checker.UpdateChecker.update_yt_dlp",
                AsyncMock(return_value=(True, "stub"))):
-        await load_and_check(bot)
+        cog = await load_and_check(bot)
+        assert cog.db is None  # no guild has the archive DB on yet
+        await cog.config.guild_from_id(1).use_database.set(True)
 
         await videoarchiver.teardown(bot)
         assert bot.get_cog("VideoArchiver") is None
@@ -73,6 +75,7 @@ async def main():
 
         # Reload must not hit "already registered"
         cog = await load_and_check(bot)
+        assert cog.db is not None, "archive DB not restored for a guild that enabled it"
         await bot.remove_cog("VideoArchiver")
         assert all(bot.get_command(n) is None for n in GROUPS)
         assert not cog.ready.is_set()

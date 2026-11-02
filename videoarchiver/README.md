@@ -74,7 +74,7 @@ A powerful video archiving cog that automatically downloads and reposts videos f
 
 ## Commands
 
-Every command works as a prefix command and as a slash command. Red keeps slash commands off until an owner turns them on with `[p]slash enable` and `[p]slash sync`.
+Every command works as a prefix command and as a slash command. Red keeps slash commands off until an owner turns them on with `[p]slash enablecog VideoArchiver` and then `[p]slash sync`.
 
 ### Archiver (`archiver`)
 - **`archiver enable`**: Turn on video archiving in this server
@@ -93,7 +93,7 @@ Every command works as a prefix command and as a slash command. Red keeps slash 
 - **`settings setmaxsize <1-100>`**: Set the max file size in MB
 - **`settings setmessageduration <0-168>`**: How long archive messages stay, in hours (0 keeps them)
 - **`settings settemplate <template>`**: Set the archive message template. It must include `{username}` and `{channel}`, and can also use `{author}`, `{url}` and `{original_message}`
-- **`settings setconcurrent <1-5>`**: Set how many downloads run at once
+- **`settings setconcurrent <1-5>`**: Set how many downloads run at once. For now the queue still processes one video at a time, so this has no effect yet
 
 ### Database (`archivedb`)
 - **`archivedb enable`**: Turn on the archive database
@@ -143,7 +143,7 @@ Channel: {channel}
 
 ## Site Support
 
-The cog supports every site yt-dlp supports.
+The cog picks up YouTube, Vimeo and Twitter/X links, plus direct links to video files. Other sites yt-dlp supports are ignored for now.
 
 ## Performance & Limitations
 

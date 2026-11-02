@@ -336,6 +336,10 @@ class QueueHandler:
             archive_message = await archive_channel.send(
                 content=message, file=discord.File(file_path)
             )
+            # ponytail: deletion timers live in memory, so a restart keeps those messages
+            await message_manager.schedule_message_deletion(
+                archive_message.id, archive_message.delete
+            )
 
             # Store in database if available
             if self.db and archive_message.attachments:

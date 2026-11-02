@@ -193,7 +193,7 @@ class SettingsCommands:
                 read_message_history=True,
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -203,9 +203,9 @@ class SettingsCommands:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,
@@ -263,7 +263,7 @@ class SettingsCommands:
                 send_messages=True, embed_links=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -273,9 +273,9 @@ class SettingsCommands:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,
@@ -333,7 +333,7 @@ class SettingsCommands:
                 read_messages=True, read_message_history=True
             )
             channel_perms = channel.permissions_for(bot_member)
-            if not all(getattr(channel_perms, perm) for perm in required_perms):
+            if not required_perms <= channel_perms:  # Permissions supports subset checks
                 raise CommandError(
                     "Missing required permissions in target channel",
                     context=ErrorContext(
@@ -343,9 +343,9 @@ class SettingsCommands:
                             "guild_id": ctx.guild.id,
                             "channel_id": channel.id,
                             "missing_perms": [
-                                perm
-                                for perm in required_perms
-                                if not getattr(channel_perms, perm)
+                                name
+                                for name, needed in required_perms
+                                if needed and not getattr(channel_perms, name)
                             ],
                         },
                         ErrorSeverity.MEDIUM,

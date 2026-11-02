@@ -215,10 +215,18 @@ class DownloadManager:
                 "progress_hooks": [check_cancel, self._progress_hook],
                 "postprocessor_hooks": [check_cancel, self._check_file_size]}
         if progress_callback:
+            loop = asyncio.get_running_loop()
+            last = [-100.0]
+
             def report(d: Dict[str, Any]) -> None:
                 total = d.get("total_bytes") or d.get("total_bytes_estimate")
                 if d.get("status") == "downloading" and total:
-                    progress_callback(d.get("downloaded_bytes", 0) / total * 100)
+                    pct = d.get("downloaded_bytes", 0) / total * 100
+                    # Hooks run on the pool thread; the callback needs the event loop.
+                    # Every 20% is plenty: each update edits Discord reactions.
+                    if pct - last[0] >= 20 or pct >= 100:
+                        last[0] = pct
+                        loop.call_soon_threadsafe(progress_callback, pct)
             opts["progress_hooks"].append(report)
 
         def run() -> Optional[str]:

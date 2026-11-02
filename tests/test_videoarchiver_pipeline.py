@@ -145,6 +145,10 @@ async def main():
         sent = archive.send.call_args.kwargs
         assert isinstance(sent["file"], discord.File), sent
         assert "poster" in sent["content"] and "clips" in sent["content"], sent["content"]
+        # message_duration (default 24h) schedules the archive message for deletion
+        mm = cog.components[GUILD]["message_manager"]
+        archived = archive.send.return_value
+        assert archived.id in mm.scheduled_deletions, mm.scheduled_deletions
 
         # #3: real counts, not the error default
         await wait_for(lambda: qm.get_queue_status(GUILD)["completed"] == 1, "completed count")

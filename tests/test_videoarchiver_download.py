@@ -96,7 +96,10 @@ def run(dm, url, ydl):
     progress = []
     p1, p2, p3 = patched(ydl)
     with p1, p2, p3:
-        result = asyncio.run(dm.download_video(url, progress_callback=progress.append))
+        def on_progress(pct):  # must be called on the event loop thread, not yt-dlp's
+            assert threading.current_thread() is threading.main_thread(), "progress off the loop"
+            progress.append(pct)
+        result = asyncio.run(dm.download_video(url, progress_callback=on_progress))
     asyncio.run(dm.cleanup())
     return result, progress
 

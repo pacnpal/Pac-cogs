@@ -28,6 +28,7 @@ from redbot.core.data_manager import cog_data_path  # type: ignore
 from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
 from ..utils.path_manager import PathManager
 from ..utils.file_ops import cleanup_downloads
+from ..database.video_archive_db import VideoArchiveDB
 from ..config_manager import ConfigManager
 from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager, QueueConfig
@@ -451,6 +452,12 @@ class ComponentManager:
             )
             self.register("queue_manager", queue_manager, {"config_manager"})
 
+            # Re-open the archive DB if any guild turned it on before this restart
+            if cog.db is None and any(
+                g.get("use_database") for g in (await cog.config.all_guilds()).values()
+            ):
+                cog.db = VideoArchiveDB(data_dir)
+
             processor = VideoProcessor(
                 cog.bot, config_manager, cog.components, queue_manager, ffmpeg_mgr, cog.db
             )
@@ -491,7 +498,10 @@ class ComponentManager:
             # Ensure directories exist
             await self.path_manager.ensure_directory(data_dir)
             await self.path_manager.ensure_directory(download_dir)
-            await cleanup_downloads(str(download_dir))  # leftovers from a crash; nothing is running yet
+            try:  # leftovers from a crash; nothing is running yet
+                await cleanup_downloads(str(download_dir))
+            except Exception as e:  # a locked stale file shouldn't stop the cog loading
+                logger.warning(f"Could not clear leftover downloads: {e}")
 
             # Register paths
             self.register("data_path", data_dir)

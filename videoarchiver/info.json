@@ -9,7 +9,7 @@
     ],
     "required_cogs": {},
     "requirements": [
-        "yt-dlp>=2026.10.26",
+        "yt-dlp>=2024.11.4",
         "ffmpeg-python>=0.2.0",
         "packaging>=23.0",
         "aiohttp>=3.8.0",
