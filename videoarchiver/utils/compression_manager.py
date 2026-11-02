@@ -144,7 +144,8 @@ class CompressionManager:
     ) -> List[str]:
         """Build FFmpeg command with appropriate parameters"""
         ffmpeg_path = str(self.ffmpeg_mgr.get_ffmpeg_path())
-        cmd = [ffmpeg_path, "-y", "-i", input_file, "-progress", "pipe:1"]
+        # -nostats/-loglevel error: stderr is piped but never read, so keep it tiny or ffmpeg blocks
+        cmd = [ffmpeg_path, "-y", "-nostats", "-loglevel", "error", "-i", input_file, "-progress", "pipe:1"]
 
         # Modify parameters for hardware acceleration
         if use_hardware:
@@ -198,7 +199,7 @@ class CompressionManager:
                 logger.error(f"Error updating progress: {e}")
 
         await process.wait()
-        return os.path.exists(output_file)
+        return process.returncode == 0 and os.path.exists(output_file)
 
     async def _verify_output(self, input_file: str, output_file: str) -> bool:
         """Verify compressed output file"""
@@ -212,7 +213,9 @@ class CompressionManager:
                 return False
 
             # Verify video integrity
-            return await self.ffmpeg_mgr.verify_video_file(output_file)
+            return await asyncio.to_thread(
+                FileOperations().verify_video_file, output_file, str(self.ffmpeg_mgr.get_ffprobe_path())
+            )
 
         except Exception as e:
             logger.error(f"Error verifying output file: {e}")
@@ -254,7 +257,9 @@ class CompressionManager:
     async def _get_video_duration(self, file_path: str) -> float:
         """Get video duration in seconds"""
         try:
-            return await self.ffmpeg_mgr.get_video_duration(file_path)
+            return await asyncio.to_thread(
+                FileOperations().get_video_duration, file_path, str(self.ffmpeg_mgr.get_ffprobe_path())
+            )
         except Exception as e:
             logger.error(f"Error getting video duration: {e}")
             return 0
