@@ -190,6 +190,34 @@ def main():
         asyncio.run(cancel_in_verify())
     asyncio.run(dm.cleanup())
 
+    # Cancel during compression: ffmpeg is killed and reaped before the files go away.
+    tmp = Path(tempfile.mkdtemp())
+    dm, downloads, ffmpeg = make_manager(tmp, 1)
+    ffmpeg.write_text("#!/bin/sh\nexec sleep 30\n")
+    src = tmp / "big.mp4"
+    src.write_bytes(b"x" * 2 * MB)
+
+    async def cancel_in_compress():
+        cm = dm.compression_manager
+        task = asyncio.create_task(cm.compress_video(str(src), str(tmp / "out.mp4"), None))
+        for _ in range(250):
+            if cm._active_processes:
+                break
+            await asyncio.sleep(0.02)
+        procs = list(cm._active_processes)
+        assert procs, "compression never started ffmpeg"
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        assert all(p.returncode is not None for p in procs), "ffmpeg still running after cancel"
+
+    p1, p2, p3 = patched(fake_ytdl(size=1000))
+    with p1, p2, p3:
+        asyncio.run(cancel_in_compress())
+    asyncio.run(dm.cleanup())
+
     # Two guilds archive the same video at once: each gets its own file.
     tmp = Path(tempfile.mkdtemp())
     dm, downloads, _ = make_manager(tmp, 8)

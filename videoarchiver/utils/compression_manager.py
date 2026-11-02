@@ -133,6 +133,14 @@ class CompressionManager:
                 )
                 return success, ""
 
+            except BaseException:
+                # Cancelled (timeout/unload) or failed mid-encode: stop ffmpeg before the
+                # caller deletes its files, or it keeps writing the output after cleanup
+                if process.returncode is None:
+                    process.kill()
+                    await process.wait()
+                raise
+
             finally:
                 async with self._processes_lock:
                     self._active_processes.discard(process)
