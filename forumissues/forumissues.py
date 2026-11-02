@@ -301,7 +301,10 @@ class ForumIssues(commands.Cog):
         repo, labels = p["repo"], p["labels"]
         if not p["loaded"]:
             thread = await self.post_thread(p)
-            m = await thread.fetch_message(thread.id)
+            try:
+                m = await thread.fetch_message(thread.id)
+            except discord.NotFound:
+                raise Gone("the forum post's opening message was deleted") from None
             p["creator_id"] = str(m.author.id)
             url = message_url(p, p["thread_id"])
             files = await self.attachments(gh, p, url, m.attachments)
