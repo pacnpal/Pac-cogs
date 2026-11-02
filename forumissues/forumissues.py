@@ -25,8 +25,8 @@ CLOCK_SKEW = timedelta(minutes=5)
 # How long an uncertain create holds its repo's comment cursor, so a recovered issue's comments
 # wait instead of being passed. After that, the post likely needs manual repair (see README).
 RECOVERY_HOLD = 3600
-# Polls in a row a post's work can fail before the cog stops tracking it, e.g. after its thread
-# or issue was deleted. Outages and rate limits don't count; they aren't the post's fault.
+# Polls in a row a post can find its thread or issue deleted before the cog stops tracking it.
+# Only Gone counts: setup problems (keys, installs, permissions) hit every post and get fixed.
 MAX_FAILURES = 5
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 NEEDED_PERMS = ("view_channel", "read_message_history", "send_messages_in_threads", "manage_threads")
@@ -42,6 +42,10 @@ def message_url(p: dict, message_id: Union[int, str]) -> str:
 
 class Pending(Exception):
     """A step that cannot finish yet; the next poll retries it."""
+
+
+class Gone(Pending):
+    """The post's thread or issue was deleted; counts toward MAX_FAILURES."""
 
 
 def discord_hint(e: Exception) -> str:
@@ -174,11 +178,9 @@ class ForumIssues(commands.Cog):
         except (GitHubError, Pending, discord.HTTPException) as e:
             msg = discord_hint(e) if isinstance(e, discord.HTTPException) else str(e)
             log.warning("%s pending (thread %s); next poll will retry: %s", what, thread_id or "-", msg)
-            ok = isinstance(e, discord.DiscordServerError) or (
-                isinstance(e, GitHubError) and (e.status <= 0 or e.status == 429 or e.status >= 500))
+            ok = not isinstance(e, Gone)
         except Exception:
             log.exception("%s pending (thread %s); next poll will retry", what, thread_id or "-")
-            ok = False
         await self.save_backoff()
         return ok
 
@@ -216,7 +218,8 @@ class ForumIssues(commands.Cog):
                         ok &= await self.step(self.scan(gh, p), "Discord mention scan", p["thread_id"])
                         ok &= await self.step(self.to_github(gh, p), "comment sync to GitHub", p["thread_id"])
                         ok &= await self.step(self.to_discord(p), "comment sync to Discord", p["thread_id"])
-                    await self.count_failure(p, ok)
+                    if discover:  # counts polls, not the event cycles a mention queues
+                        await self.count_failure(p, ok)
             # Sweep after the posts, so an issue recovered from a lost create response is mapped
             # before the comment cursor passes its comments.
             if discover:
@@ -233,6 +236,17 @@ class ForumIssues(commands.Cog):
             log.warning("gave up on forum post (thread %s) after %d failed polls; see the warnings above",
                         p["thread_id"], MAX_FAILURES)
         await self.save(p)
+
+    async def post_thread(self, p: dict) -> discord.Thread:
+        try:
+            thread = self.bot.get_channel(int(p["thread_id"])) or await self.bot.fetch_channel(int(p["thread_id"]))
+        except discord.NotFound:
+            raise Gone("the forum post was deleted") from None
+        except discord.HTTPException:
+            thread = None  # e.g. a 403, which permissions can fix
+        if not isinstance(thread, discord.Thread):
+            raise Pending("the forum post is no longer visible to the bot")
+        return thread
 
     async def channel(self, channel_id: Union[int, str]) -> Any:
         channel = self.bot.get_channel(int(channel_id))
@@ -286,9 +300,7 @@ class ForumIssues(commands.Cog):
         # labels to an issue pending in the old one.
         repo, labels = p["repo"], p["labels"]
         if not p["loaded"]:
-            thread = await self.channel(p["thread_id"])
-            if not isinstance(thread, discord.Thread):
-                raise Pending("the forum post is deleted or no longer visible to the bot")
+            thread = await self.post_thread(p)
             m = await thread.fetch_message(thread.id)
             p["creator_id"] = str(m.author.id)
             url = message_url(p, p["thread_id"])
@@ -321,7 +333,14 @@ class ForumIssues(commands.Cog):
                 raise GitHubError(0, "GitHub returned an invalid issue; reconcile before retrying")
             p["issue_number"], p["issue_url"] = issue["number"], issue["html_url"]
             await self.save(p)
-        issue = await gh.issue(repo, p["issue_number"])
+        try:
+            issue = await gh.issue(repo, p["issue_number"])
+        except GitHubError as e:
+            # A 404 can also be a missing install, and GitHub sends 410 for a repo with Issues off.
+            # Only a repo that answers with Issues on means the issue itself is gone.
+            if e.status in (404, 410) and (await gh.request(repo, "GET", "")).get("has_issues"):
+                raise Gone(f"issue #{p['issue_number']} was deleted") from None
+            raise
         if not p["announced"]:
             # GitHub silently drops labels the caller cannot apply; the mapping is saved first, so
             # repairing labels can never produce a second issue. Add only what is missing.
@@ -376,9 +395,7 @@ class ForumIssues(commands.Cog):
     async def notify(self, p: dict, content: str, mention: bool) -> None:
         """Sends content once: a lost response or restart finds the earlier copy in the history."""
         me = self.bot.user
-        thread = await self.channel(p["thread_id"])
-        if not isinstance(thread, discord.Thread):
-            raise Pending("the forum post is deleted or no longer visible to the bot")
+        thread = await self.post_thread(p)
         async for m in thread.history(limit=None):
             if m.author.id == me.id and m.content == content:
                 return
