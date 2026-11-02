@@ -277,7 +277,7 @@ class StatusDisplay:
             embed = discord.Embed(
                 title="Queue Status Details",
                 color=display.display_manager.theme["title_color"],
-                timestamp=datetime.utcnow(),
+                timestamp=discord.utils.utcnow(),  # naive datetimes are read as local time
             )
 
             # Add sections in order

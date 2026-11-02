@@ -12,7 +12,7 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Automatic file size optimization for Discord limits
   - Default maximum file size: 8MB
   - Default video format: MP4
-  - Default video quality: High
+  - Default video quality: 1080p
   - Support for MP4, WebM, and MKV formats
 
 - **Video Archive Database**
@@ -29,11 +29,10 @@ A powerful video archiving cog that automatically downloads and reposts videos f
   - Efficient resource management and monitoring
   - Real-time performance metrics and health checks
   - Automatic cleanup and memory optimization
-  - Default concurrent downloads: 2 (configurable 1-5)
+  - Videos are processed one at a time
   - Maximum queue size: 1000 items
   - Automatic retry on failures (3 attempts with 5-second delay)
-  - Queue state persistence across bot restarts
-  - Enhanced error recovery
+  - Queue state persistence across bot restarts. Videos that were mid-download when the bot stopped go back in the queue
 
 - **Progress Tracking**
   - Real-time download progress monitoring
@@ -47,17 +46,14 @@ A powerful video archiving cog that automatically downloads and reposts videos f
 
 - **Channel Management**
   - Flexible channel monitoring (specific channels or all)
-  - Separate archive, notification, and log channels
+  - Separate archive and log channels
   - Customizable message templates
   - Configurable message duration (0-168 hours)
-  - Enhanced error logging
 
 - **Access Control**
   - Role-based permissions
-  - Site-specific enabling/disabling
   - Admin-only configuration commands
   - Per-guild settings
-  - Enhanced permission checks
 
 ## Installation
 
@@ -72,9 +68,15 @@ A powerful video archiving cog that automatically downloads and reposts videos f
 [p]load videoarchiver
 ```
 
+3. Set it up in each server. Archiving is off until you turn it on:
+```bash
+[p]settings setchannel #archive
+[p]archiver enable
+```
+
 ## Commands
 
-Every command works as a prefix command and as a slash command. Red keeps slash commands off until an owner turns them on with `[p]slash enablecog VideoArchiver` and then `[p]slash sync`.
+Every command works as a prefix command and as a slash command. Red keeps slash commands off until an owner turns them on with `[p]slash enablecog videoarchiver` and then `[p]slash sync`.
 
 ### Archiver (`archiver`)
 - **`archiver enable`**: Turn on video archiving in this server
@@ -95,11 +97,15 @@ Every command works as a prefix command and as a slash command. Red keeps slash 
 - **`settings settemplate <template>`**: Set the archive message template. It must include `{username}` and `{channel}`, and can also use `{author}`, `{url}` and `{original_message}`
 - **`settings setconcurrent <1-5>`**: Set how many downloads run at once. For now the queue still processes one video at a time, so this has no effect yet
 
+Settings changes take effect right away. A download that's already running finishes with the old settings.
+
 ### Database (`archivedb`)
 - **`archivedb enable`**: Turn on the archive database
 - **`archivedb disable`**: Turn it off
 - **`archivedb check <url>`**: Check whether a URL was already archived
-- **`archivedb status`**: Show database status and stats
+- **`archivedb status`**: Show database status and this server's stats
+
+The database is shared by every server the bot is in. It stays open while any server has it on. With it on, a link this server already archived gets a reply pointing at the earlier archive instead of being downloaded again, and reacting 🔄 to a message looks up its links.
 
 ## yt-dlp updates
 
@@ -109,33 +115,33 @@ The cog upgrades yt-dlp when it starts and then once a day, with `pip install --
 
 ```python
 {
-    "enabled": True,               # Video archiving enabled by default
+    "enabled": False,              # Turn on with archiver enable
     "archive_channel": None,       # Must be set before use
-    "log_channel": None,          # Optional error logging channel
-    "enabled_channels": [],       # Empty list means all channels
-    "allowed_roles": [],         # Empty list means all roles
-    "video_format": "mp4",      # Default video format
-    "video_quality": "high",    # Default video quality
-    "max_file_size": 8,        # Maximum file size in MB
-    "message_duration": 30,    # Message duration in hours
-    "message_template": "{author} archived a video from {channel}",
-    "concurrent_downloads": 2, # Number of concurrent downloads
-    "enabled_sites": None,    # None means all sites enabled
-    "use_database": False    # Database tracking disabled by default
+    "log_channel": None,           # Optional error logging channel
+    "monitored_channels": [],      # Empty list means all channels
+    "allowed_roles": [],           # Empty list means everyone
+    "video_format": "mp4",
+    "video_quality": 1080,         # Max height in pixels
+    "max_file_size": 8,            # MB
+    "message_duration": 24,        # Hours before the archive message is deleted (0 keeps it)
+    "message_template": "Video from {username} in #{channel}\nOriginal: {original_message}",
+    "concurrent_downloads": 3,     # No effect yet, see setconcurrent
+    "use_database": False
 }
 ```
 
 ## Message Templates
 
-You can customize archive messages using these variables:
-- `{author}`: Original message author
+You can customize archive messages using these variables. `{username}` and `{channel}` are required:
+- `{username}`: Original message author's name
+- `{author}`: Original message author (mention)
 - `{url}`: Original video URL
 - `{original_message}`: Link to original message
 - `{channel}`: Original channel name
 
 Example template:
 ```
-📥 Video archived from {author}
+📥 Video archived from {username}
 Original: {url}
 Source: {original_message}
 Channel: {channel}
@@ -143,17 +149,17 @@ Channel: {channel}
 
 ## Site Support
 
-The cog picks up YouTube, Vimeo and Twitter/X links, plus direct links to video files. Other sites yt-dlp supports are ignored for now.
+The cog picks up YouTube (including Shorts, live and `youtu.be` links), Vimeo and Twitter/X links, plus direct links to video files. Links in `<...>` or spoiler tags still count. Other sites yt-dlp supports are ignored for now.
 
 ## Performance & Limitations
 
 - Hardware acceleration automatically detected and utilized
-- Configurable concurrent downloads (1-5)
+- One video is processed at a time
 - Maximum queue size: 1000 items
 - Maximum file size: 8MB by default (configurable up to Discord's limit)
 - Maximum video quality: 4320p (8K)
 - Automatic retry on failures (3 attempts with 5-second delay)
-- Queue cleanup interval: 30 minutes
+- Queue cleanup interval: 1 hour
 - Maximum history age: 24 hours
 - Unload timeout: 30 seconds
 - Cleanup timeout: 15 seconds

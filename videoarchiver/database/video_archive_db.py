@@ -55,13 +55,13 @@ class VideoArchiveDB:
             original_url, discord_url, message_id, channel_id, guild_id, metadata
         )
 
-    async def get_archived_video(self, url: str) -> Optional[Dict[str, Any]]:
-        """Get archived video information by original URL"""
-        return await self.query_manager.get_archived_video(url)
+    async def get_archived_video(self, url: str, guild_id: int) -> Optional[Dict[str, Any]]:
+        """Get a guild's archived video by original URL"""
+        return await self.query_manager.get_archived_video(url, guild_id)
 
-    async def is_url_archived(self, url: str) -> bool:
-        """Check if a URL has already been archived"""
-        return await self.query_manager.is_url_archived(url)
+    async def is_url_archived(self, url: str, guild_id: int) -> bool:
+        """Check if a guild has already archived a URL"""
+        return await self.query_manager.is_url_archived(url, guild_id)
 
     async def get_guild_stats(self, guild_id: int) -> Dict[str, Any]:
         """Get archiving statistics for a guild"""
@@ -73,9 +73,9 @@ class VideoArchiveDB:
         """Get archived videos for a channel"""
         return await self.query_manager.get_channel_videos(channel_id, limit, offset)
 
-    async def remove_archived_video(self, url: str) -> None:
-        """Forget an archived video, e.g. once its archive message is deleted"""
-        await self.query_manager.remove_archived_video(url)
+    async def remove_archived_video(self, url: str, guild_id: int) -> None:
+        """Forget a guild's archived video, e.g. once its archive message is deleted"""
+        await self.query_manager.remove_archived_video(url, guild_id)
 
     async def cleanup_old_records(self, days: int) -> int:
         """Clean up records older than specified days"""

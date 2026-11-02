@@ -45,7 +45,6 @@ class EncoderParams:
     CPU_PRESETS = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"]
 
     # Adjusted minimum bitrates to ensure better quality
-    MIN_VIDEO_BITRATE = 800_000  # 800 Kbps (increased from 500)
     MIN_AUDIO_BITRATE = 96_000   # 96 Kbps per channel (increased from 64)
     MAX_AUDIO_BITRATE = 256_000  # 256 Kbps per channel (increased from 192)
 
@@ -79,6 +78,10 @@ class EncoderParams:
             # Calculate and update bitrate parameters
             bitrate_params = self._get_bitrate_params(video_info, target_size_bytes)
             params.update(bitrate_params)
+            if "b:v" in params:
+                # Quality modes override -b:v (x264 CRF, NVENC CQ, QSV ICQ), so the size target is ignored
+                for key in ("crf", "cq:v", "global_quality"):
+                    params.pop(key, None)
             logger.debug(f"Bitrate parameters: {bitrate_params}")
 
             # Validate final parameters
@@ -131,7 +134,7 @@ class EncoderParams:
         if video_info.get("has_dark_scenes", False):
             x264opts = params.get("x264opts", "rc-lookahead=40:me=umh:subme=7:ref=4:b-adapt=2:direct=auto")
             params.update({
-                "x264opts": x264opts + ":aq-mode=3:aq-strength=1.0:deblock=1:1",
+                "x264opts": x264opts + ":aq-mode=3:aq-strength=1.0:deblock=1,1",  # ':' separates x264opts
                 "tune": "film" if not video_info.get("has_high_motion") else "grain"
             })
 
@@ -143,6 +146,7 @@ class EncoderParams:
             return {
                 "c:v": "h264_nvenc",
                 "preset": "p5",  # More balanced preset
+                "tune": "hq",  # NVENC only knows hq/ll/ull/lossless; x264 tunes (film, grain...) abort it
                 "rc:v": "vbr",
                 "cq:v": "23",  # More balanced quality
                 "b_ref_mode": "middle",
@@ -189,18 +193,19 @@ class EncoderParams:
             if duration <= 0:
                 raise ValueError("Invalid video duration")
 
-            # Calculate target bitrate based on file size with more conservative approach
-            total_bitrate = int((target_size_bytes * 8) / duration)
+            # bits per second for the whole file; 5% headroom for container overhead and ABR overshoot
+            total_bitrate = int((target_size_bytes * 8 * 0.95) / duration)
 
             # Handle audio bitrate
             audio_channels = int(video_info.get("audio_channels", 2))
             audio_bitrate = min(
                 self.MAX_AUDIO_BITRATE * audio_channels,
-                max(self.MIN_AUDIO_BITRATE * audio_channels, int(total_bitrate * 0.15))  # Increased from 0.1
+                max(self.MIN_AUDIO_BITRATE * audio_channels, int(total_bitrate * 0.15)),
+                total_bitrate // 4,  # small budgets: audio must leave room for video
             )
 
-            # Calculate video bitrate, ensuring it doesn't go below minimum
-            video_bitrate = max(self.MIN_VIDEO_BITRATE, total_bitrate - audio_bitrate)
+            # Video gets the rest. No floor: a floor above the budget guarantees an oversized file.
+            video_bitrate = max(1, total_bitrate - audio_bitrate)
 
             # Set video bitrate constraints with more conservative buffer
             params.update({
@@ -212,7 +217,7 @@ class EncoderParams:
             # Set audio parameters
             params.update({
                 "c:a": "aac",
-                "b:a": f"{int(audio_bitrate/1000)}k",
+                "b:a": f"{max(1, int(audio_bitrate/1000))}k",
                 "ar": "48000",  # Standard audio sample rate
                 "ac": str(audio_channels)
             })

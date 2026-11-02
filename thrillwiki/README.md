@@ -17,10 +17,10 @@ Every command works as a prefix command (`[p]thrillwiki`, or the short `[p]tw`) 
 | Command | What it shows |
 | --- | --- |
 | `[p]tw park <name>` | Location, status, operator, ride and coaster counts, rating and a photo. |
-| `[p]tw ride <name>` | Type, status, opening date, manufacturer, model, height, drop, length, speed, inversions and rating. Also answers to `attraction` and `coaster`. |
-| `[p]tw company <name>` | Roles, founding year, ride count, rating and website for a manufacturer, designer, operator or owner. |
+| `[p]tw ride <name>` | Type, status, opening and closing dates, manufacturer, model, height, drop, length, speed, inversions, rating and a photo. Also answers to `attraction` and `coaster`. |
+| `[p]tw company <name>` | Roles, founding and defunct years, park and ride counts, rating, website and logo for a manufacturer, designer, operator or owner. Also answers to `manufacturer` and `operator`. |
 | `[p]tw waits <park>` | Today's hours and the 20 longest posted waits, plus how many rides are down. Also answers to `live`. |
-| `[p]tw stats` | Site-wide counts for parks, attractions, coasters, photos and reviews. |
+| `[p]tw stats` | Site-wide counts for parks (and how many are operating), attractions, coasters, manufacturers, photos and reviews. |
 
 Each search shows the best match and lists up to five other matches in the footer, so if you got Steel Venom when you wanted Steel Vengeance you can see the right name and search again. Every embed links back to the page on ThrillWiki.
 

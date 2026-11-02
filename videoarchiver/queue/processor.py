@@ -236,13 +236,14 @@ class QueueProcessor:
         processor: Callable[[QueueItem], Tuple[bool, Optional[str]]]
     ) -> None:
         """Process items concurrently"""
-        if len(self._active_tasks) >= self.batch_manager.max_concurrent:
+        # ponytail: _processing_lock runs one item at a time, so pulling more than one only
+        # strands items in "processing" with no start_time, where emergency recovery can
+        # requeue them while their task still runs. Drop the lock to allow real concurrency.
+        if self._active_tasks:
             await asyncio.sleep(0.1)
             return
 
-        items = await self.state_manager.get_next_items(
-            self.batch_manager.max_concurrent - len(self._active_tasks)
-        )
+        items = await self.state_manager.get_next_items(1)
         if not items:
             await asyncio.sleep(0.1)
             return

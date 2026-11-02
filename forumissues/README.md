@@ -28,14 +28,16 @@ For GitHub Enterprise, also run `[p]set api forumissues api_base https://github.
 
 ## Commands
 
+`[p]fi` is short for `[p]forumissues`. These are prefix commands only; there are no slash commands. Admin means a Red admin role or the Manage Server permission.
+
 | Command | Who | What |
 | --- | --- | --- |
 | `[p]fi add <forum> <owner/repo> [labels...]` | Admin | Watch a forum, or change its repository or labels |
-| `[p]fi remove <forum>` | Admin | Stop watching a forum. Existing issue links are kept |
+| `[p]fi remove <forum>` | Admin | Stop watching a forum. Existing issue links are kept. Takes a channel ID too, for a forum that was deleted |
 | `[p]fi list` | Admin | Show watched forums |
-| `[p]fi setup` | Admin | Show the setup steps |
-| `[p]fi app <app_id>` | Owner, DM | Save the App ID and private key |
-| `[p]fi interval <seconds>` | Owner | How often to poll GitHub and retry pending work. Default 60 |
+| `[p]fi setup` | Anyone | Show the setup steps |
+| `[p]fi app <app_id>` | Owner, DM | Save the App ID (or Client ID) and the attached private key |
+| `[p]fi interval <seconds>` | Owner | How often to poll GitHub and retry pending work, for all servers. 10 to 86400. Default 60 |
 
 ## How it behaves
 

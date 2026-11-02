@@ -119,11 +119,13 @@ class ConfigManager:
                 raise ConfigError(f"Invalid setting: {setting}")
 
             async with await self._get_guild_lock(guild_id):
-                current = await self.get_setting(guild_id, setting)
+                # Raw access: get_setting/update_setting take this lock, and asyncio.Lock isn't reentrant
+                group = self.config.guild_from_id(guild_id)
+                current = await group.get_raw(setting)
                 if not isinstance(current, bool):
                     raise ConfigError(f"Setting {setting} is not a boolean")
 
-                await self.update_setting(guild_id, setting, not current)
+                await group.set_raw(setting, value=not current)
                 return not current
 
         except Exception as e:

@@ -131,10 +131,13 @@ async def main():
 
         # A real archive DB, wired in the way `archivedb enable` does it
         from videoarchiver.database.video_archive_db import VideoArchiveDB
-        db = VideoArchiveDB(Path(tempfile.mkdtemp()))
+        db_dir = Path(tempfile.mkdtemp())
+        VideoArchiveDB(db_dir)  # opened before, as after a restart: reopening used to fail
+        db = VideoArchiveDB(db_dir)
         processor.db = processor.queue_handler.db = db
+        await cog.config_manager.update_setting(GUILD, "use_database", True)
         archive.send.return_value = MagicMock(id=9999, delete=AsyncMock(),
-                                              attachments=[MagicMock(url="https://cdn.example/v.mp4")])
+                                              attachments=[MagicMock(url="https://cdn.example/v.mp4", size=123)])
         mm = cog.components[GUILD]["message_manager"]
         schedule = mm.schedule_message_deletion = AsyncMock(wraps=mm.schedule_message_deletion)
 
@@ -159,10 +162,14 @@ async def main():
         assert archived.id in mm.scheduled_deletions, mm.scheduled_deletions
         # The archive DB calls are awaited: the row exists, and expiring the message drops it,
         # so the URL can be archived again later
-        assert (await db.get_archived_video(URL))["discord_url"] == "https://cdn.example/v.mp4"
+        assert (await db.get_archived_video(URL, GUILD))["discord_url"] == "https://cdn.example/v.mp4"
+        # Rows are per guild: another guild archiving the same URL doesn't touch this one
+        await db.add_archived_video(URL, "https://cdn.example/other.mp4", 1, 2, GUILD + 1)
+        assert await db.get_archived_video(URL, GUILD + 1) and await db.is_url_archived(URL, GUILD)
         await schedule.call_args.args[1]()
         archived.delete.assert_awaited_once()
-        assert not await db.is_url_archived(URL)
+        assert not await db.is_url_archived(URL, GUILD)
+        assert await db.is_url_archived(URL, GUILD + 1)
 
         # #3: real counts, not the error default
         await wait_for(lambda: qm.get_queue_status(GUILD)["completed"] == 1, "completed count")
@@ -172,9 +179,18 @@ async def main():
         assert status["metrics"]["total_processed"] == 1, status["metrics"]
         assert not os.path.exists(video), "downloaded file not cleaned up"
 
+        # Another guild's active download must not show in this guild's queue view
+        from videoarchiver.utils.progress_tracker import ProgressTracker
+        ProgressTracker().update_download_progress("https://elsewhere.example/v", {"active": True, "percent": 50})
         ctx = MagicMock(guild=guild, send=AsyncMock())
         await processor.show_queue_details(ctx)
-        assert isinstance(ctx.send.call_args.kwargs.get("embed"), discord.Embed), ctx.send.call_args
+        embed = ctx.send.call_args.kwargs.get("embed")
+        assert isinstance(embed, discord.Embed), ctx.send.call_args
+        assert "elsewhere.example" not in str(embed.to_dict()), embed.to_dict()
+
+        # The shared DB stays open, but a guild that turned it off no longer reads or writes it
+        await cog.config_manager.update_setting(GUILD, "use_database", False)
+        assert await processor.queue_handler._guild_db(GUILD) is None
 
         task = qm._processing_task
         await videoarchiver.teardown(bot)

@@ -59,8 +59,8 @@ class DatabaseQueryManager:
             logger.error(f"Error adding archived video: {e}")
             return False
 
-    async def get_archived_video(self, url: str) -> Optional[Dict[str, Any]]:
-        """Get archived video information by original URL"""
+    async def get_archived_video(self, url: str, guild_id: int) -> Optional[Dict[str, Any]]:
+        """Get a guild's archived video by original URL"""
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
@@ -70,9 +70,9 @@ class DatabaseQueryManager:
                            file_size, duration, format, resolution, bitrate,
                            archived_at
                     FROM archived_videos
-                    WHERE original_url = ?
+                    WHERE original_url = ? AND guild_id = ?
                 """,
-                    (url,),
+                    (url, guild_id),
                 )
 
                 result = cursor.fetchone()
@@ -96,13 +96,14 @@ class DatabaseQueryManager:
             logger.error(f"Error retrieving archived video: {e}")
             return None
 
-    async def is_url_archived(self, url: str) -> bool:
+    async def is_url_archived(self, url: str, guild_id: int) -> bool:
         """Check if a URL has already been archived"""
         try:
             with self.connection_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT 1 FROM archived_videos WHERE original_url = ?", (url,)
+                    "SELECT 1 FROM archived_videos WHERE original_url = ? AND guild_id = ?",
+                    (url, guild_id),
                 )
                 return cursor.fetchone() is not None
 
@@ -184,11 +185,14 @@ class DatabaseQueryManager:
             logger.error(f"Error getting channel videos: {e}")
             return []
 
-    async def remove_archived_video(self, url: str) -> None:
+    async def remove_archived_video(self, url: str, guild_id: int) -> None:
         """Forget an archived video (its archive message is gone)"""
         try:
             with self.connection_manager.get_connection() as conn:
-                conn.execute("DELETE FROM archived_videos WHERE original_url = ?", (url,))
+                conn.execute(
+                    "DELETE FROM archived_videos WHERE original_url = ? AND guild_id = ?",
+                    (url, guild_id),
+                )
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Error removing archived video: {e}")

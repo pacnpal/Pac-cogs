@@ -47,8 +47,10 @@ class CompressionManager:
 
         try:
             # Get optimal compression parameters
-            compression_params = self.ffmpeg_mgr.get_compression_params(
-                input_file, self.max_file_size // (1024 * 1024)  # Convert to MB
+            # Runs ffprobe/ffmpeg analysis synchronously: keep it off the event loop
+            compression_params = await asyncio.to_thread(
+                self.ffmpeg_mgr.get_compression_params,
+                input_file, self.max_file_size // (1024 * 1024),  # Convert to MB
             )
 
             # Try hardware acceleration first

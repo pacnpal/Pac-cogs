@@ -407,8 +407,9 @@ class LifecycleManager:
                 await cleanup_task
                 logger.info("Normal cleanup completed")
 
-            except (asyncio.TimeoutError, Exception) as e:
-                if isinstance(e, asyncio.TimeoutError):
+            # _handle_timeout cancels the task, so a timeout surfaces as CancelledError
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as e:
+                if isinstance(e, (asyncio.TimeoutError, asyncio.CancelledError)):
                     logger.warning("Normal cleanup timed out, forcing cleanup")
                 else:
                     logger.error(f"Error during normal cleanup: {str(e)}")

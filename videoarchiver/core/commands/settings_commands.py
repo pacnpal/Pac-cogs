@@ -11,6 +11,7 @@ from redbot.core.commands import Context, hybrid_group, guild_only, admin_or_per
 
 from ...core.settings import VideoFormat, VideoQuality
 from ...core.response_handler import handle_response, ResponseType
+from ...core.guild import initialize_guild_components
 from ...utils.exceptions import CommandError, ErrorContext, ErrorSeverity
 
 logger = logging.getLogger("VideoArchiver")
@@ -96,12 +97,13 @@ async def validate_setting(
                         }
                     )
             elif setting == "template":
-                placeholders = ["{author}", "{channel}", "{original_message}"]
-                if not any(ph in value for ph in placeholders):
+                # Must match ConfigManager's validator, which rejects anything else
+                placeholders = ["{username}", "{channel}"]
+                if not all(ph in value for ph in placeholders):
                     validation.update(
                         {
                             "valid": False,
-                            "error": f"Template must include at least one placeholder: {', '.join(placeholders)}",
+                            "error": f"Template must include these placeholders: {', '.join(placeholders)}",
                         }
                     )
 
@@ -123,6 +125,11 @@ async def validate_setting(
 
 class SettingsCommands:
     """Settings commands mixin for the VideoArchiver cog"""
+
+    async def _apply_guild_settings(self, guild_id: int) -> None:
+        """The downloader and MessageManager copy settings when built: rebuild them"""
+        if guild_id in self.components:  # not built yet: startup reads the new value
+            await initialize_guild_components(self, guild_id)
 
     @hybrid_group(name="settings", fallback="show")
     @guild_only()
@@ -480,6 +487,7 @@ class SettingsCommands:
             await self.config_manager.update_setting(
                 ctx.guild.id, "video_format", format
             )
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Video format has been set to {format}.",
@@ -535,6 +543,7 @@ class SettingsCommands:
             await self.config_manager.update_setting(
                 ctx.guild.id, "video_quality", quality
             )
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Video quality has been set to {quality}p.",
@@ -588,6 +597,7 @@ class SettingsCommands:
                 return
 
             await self.config_manager.update_setting(ctx.guild.id, "max_file_size", size)
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Maximum file size has been set to {size}MB.",
@@ -643,6 +653,7 @@ class SettingsCommands:
             await self.config_manager.update_setting(
                 ctx.guild.id, "message_duration", hours
             )
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Message duration has been set to {hours} hours.",
@@ -666,7 +677,7 @@ class SettingsCommands:
     @guild_only()
     @admin_or_permissions(administrator=True)
     @app_commands.describe(
-        template="The message template to use. Available placeholders: {author}, {channel}, {original_message}"
+        template="Must include {username} and {channel}; also: {author}, {url}, {original_message}"
     )
     async def set_message_template(self, ctx: Context, template: str) -> None:
         """Set the template for archived messages."""
@@ -700,6 +711,7 @@ class SettingsCommands:
             await self.config_manager.update_setting(
                 ctx.guild.id, "message_template", template
             )
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Message template has been set to: {template}",
@@ -755,6 +767,7 @@ class SettingsCommands:
             await self.config_manager.update_setting(
                 ctx.guild.id, "concurrent_downloads", count
             )
+            await self._apply_guild_settings(ctx.guild.id)
             await handle_response(
                 ctx,
                 f"Concurrent downloads has been set to {count}.",

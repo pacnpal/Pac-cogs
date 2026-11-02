@@ -65,13 +65,15 @@ class FFmpegDownloader:
                 "bin_names": ["ffmpeg", "ffprobe"],
             },
         },
-        "Darwin": {
+        "Darwin": {  # evermeet ships ffmpeg and ffprobe as separate zips (x86_64; Rosetta on arm)
             "x86_64": {
-                "url": "https://evermeet.cx/ffmpeg/getrelease/zip",
+                "url": ["https://evermeet.cx/ffmpeg/getrelease/zip",
+                        "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"],
                 "bin_names": ["ffmpeg", "ffprobe"],
             },
-            "arm64": {
-                "url": "https://evermeet.cx/ffmpeg/getrelease/zip",
+            "aarch64": {
+                "url": ["https://evermeet.cx/ffmpeg/getrelease/zip",
+                        "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"],
                 "bin_names": ["ffmpeg", "ffprobe"],
             },
         },
@@ -80,9 +82,10 @@ class FFmpegDownloader:
     def __init__(self, system: str, machine: str, base_dir: Path):
         """Initialize FFmpeg downloader"""
         self.system = system
-        self.machine = machine.lower()
-        if self.machine == "arm64":
-            self.machine = "aarch64"  # Normalize ARM64 naming
+        # platform.machine(): "AMD64" on Windows, "arm64" on macOS
+        self.machine = {"amd64": "x86_64", "x64": "x86_64", "arm64": "aarch64"}.get(
+            machine.lower(), machine.lower()
+        )
         self.base_dir = base_dir
         self.ffmpeg_path = self.base_dir / self._get_binary_names()[0]
         self.ffprobe_path = self.base_dir / self._get_binary_names()[1]
@@ -100,10 +103,11 @@ class FFmpegDownloader:
                 f"Unsupported system/architecture: {self.system}/{self.machine}"
             )
 
-    def _get_download_url(self) -> str:
-        """Get the appropriate download URL for the current system"""
+    def _get_download_urls(self) -> List[str]:
+        """Get the archive URL(s) for the current system"""
         try:
-            return self.FFMPEG_URLS[self.system][self.machine]["url"]
+            url = self.FFMPEG_URLS[self.system][self.machine]["url"]
+            return url if isinstance(url, list) else [url]
         except KeyError:
             raise DownloadError(
                 f"Unsupported system/architecture: {self.system}/{self.machine}"
@@ -132,15 +136,15 @@ class FFmpegDownloader:
                             binary_path.unlink()
 
                 with temp_path_context() as temp_dir:
-                    # Download archive
-                    archive_path = self._download_archive(temp_dir)
+                    for i, url in enumerate(self._get_download_urls()):
+                        archive_path = self._download_archive(temp_dir, url, i)
+                        if not self._verify_download(archive_path):
+                            raise DownloadError("Downloaded file verification failed")
+                        self._extract_binaries(archive_path, temp_dir)
 
-                    # Verify download
-                    if not self._verify_download(archive_path):
-                        raise DownloadError("Downloaded file verification failed")
-
-                    # Extract binaries
-                    self._extract_binaries(archive_path, temp_dir)
+                    for binary_path in [self.ffmpeg_path, self.ffprobe_path]:
+                        if not binary_path.exists():
+                            raise DownloadError(f"Binary not found after extraction: {binary_path}")
 
                     # Set proper permissions
                     for binary_path in [self.ffmpeg_path, self.ffprobe_path]:
@@ -165,12 +169,11 @@ class FFmpegDownloader:
 
         raise DownloadError(f"All download attempts failed: {last_error}")
 
-    def _download_archive(self, temp_dir: str) -> Path:
+    def _download_archive(self, temp_dir: str, url: str, index: int = 0) -> Path:
         """Download FFmpeg archive with progress tracking"""
-        url = self._get_download_url()
         archive_path = (
             Path(temp_dir)
-            / f"ffmpeg_archive{'.zip' if self.system == 'Windows' else '.tar.xz'}"
+            / f"ffmpeg_archive{index}{'.zip' if url.endswith('zip') else '.tar.xz'}"
         )
 
         logger.info(f"Downloading FFmpeg from {url}")
@@ -223,20 +226,10 @@ class FFmpegDownloader:
         logger.info("Extracting FFmpeg and FFprobe binaries")
 
         try:
-            if self.system == "Windows":
+            if archive_path.suffix == ".zip":
                 self._extract_zip(archive_path, temp_dir)
             else:
                 self._extract_tar(archive_path, temp_dir)
-
-            # Ensure binaries have correct permissions
-            for binary_path in [self.ffmpeg_path, self.ffprobe_path]:
-                if binary_path.exists():
-                    os.chmod(str(binary_path), 0o755)
-                    logger.info(f"Set permissions for {binary_path}")
-                else:
-                    raise DownloadError(
-                        f"Binary not found after extraction: {binary_path}"
-                    )
 
         except Exception as e:
             raise DownloadError(f"Failed to extract binaries: {e}")
@@ -258,11 +251,12 @@ class FFmpegDownloader:
                     binary_files = [
                         f
                         for f in zip_ref.namelist()
-                        if f.endswith(f"/{binary_name}")
+                        if f == binary_name
+                        or f.endswith(f"/{binary_name}")
                         or f.endswith(f"\\{binary_name}")
                     ]
                 if not binary_files:
-                    raise DownloadError(f"{binary_name} not found in archive")
+                    continue  # may come from another archive; download() checks both exist
 
                 zip_ref.extract(binary_files[0], temp_dir)
                 extracted_path = Path(temp_dir) / binary_files[0]

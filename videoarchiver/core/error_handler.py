@@ -260,7 +260,7 @@ class ErrorManager:
 
             # Send response
             await response_manager.send_response(
-                ctx, content=user_message, response_type=severity.name.lower()
+                ctx, content=user_message, response_type=severity
             )
 
         except Exception as e:

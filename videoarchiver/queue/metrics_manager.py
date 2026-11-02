@@ -334,6 +334,11 @@ class QueueMetricsManager:
                 success_rate=proc_data.get("success_rate", 0.0),
                 avg_processing_time=proc_data.get("avg_processing_time", 0.0)
             )
+            # Seed the running average, or the first new sample replaces it
+            self.processing._processing_count = self.processing.total_processed
+            self.processing._total_processing_time = (
+                self.processing.avg_processing_time * self.processing.total_processed
+            )
 
             # Restore error metrics
             error_data = metrics_data.get(MetricCategory.ERRORS.value, {})

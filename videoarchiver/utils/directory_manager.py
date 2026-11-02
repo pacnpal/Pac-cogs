@@ -74,7 +74,11 @@ class DirectoryManager:
         try:
             for entry in os.scandir(directory_path):
                 try:
-                    if entry.is_file():
+                    if entry.is_symlink():
+                        # Drop the link only: following it would zero/delete files outside this dir
+                        os.unlink(entry.path)
+                        deleted_count += 1
+                    elif entry.is_file():
                         # Delete file
                         if await self.file_deleter.delete_file(entry.path):
                             deleted_count += 1
