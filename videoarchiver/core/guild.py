@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Dict, Any, Optional
 # Try relative imports first
 from ..utils.download_core import DownloadCore
 from ..utils.message_manager import MessageManager
-from ..utils.file_ops import cleanup_downloads
 from ..utils.exceptions import VideoArchiverError as ProcessingError
 
 # except ImportError:
@@ -32,9 +31,9 @@ async def initialize_guild_components(cog: "VideoArchiver", guild_id: int) -> No
     try:
         settings = await cog.config_manager.get_guild_settings(guild_id)
 
-        # Ensure download directory exists and is clean
+        # The download dir is shared by every guild, so it's only cleaned at startup/unload,
+        # never here (a guild join would delete another guild's in-progress download)
         cog.download_path.mkdir(parents=True, exist_ok=True)
-        await cleanup_downloads(str(cog.download_path))
 
         # Clean up old components if they exist
         if guild_id in cog.components:

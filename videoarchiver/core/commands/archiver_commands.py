@@ -268,7 +268,7 @@ class ArchiverCommands:
                     embed.add_field(
                         name="Processor",
                         value=(
-                            f"Active: {status['processor']['active']}\n"
+                            f"Active: {len(status['processor']['details']['active_operations'])}\n"
                             f"Health: {status['processor']['health']}"
                         ),
                         inline=True,

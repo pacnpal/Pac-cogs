@@ -27,6 +27,7 @@ from redbot.core.data_manager import cog_data_path  # type: ignore
 # Try relative imports first
 from ..utils.exceptions import ComponentError, ErrorContext, ErrorSeverity
 from ..utils.path_manager import PathManager
+from ..utils.file_ops import cleanup_downloads
 from ..config_manager import ConfigManager
 from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager, QueueConfig
@@ -490,6 +491,7 @@ class ComponentManager:
             # Ensure directories exist
             await self.path_manager.ensure_directory(data_dir)
             await self.path_manager.ensure_directory(download_dir)
+            await cleanup_downloads(str(download_dir))  # leftovers from a crash; nothing is running yet
 
             # Register paths
             self.register("data_path", data_dir)

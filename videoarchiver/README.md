@@ -92,7 +92,7 @@ Every command works as a prefix command and as a slash command. Red keeps slash 
 - **`settings setquality <144-4320>`**: Set the max video height in pixels
 - **`settings setmaxsize <1-100>`**: Set the max file size in MB
 - **`settings setmessageduration <0-168>`**: How long archive messages stay, in hours (0 keeps them)
-- **`settings settemplate <template>`**: Set the archive message template. Placeholders: `{author}`, `{channel}`, `{original_message}`
+- **`settings settemplate <template>`**: Set the archive message template. It must include `{username}` and `{channel}`, and can also use `{author}`, `{url}` and `{original_message}`
 - **`settings setconcurrent <1-5>`**: Set how many downloads run at once
 
 ### Database (`archivedb`)
