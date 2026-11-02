@@ -1,5 +1,6 @@
 """GPU detection functionality for FFmpeg"""
 
+import glob
 import os
 import subprocess
 import logging
@@ -108,13 +109,7 @@ class GPUDetector:
             # Check for AMD GPU using DRI
             if os.path.exists("/dev/dri"):
                 try:
-                    result = subprocess.run(
-                        ["ls", "/dev/dri/render*"],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    if result.returncode == 0:
+                    if glob.glob("/dev/dri/render*"):  # no shell, so ls never expanded the glob
                         # Check device info using lspci
                         lspci_result = subprocess.run(
                             ["lspci", "-v"],

@@ -134,7 +134,7 @@ async def main():
         db = VideoArchiveDB(Path(tempfile.mkdtemp()))
         processor.db = processor.queue_handler.db = db
         archive.send.return_value = MagicMock(id=9999, delete=AsyncMock(),
-                                              attachments=[MagicMock(url="https://cdn.example/v.mp4")])
+                                              attachments=[MagicMock(url="https://cdn.example/v.mp4", size=123)])
         mm = cog.components[GUILD]["message_manager"]
         schedule = mm.schedule_message_deletion = AsyncMock(wraps=mm.schedule_message_deletion)
 
