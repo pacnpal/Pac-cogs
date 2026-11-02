@@ -220,7 +220,7 @@ def get_active_downloads() -> Dict[str, Any]:
         TrackingError: If there's an error getting active downloads
     """
     try:
-        return progress_tracker.get_active_downloads()
+        return {k: v for k, v in progress_tracker.get_download_progress().items() if v.get("active")}
     except Exception as e:
         raise TrackingError(f"Failed to get active downloads: {str(e)}")
 
@@ -235,7 +235,7 @@ def get_active_compressions() -> Dict[str, Any]:
         TrackingError: If there's an error getting active compressions
     """
     try:
-        return progress_tracker.get_active_compressions()
+        return {k: v for k, v in progress_tracker.get_compression_progress().items() if v.get("active")}
     except Exception as e:
         raise TrackingError(f"Failed to get active compressions: {str(e)}")
 

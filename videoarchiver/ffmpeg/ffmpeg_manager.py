@@ -53,19 +53,22 @@ class FFmpegManager:
             verification_manager=self.verification_manager,
         )
 
+        # Locate/download binaries first: GPU detection needs a real FFmpeg path.
+        # Verify with no GPU encoders required; detect_gpu() checks GPU support itself.
+        binaries = self.binary_manager.initialize_binaries(
+            {"nvidia": False, "amd": False, "intel": False}
+        )
+        logger.info(f"Using FFmpeg from: {binaries['ffmpeg']}")
+        logger.info(f"Using FFprobe from: {binaries['ffprobe']}")
+
         # Initialize components
-        self.gpu_detector = GPUDetector(self.get_ffmpeg_path)
-        self.video_analyzer = VideoAnalyzer(self.get_ffmpeg_path)
+        self.gpu_detector = GPUDetector(binaries["ffmpeg"])
+        self.video_analyzer = VideoAnalyzer(binaries["ffmpeg"])
         self._gpu_info = self.gpu_detector.detect_gpu()
         self._cpu_cores = multiprocessing.cpu_count()
 
         # Initialize encoder params
         self.encoder_params = EncoderParams(self._cpu_cores, self._gpu_info)
-
-        # Initialize binaries
-        binaries = self.binary_manager.initialize_binaries(self._gpu_info)
-        logger.info(f"Using FFmpeg from: {binaries['ffmpeg']}")
-        logger.info(f"Using FFprobe from: {binaries['ffprobe']}")
         logger.info("FFmpeg manager initialized successfully")
 
     def kill_all_processes(self) -> None:

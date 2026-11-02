@@ -26,7 +26,7 @@ class ProgressTracker:
         return cls._instance
 
     def __init__(self):
-        if not hasattr(self, '_initialized'):
+        if not self._initialized:
             self._download_progress: Dict[str, Dict[str, Any]] = {}
             self._compression_progress: Dict[str, Dict[str, Any]] = {}
             self._initialized = True

@@ -133,7 +133,16 @@ class DownloadManager:
             logger.info(f"Download completed: {d['filename']}")
         elif d["status"] == "downloading":
             try:
-                progress_tracker.update_download_progress(d)
+                info = d.get("info_dict") or {}
+                url = info.get("original_url") or info.get("webpage_url")
+                total = d.get("total_bytes") or d.get("total_bytes_estimate")
+                downloaded = d.get("downloaded_bytes", 0)
+                if url:
+                    progress_tracker.update_download_progress(url, {
+                        "percent": downloaded / total * 100 if total else 0,
+                        "downloaded_bytes": downloaded,
+                        "total_bytes": total or 0,
+                    })
             except Exception as e:
                 logger.debug(f"Error logging progress: {str(e)}")
 
@@ -143,7 +152,6 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.cleanup()
-        progress_tracker.clear_progress()
 
     async def force_cleanup(self) -> None:
         """Force cleanup of all resources"""
@@ -151,7 +159,6 @@ class DownloadManager:
         self.ytdl_logger.cancelled = True
         self.download_pool.shutdown(wait=False, cancel_futures=True)
         await self.compression_manager.force_cleanup()
-        progress_tracker.clear_progress()
 
     async def download_video(
         self, url: str, progress_callback: Optional[Callable[[float], None]] = None
@@ -160,7 +167,7 @@ class DownloadManager:
         if self._shutting_down:
             return False, "", "Downloader is shutting down"
 
-        progress_tracker.start_download(url)
+        progress_tracker.update_download_progress(url, {"active": True, "percent": 0})
 
         try:
             # Download video
@@ -178,7 +185,7 @@ class DownloadManager:
             return False, "", str(e)
 
         finally:
-            progress_tracker.end_download(url)
+            progress_tracker.complete_download(url)
 
     async def _safe_download(
         self, url: str, progress_callback: Optional[Callable[[float], None]]
