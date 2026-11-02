@@ -82,16 +82,18 @@ class Overseerr(commands.Cog):
             await initial_message.edit(content=f"No results found for '{query}'. API Response: {search_results}")
             return
 
-        if not search_results['results']:
+        # Search also returns people; only movies and TV can be requested
+        results = [r for r in search_results['results'] if r.get('mediaType') in ('movie', 'tv')][:25]  # Discord limit is 25 options
+        if not results:
             await initial_message.edit(content=f"No results found for '{query}'.")
             return
 
         # Create select menu for results
         options = []
-        for i, result in enumerate(search_results['results'][:25]):  # Discord limit is 25 options
+        for i, result in enumerate(results):
             media_type = result['mediaType']
-            title = result['title']
-            release_date = result.get('releaseDate', 'N/A')
+            title = result.get('title') or result.get('name', 'Unknown')  # TV results use name/firstAirDate
+            release_date = result.get('releaseDate') or result.get('firstAirDate') or 'N/A'
             status = await self.get_media_status(result['id'], media_type)
             
             # Truncate description if needed (Discord has a 100-character limit for option descriptions)
@@ -119,20 +121,21 @@ class Overseerr(commands.Cog):
                 return
 
             selected_index = int(select_interaction.data['values'][0])
-            selected_result = search_results['results'][selected_index]
+            selected_result = results[selected_index]
             media_type = selected_result['mediaType']
+            title = selected_result.get('title') or selected_result.get('name', 'Unknown')
 
             # Check if the media is already available or requested
             status = await self.get_media_status(selected_result['id'], media_type)
-            if "Available" in status:
+            if status.startswith("Available"):
                 await select_interaction.response.send_message(
-                    f"'{selected_result['title']}' is already available. No need to request!",
+                    f"'{title}' is already available. No need to request!",
                     ephemeral=True
                 )
                 return
             elif "Requested" in status:
                 await select_interaction.response.send_message(
-                    f"'{selected_result['title']}' has already been requested. No need to request again!",
+                    f"'{title}' has already been requested. No need to request again!",
                     ephemeral=True
                 )
                 return
@@ -141,20 +144,23 @@ class Overseerr(commands.Cog):
             request_url = f"{overseerr_url}/api/v1/request"
             request_data = {
                 "mediaId": selected_result['id'],
-                "mediaType": media_type
+                "mediaType": media_type,
+                "is4k": False  # Overseerr only matches existing requests with the same is4k
             }
+            if media_type == 'tv':
+                request_data["seasons"] = "all"  # Overseerr requires seasons for TV
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(request_url, headers=headers, json=request_data) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):  # Overseerr answers 201 Created
                         response_data = await resp.json()
                         request_id = response_data.get('id')
                         await select_interaction.response.send_message(
-                            f"Successfully requested {media_type} '{selected_result['title']}'! Request ID: {request_id}"
+                            f"Successfully requested {media_type} '{title}'! Request ID: {request_id}"
                         )
                     else:
                         await select_interaction.response.send_message(
-                            f"Failed to request {media_type} '{selected_result['title']}'. Please try again later.",
+                            f"Failed to request {media_type} '{title}'. Please try again later.",
                             ephemeral=True
                         )
 
@@ -165,6 +171,7 @@ class Overseerr(commands.Cog):
 
     @commands.hybrid_command(name="approve")
     @app_commands.guild_only()
+    @commands.guild_only()
     @app_commands.describe(request_id="The ID of the request to approve")
     async def approve(self, ctx: commands.Context, request_id: int):
         """Approve a request on Overseerr."""
@@ -203,8 +210,13 @@ class Overseerr(commands.Cog):
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    status = "Available" if data.get('mediaInfo', {}).get('status') == 3 else "Not Available"
-                    if data.get('request'):
+                    media_info = data.get('mediaInfo') or {}  # null when Overseerr has no record yet
+                    # MediaStatus: 4 = PARTIALLY_AVAILABLE, 5 = AVAILABLE
+                    status = {5: "Available", 4: "Partially Available"}.get(media_info.get('status'), "Not Available")
+                    # Request status 1 = PENDING, 2 = APPROVED. Declined/failed ones shouldn't block a new request,
+                    # and Overseerr skips already requested seasons when a partially available show is requested again.
+                    active = [r for r in media_info.get('requests') or [] if r.get('status') in (1, 2) and not r.get('is4k')]
+                    if active and status != "Partially Available":
                         status += " (Requested)"
                     return status
                 return "Status Unknown"

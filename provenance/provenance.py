@@ -556,6 +556,8 @@ class Provenance(commands.Cog):
     @commands.admin_or_permissions(administrator=True)
     async def provenanceset(self, ctx: commands.Context):
         """Show the Provenance settings for this server."""
+        if ctx.invoked_subcommand is not None:
+            return
         settings = await self.config.guild(ctx.guild).all()
         channels = ", ".join(f"<#{c}>" for c in settings["channels"]) or "None"
         mode = "Allowlist (only these)" if settings["channel_mode"] == "allow" else "Denylist (all except these)"

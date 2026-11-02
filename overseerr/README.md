@@ -82,16 +82,18 @@ or
 
 This will:
 1. Search for the media on Overseerr
-2. Display an interactive select menu with up to 25 results
-3. Show media type, release date, and current status (Available/Not Available/Requested) for each result
+2. Display an interactive select menu with up to 25 movie and TV results (people in the search results are left out)
+3. Show media type, release date, and current status (Available/Partially Available/Not Available/Requested) for each result
 4. Allow you to select the desired title from the menu
 5. Automatically check if the media is already available or requested before submitting a new request
+
+TV requests ask for every season. If a show is partially available, Overseerr only requests the seasons it doesn't have yet.
 
 Only the person who ran the command can use the menu. Requests are sent with the configured API key, so Overseerr records them under that key's user, not the Discord user.
 
 ### Approving Requests
 
-Members with the approval role (see `setadminrole`) can approve requests using:
+Members with the approval role (see `setadminrole`) can approve requests using the command below. It only works in a server, not in DMs, because it checks your roles.
 
 ```
 [p]approve request_id
@@ -139,7 +141,7 @@ These need Red's admin role, or the server owner or bot owner.
   - Example: `[p]request The Matrix` or `/request The Matrix`
 
 - **`[p]approve <request_id>`** or **`/approve <request_id>`**
-  - Approve a media request (requires the role set with `setadminrole`)
+  - Approve a media request (requires the role set with `setadminrole`, server only)
   - Example: `[p]approve 123` or `/approve 123`
 
 ## Support

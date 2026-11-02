@@ -100,11 +100,11 @@ class ThrillWiki(commands.Cog):
         return data["results"]
 
     async def cog_command_error(self, ctx: commands.Context, error: Exception) -> None:
-        error = getattr(error, "original", error)
-        if isinstance(error, NotFound):
+        original = getattr(error, "original", error)
+        if isinstance(original, NotFound):
             await ctx.send("Nothing on ThrillWiki matched that.")
-        elif isinstance(error, (aiohttp.ClientError, asyncio.TimeoutError)):
-            log.warning("ThrillWiki API request failed: %s", error)
+        elif isinstance(original, (aiohttp.ClientError, asyncio.TimeoutError)):
+            log.warning("ThrillWiki API request failed: %s", original)
             await ctx.send("ThrillWiki didn't answer. Try again in a minute.")
         else:
             await self.bot.on_command_error(ctx, error, unhandled_by_cog=True)

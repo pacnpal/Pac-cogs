@@ -47,6 +47,8 @@ Attachments are copied into the repository on an orphan `discord-attachments` br
 
 Issues, comments and uploads show up on GitHub as `APP-SLUG[bot]`. Any `@` in text copied from Discord gets a zero-width space after it, so Discord users can't ping GitHub users or teams through the App. GitHub doesn't autocomplete App names, so maintainers have to type `@APP-SLUG` in full.
 
+If a post's Discord thread or GitHub issue is deleted, the cog retries for five polls in a row, then logs that it gave up and stops tracking that post. Other failures, like outages, a bad App key, a missing install or missing permissions, keep retrying, since they hit every post and go away once you fix the setup. A given-up post stays in the Config data with `gave_up` set to `true`. To retry it, stop the bot, remove that field, and start it again.
+
 Each poll reads every linked issue once. That's fine for a community server. If you have thousands of open posts, raise the interval.
 
 ## When an issue create is uncertain
