@@ -27,9 +27,15 @@ ACCEPT = {
     "https://player.vimeo.com/video/123456": None,
     "https://mobile.twitter.com/u/status/123": None,
     "https://twitter.com/i/web/status/123": None,
+    f"https://www.youtube.com/watch?v={ID}&list=PL1": None,
+    "https://x.com/u/status/123": None,
+    "https://www.tiktok.com/@a/video/7234567890123456789": None,  # no hand-written pattern: from yt-dlp
     "(https://example.com/a.mp4).": "https://example.com/a.mp4",
 }
-REJECT = [f"https://notyoutube.com/watch?v={ID}", "https://www.youtube.com/@someone"]
+REJECT = [
+    f"https://notyoutube.com/watch?v={ID}",
+    "https://example.com/page",
+]
 
 
 def msg(content, mid):
@@ -45,6 +51,12 @@ async def main():
         assert got == [want or text], (text, got)
     for i, text in enumerate(REJECT, 100):
         assert not await ex.extract_urls(msg(text, i)), text
+
+    # enabled_sites matches yt-dlp's site name (twitter covers x.com) or a domain fragment
+    tweet, vimeo = msg("https://x.com/u/status/123", 200), msg("https://vimeo.com/123456", 201)
+    assert [u.site for u in await ex.extract_urls(tweet, ["twitter"])] == ["twitter"]
+    assert not await ex.extract_urls(vimeo, ["twitter"])
+    assert await ex.extract_urls(vimeo, ["vimeo.com"])
 
     # A failed upload still deletes the downloaded file (process_video never gets the path)
     fd, video = tempfile.mkstemp(suffix=".mp4")

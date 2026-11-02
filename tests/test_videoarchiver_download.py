@@ -22,7 +22,7 @@ from videoarchiver.utils.file_operations import FileOperations  # noqa: E402
 MB = 1024 * 1024
 
 
-def fake_ytdl(size=None, error=None):
+def fake_ytdl(size=None, error=None, playlist=False):
     """YoutubeDL stand-in: writes a `size`-byte file into paths.home (or a .part then raises)."""
     class FakeYDL:
         def __init__(self, opts):
@@ -47,7 +47,8 @@ def fake_ytdl(size=None, error=None):
                 hook({"status": "downloading", "downloaded_bytes": size // 2, "total_bytes": size,
                       "info_dict": {"original_url": url}})
                 hook({"status": "finished", "filename": path})
-            return {"requested_downloads": [{"filepath": path}]}
+            entry = {"requested_downloads": [{"filepath": path}]}
+            return {"_type": "playlist", "entries": [entry]} if playlist else entry
     return FakeYDL
 
 
@@ -129,6 +130,13 @@ def main():
     args = Path(f"{ffmpeg}.log").read_text().splitlines()
     assert args[args.index("-i") + 1] == path.replace("_compressed.mp4", ".mp4") and "libx264" in args, args
     assert progress == [50.0, 50.0], progress  # download hook, then ffmpeg out_time_ms
+
+    # Multi-video post: yt-dlp is capped to one item and returns a playlist holding it.
+    tmp = Path(tempfile.mkdtemp())
+    dm, downloads, _ = make_manager(tmp, 8)
+    assert dm.ydl_opts["playlist_items"] == "1"
+    (ok, path, err), _ = run(dm, "https://example.com/p", fake_ytdl(size=1000, playlist=True))
+    assert (ok, err) == (True, "") and os.path.getsize(path) == 1000, err
 
     # yt-dlp error: clean failure, partial files gone.
     tmp = Path(tempfile.mkdtemp())

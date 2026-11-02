@@ -1,32 +1,19 @@
 """URL extraction functionality for video processing"""
 
+import functools
 import logging
-import re
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set, Pattern, ClassVar
+from typing import List, Dict, Optional, Set
 from datetime import datetime
 import discord # type: ignore
+import yt_dlp # type: ignore
 from urllib.parse import urlparse, parse_qs, ParseResult
 
 logger = logging.getLogger("VideoArchiver")
 
 # Discord markup and punctuation around a link: <url> (no embed), ||url||, (url), "url.", ...
 URL_WRAPPING_CHARS = "<>()[]|*`'\",.!?"
-
-@dataclass
-class URLPattern:
-    """Defines a URL pattern for a video site"""
-    site: str
-    pattern: Pattern
-    requires_api: bool = False
-    supports_timestamp: bool = False
-    supports_playlist: bool = False
-
-    def __post_init__(self) -> None:
-        """Validate pattern after initialization"""
-        if not isinstance(self.pattern, Pattern):
-            raise ValueError("Pattern must be a compiled regular expression")
 
 @dataclass
 class URLMetadata:
@@ -45,76 +32,54 @@ class URLType(Enum):
     PLATFORM = "platform"
     UNKNOWN = "unknown"
 
-class URLPatternManager:
-    """Manages URL patterns for different video sites"""
 
-    YOUTUBE_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:(?:www|m|music)\.)?'
-        r'(?:youtube\.com/(?:watch\?(?:[^#\s]*&)?v=|shorts/|live/|embed/)|youtu\.be/)'
-        r'([a-zA-Z0-9_-]{11})'
-    )
-    VIMEO_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:(?:www|player)\.)?'
-        r'vimeo\.com/(?:video/|channels/(?:\w+/)?|groups/(?:[^/]*/)*|)'
-        r'(\d+)(?:|/\w+)*'
-    )
-    TWITTER_PATTERN: ClassVar[Pattern] = re.compile(
-        r'(?:https?://)?(?:(?:www|mobile)\.)?'
-        r'(?:twitter\.com|x\.com)/(?:\w+|i/web)/status/(\d+)'
-    )
+# Keyed on the module, so a yt-dlp hot-swapped by update_checker brings its new sites along
+@functools.lru_cache(maxsize=1)
+def _extractors(module) -> List[type]:
+    """Every yt-dlp extractor that can hand back a single video, minus the catch-all Generic one"""
+    # ponytail: "any" extractors (tweets, youtube:tab) stay in, since youtube:tab also serves
+    # watch?v=...&list=...; a channel or playlist link there archives one video (playlist_items=1).
+    return [
+        ie for ie in module.extractor.gen_extractor_classes()
+        if ie._ENABLED and ie.ie_key() != "Generic" and getattr(ie, "_RETURN_TYPE", None) != "playlist"
+    ]
+
+
+class URLPatternManager:
+    """Recognises video URLs using yt-dlp's own extractors, so every site it supports counts"""
 
     def __init__(self) -> None:
-        self.patterns: Dict[str, URLPattern] = {
-            "youtube": URLPattern(
-                site="youtube",
-                pattern=self.YOUTUBE_PATTERN,
-                supports_timestamp=True,
-                supports_playlist=True
-            ),
-            "vimeo": URLPattern(
-                site="vimeo",
-                pattern=self.VIMEO_PATTERN,
-                supports_timestamp=True
-            ),
-            "twitter": URLPattern(
-                site="twitter",
-                pattern=self.TWITTER_PATTERN,
-                requires_api=True
-            )
-        }
-
         self.direct_extensions: Set[str] = {'.mp4', '.mov', '.avi', '.webm', '.mkv'}
 
-    def get_pattern(self, site: str) -> Optional[URLPattern]:
-        """
-        Get pattern for a site.
-        
-        Args:
-            site: Site identifier
-            
-        Returns:
-            URLPattern for the site or None if not found
-        """
-        return self.patterns.get(site.lower())
+    def find_extractor(self, url: str) -> Optional[type]:
+        """The first yt-dlp extractor that accepts this URL, or None"""
+        if not url.lower().startswith(("http://", "https://")):
+            return None
+        return next((ie for ie in _extractors(yt_dlp) if ie.suitable(url)), None)
 
-    def is_supported_site(self, url: str, enabled_sites: Optional[List[str]]) -> bool:
+    @staticmethod
+    def site_name(extractor: type) -> str:
+        """yt-dlp's name for the site: "youtube" for both youtube and youtube:tab"""
+        return extractor.IE_NAME.split(":")[0].lower()
+
+    def is_supported_site(self, url: str, site: str, enabled_sites: Optional[List[str]]) -> bool:
         """
-        Check if URL is from a supported site.
-        
+        Check the URL against the guild's enabled sites.
+
         Args:
             url: URL to check
-            enabled_sites: List of enabled site identifiers
-            
+            site: yt-dlp site name for the URL ("direct" for file links)
+            enabled_sites: Site names or domain fragments; empty means all
+
         Returns:
-            True if site is supported, False otherwise
+            True if site is enabled, False otherwise
         """
         if not enabled_sites:
             return True
 
         try:
-            parsed = urlparse(url.lower())
-            domain = parsed.netloc.replace('www.', '')
-            return any(site.lower() in domain for site in enabled_sites)
+            domain = urlparse(url.lower()).netloc.replace('www.', '')
+            return any(s.lower() == site or s.lower() in domain for s in enabled_sites)
         except Exception as e:
             logger.error(f"Error checking site support for {url}: {e}")
             return False
@@ -139,7 +104,7 @@ class URLValidator:
             parsed = urlparse(url)
             if any(parsed.path.lower().endswith(ext) for ext in self.pattern_manager.direct_extensions):
                 return URLType.DIRECT
-            if any(pattern.pattern.match(url) for pattern in self.pattern_manager.patterns.values()):
+            if self.pattern_manager.find_extractor(url):
                 return URLType.PLATFORM
             return URLType.UNKNOWN
         except Exception as e:
@@ -187,21 +152,14 @@ class URLMetadataExtractor:
                 return URLMetadata(url=url, site="direct")
 
             # Handle platform URLs
-            for site, pattern in self.pattern_manager.patterns.items():
-                if match := pattern.pattern.match(url):
-                    metadata = URLMetadata(
-                        url=url,
-                        site=site,
-                        video_id=match.group(1)
-                    )
-                    
-                    # Extract additional metadata
-                    if pattern.supports_timestamp:
-                        metadata.timestamp = self._extract_timestamp(parsed)
-                    if pattern.supports_playlist:
-                        metadata.playlist_id = self._extract_playlist_id(parsed)
-                    
-                    return metadata
+            if ie := self.pattern_manager.find_extractor(url):
+                return URLMetadata(
+                    url=url,
+                    site=self.pattern_manager.site_name(ie),
+                    video_id=ie.get_temp_id(url),
+                    timestamp=self._extract_timestamp(parsed),
+                    playlist_id=self._extract_playlist_id(parsed),
+                )
 
             return None
 
@@ -285,16 +243,17 @@ class URLExtractor:
                     logger.debug(f"Invalid URL format: {url}")
                     continue
                     
-                if not self.pattern_manager.is_supported_site(url, enabled_sites):
+                metadata = self.metadata_extractor.extract_metadata(url)
+                if not metadata:
+                    logger.debug(f"Could not extract metadata from URL: {url}")
+                    continue
+
+                if not self.pattern_manager.is_supported_site(url, metadata.site, enabled_sites):
                     logger.debug(f"URL {url} doesn't match any enabled sites")
                     continue
-                    
-                metadata = self.metadata_extractor.extract_metadata(url)
-                if metadata:
-                    urls.append(metadata)
-                    valid_urls.add(url)
-                else:
-                    logger.debug(f"Could not extract metadata from URL: {url}")
+
+                urls.append(metadata)
+                valid_urls.add(url)
 
             # Update cache (ponytail: FIFO cap, one entry per message would grow forever)
             if len(self._url_cache) >= 1000:

@@ -105,6 +105,8 @@ class DownloadManager:
             "quiet": True,
             "no_warnings": True,
             "noplaylist": True,
+            # Multi-video posts and channel links come back as playlists: archive the first video only
+            "playlist_items": "1",
             "concurrent_fragment_downloads": 1,
             "retries": self.MAX_RETRIES,
             "fragment_retries": self.MAX_RETRIES,
@@ -232,7 +234,8 @@ class DownloadManager:
         def run() -> Optional[str]:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-            downloads = (info or {}).get("requested_downloads") or [{}]
+            entry = ((info or {}).get("entries") or [info])[0] or {}  # playlist -> its one entry
+            downloads = entry.get("requested_downloads") or [{}]
             return downloads[0].get("filepath")  # final path, after any merge
 
         def discard(f: asyncio.Future) -> None:
