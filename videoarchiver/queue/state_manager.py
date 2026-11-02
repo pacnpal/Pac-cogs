@@ -360,7 +360,14 @@ class QueueStateManager:
         """Restore state from persisted data"""
         async with self._lock:
             self._queue = state.get("queue", [])
-            self._processing = state.get("processing", {})
+            # Nothing is processing after a restart: requeue those items, else they sit
+            # in _processing forever (start_time is None for ones still waiting to start)
+            for item in state.get("processing", {}).values():
+                item.status = ItemState.PENDING.value
+                item.start_time = None
+                self._queue.append(item)
+            self._queue.sort(key=lambda x: (-x.priority, x.added_at))
+            self._processing = {}
             self._completed = state.get("completed", {})
             self._failed = state.get("failed", {})
 
