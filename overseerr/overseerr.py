@@ -144,14 +144,15 @@ class Overseerr(commands.Cog):
             request_url = f"{overseerr_url}/api/v1/request"
             request_data = {
                 "mediaId": selected_result['id'],
-                "mediaType": media_type
+                "mediaType": media_type,
+                "is4k": False  # Overseerr only matches existing requests with the same is4k
             }
             if media_type == 'tv':
                 request_data["seasons"] = "all"  # Overseerr requires seasons for TV
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(request_url, headers=headers, json=request_data) as resp:
-                    if resp.status == 200:
+                    if resp.status in (200, 201):  # Overseerr answers 201 Created
                         response_data = await resp.json()
                         request_id = response_data.get('id')
                         await select_interaction.response.send_message(
@@ -214,7 +215,7 @@ class Overseerr(commands.Cog):
                     status = {5: "Available", 4: "Partially Available"}.get(media_info.get('status'), "Not Available")
                     # Request status 1 = PENDING, 2 = APPROVED. Declined/failed ones shouldn't block a new request,
                     # and Overseerr skips already requested seasons when a partially available show is requested again.
-                    active = [r for r in media_info.get('requests') or [] if r.get('status') in (1, 2)]
+                    active = [r for r in media_info.get('requests') or [] if r.get('status') in (1, 2) and not r.get('is4k')]
                     if active and status != "Partially Available":
                         status += " (Requested)"
                     return status
