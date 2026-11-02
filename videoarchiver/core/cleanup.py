@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 from datetime import datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -248,12 +247,6 @@ async def cleanup_resources(cog: "VideoArchiver") -> None:
                 cog.ffmpeg_mgr.kill_all_processes()
                 clear_component(cog, "ffmpeg_mgr")
 
-            # Kill any remaining FFmpeg processes system-wide
-            if os.name != "nt":  # Unix-like systems
-                os.system("pkill -9 ffmpeg")
-            else:  # Windows
-                os.system("taskkill /F /IM ffmpeg.exe")
-
             cleanup_manager.record_result(
                 CleanupPhase.FFMPEG,
                 CleanupStatus.SUCCESS,
@@ -378,12 +371,6 @@ async def force_cleanup_resources(cog: "VideoArchiver") -> None:
                 logger.info("Force killing FFmpeg processes")
                 cog.ffmpeg_mgr.kill_all_processes()
                 clear_component(cog, "ffmpeg_mgr")
-
-            # Force kill any remaining FFmpeg processes system-wide
-            if os.name != "nt":  # Unix-like systems
-                os.system("pkill -9 ffmpeg")
-            else:  # Windows
-                os.system("taskkill /F /IM ffmpeg.exe")
 
             cleanup_manager.record_result(
                 CleanupPhase.FFMPEG,

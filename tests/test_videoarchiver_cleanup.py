@@ -58,7 +58,7 @@ def assert_cleared(cog):
 
 
 async def main():
-    with patch.object(cleanup.os, "system") as system:
+    with patch("os.system") as system:  # unload must not kill host-wide
         cog = FakeCog()
         processor = cog.processor
         ffmpeg = cog.ffmpeg_mgr
@@ -67,11 +67,12 @@ async def main():
         processor.cleanup.assert_awaited_once()
         ffmpeg.kill_all_processes.assert_called_once()
         assert cog.components == {}  # guild components phase ran
-        system.assert_called_once()  # system-wide ffmpeg kill ran
+        system.assert_not_called()  # only the cog's own ffmpeg processes
         assert not cog.ready.is_set()
 
         cog = FakeCog()
         await cleanup.force_cleanup_resources(cog)
+        system.assert_not_called()
         assert_cleared(cog)
         # References phase got past the component lines.
         assert cog.bot is None and cog.db is None and cog.components == {}
