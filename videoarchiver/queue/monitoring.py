@@ -180,6 +180,8 @@ class QueueMonitor:
             HealthThresholds(
                 memory_critical_mb=self.thresholds.memory_threshold,
                 deadlock_critical_sec=self.thresholds.deadlock_threshold,
+                # activity only updates when an item starts, so a long download looks idle
+                inactivity_critical_sec=self.thresholds.deadlock_threshold,
             )
         )
         self.recovery_manager = RecoveryManager(
@@ -269,6 +271,8 @@ class QueueMonitor:
                     message=f"Critical memory usage: {memory_usage:.1f}MB",
                     details={"memory_usage": memory_usage}
                 )
+            else:
+                self._resolve_alerts(HealthCategory.MEMORY)
 
             # Get current queue state
             queue_stats = state_manager.get_state_stats()
@@ -294,6 +298,8 @@ class QueueMonitor:
                     state_manager,
                     metrics_manager
                 )
+            else:
+                self._resolve_alerts(HealthCategory.DEADLOCKS)
 
             # Check overall queue activity
             activity_result = self.health_checker._check_activity_health(
@@ -313,9 +319,13 @@ class QueueMonitor:
                     metrics_manager
                 )
                 self.update_activity()
+            else:
+                self._resolve_alerts(HealthCategory.ACTIVITY)
 
-            # Check error rates
-            error_rate = current_metrics.get("error_rate", 0)
+            # Check error rates (metrics are nested by category)
+            processing = current_metrics.get("processing", {})
+            total = processing.get("total_processed", 0)
+            error_rate = processing.get("total_failed", 0) / total if total else 0.0
             if error_rate > 0.2:  # 20% error rate
                 self.alert_manager.create_alert(
                     category=HealthCategory.ERRORS,
@@ -323,6 +333,9 @@ class QueueMonitor:
                     message=f"High error rate: {error_rate:.1%}",
                     details={"error_rate": error_rate}
                 )
+            else:
+                self._resolve_alerts(HealthCategory.ERRORS)
+            self._resolve_alerts(HealthCategory.SYSTEM)  # this check itself succeeded
 
             # Log health report
             if self.strategy.level in (MonitoringLevel.INTENSIVE, MonitoringLevel.DEBUG):
@@ -341,6 +354,12 @@ class QueueMonitor:
                 severity=AlertSeverity.ERROR,
                 message=f"Health check error: {str(e)}"
             )
+
+    def _resolve_alerts(self, category: HealthCategory) -> None:
+        """Resolve active alerts of a category whose condition has cleared"""
+        for alert_id, event in list(self.alert_manager.active_alerts.items()):
+            if event.category == category:
+                self.alert_manager.resolve_alert(alert_id)
 
     def _adjust_monitoring_strategy(self, metrics: Dict[str, Any]) -> None:
         """Adjust monitoring strategy based on current state"""

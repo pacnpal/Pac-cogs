@@ -16,7 +16,6 @@ from .health_checker import HealthChecker
 from .cleaners import GuildCleaner, HistoryCleaner, TrackingCleaner
 
 # Corrected relative imports from utils
-from ..utils.compression_handler import CompressionHandler
 from ..utils.directory_manager import DirectoryManager
 from ..utils.download_manager import DownloadManager
 from ..utils.file_operations import FileOperations
@@ -45,7 +44,6 @@ __all__ = [
     "HistoryCleaner",
     "TrackingCleaner",
     # Utility handlers
-    "CompressionHandler",
     "DirectoryManager",
     "DownloadManager",
     "FileOperations",

@@ -38,7 +38,9 @@ class QueueConfig:
     max_queue_size: int = 1000
     cleanup_interval: int = 3600  # 1 hour
     max_history_age: int = 86400  # 24 hours
-    deadlock_threshold: int = 300  # 5 minutes
+    # Above QueueHandler.DOWNLOAD_TIMEOUT (1h) plus upload time, so the monitor never
+    # "recovers" (requeues) an item that is still downloading
+    deadlock_threshold: int = 3900
     check_interval: int = 60  # 1 minute
     batch_size: int = 10
     max_concurrent: int = 3
@@ -142,6 +144,7 @@ class EnhancedVideoQueueManager(IQueueManager):
         self.processor = QueueProcessor(
             state_manager=self.state_manager,
             monitor=self.monitor,
+            metrics_manager=self.metrics_manager,
             strategy=ProcessingStrategy.CONCURRENT,
             max_retries=self.config.max_retries,
             retry_delay=self.config.retry_delay,
@@ -234,7 +237,8 @@ class EnhancedVideoQueueManager(IQueueManager):
         """Get current queue status for a guild"""
         try:
             status = self.state_manager.get_guild_status(guild_id)
-            metrics = self.metrics_manager.get_metrics()
+            m = self.metrics_manager.get_metrics()
+            metrics = {**m["processing"], **m["errors"], **m["performance"]}  # flat, as StatusDisplay reads it
             monitor_stats = self.monitor.get_monitoring_stats()
             processor_stats = self.processor.get_processor_stats()
 

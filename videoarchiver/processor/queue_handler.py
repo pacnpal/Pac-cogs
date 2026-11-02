@@ -316,10 +316,15 @@ class QueueHandler:
 
             # Format message
             try:
-                author = original_message.author if original_message else None
-                channel = original_message.channel if original_message else None
-                message = await message_manager.format_message(
-                    author=author, channel=channel, url=url
+                # MessageManager.format_archive_message can't fill {channel}/{username},
+                # which the default and documented templates use, so fill them all here
+                msg = original_message
+                message = message_manager.message_template.format(
+                    author=msg.author.mention if msg else "Unknown",
+                    username=msg.author.display_name if msg else "Unknown",
+                    channel=msg.channel.name if msg else "Unknown",
+                    url=url,
+                    original_message=msg.jump_url if msg else url,
                 )
             except Exception as e:
                 raise QueueHandlerError(f"Failed to format message: {str(e)}")

@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+import contextlib
 from typing import (
     Dict,
     Any,
@@ -31,6 +32,7 @@ from ..processor.core import VideoProcessor
 from ..queue.manager import EnhancedVideoQueueManager, QueueConfig
 from ..ffmpeg.ffmpeg_manager import FFmpegManager
 from ..update_checker import UpdateChecker
+from .guild import initialize_guild_components
 
 # except ImportError:
 # Fall back to absolute imports if relative imports fail
@@ -392,6 +394,24 @@ class ComponentManager:
                             ErrorSeverity.HIGH,
                         ),
                     )
+
+            # Both are up: run the queue loop with the processor's item handler.
+            # queue_manager.cleanup()/force_stop() and processor.cleanup() cancel it.
+            queue_manager = self._components["queue_manager"].instance
+            processor = self._components["processor"].instance
+
+            async def process_queue() -> None:
+                # Cogs load before the gateway connects; items (persisted ones too) need
+                # the guild/channel cache and each guild's downloader first
+                await self.cog.bot.wait_until_red_ready()
+                for guild in self.cog.bot.guilds:
+                    if guild.id not in self.cog.components:
+                        with contextlib.suppress(Exception):  # logged by the call
+                            await initialize_guild_components(self.cog, guild.id)
+                await queue_manager.processor.start_processing(processor.process_video)
+
+            queue_manager._processing_task = asyncio.create_task(process_queue())
+            processor.set_queue_task(queue_manager._processing_task)
 
         except Exception as e:
             error = f"Component initialization failed: {str(e)}"

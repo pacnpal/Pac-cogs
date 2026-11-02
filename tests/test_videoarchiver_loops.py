@@ -68,6 +68,10 @@ async def main():
                                   lambda: MagicMock(spec=FFmpegManager)))
         stack.enter_context(patch("videoarchiver.update_checker.UpdateChecker.update_yt_dlp",
                                   AsyncMock(return_value=(True, "stub"))))
+        # The queued item's guild has no downloader; keep it queued (processing is covered
+        # by test_videoarchiver_pipeline.py)
+        stack.enter_context(patch("videoarchiver.queue.processor.QueueProcessor.start_processing",
+                                  AsyncMock()))
         for mod in LOOP_MODULES:
             stack.enter_context(patch(f"videoarchiver.{mod}.asyncio", fast_asyncio()))
 

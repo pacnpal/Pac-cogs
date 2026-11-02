@@ -189,7 +189,7 @@ class TrackingCleaner:
             )
             self.tracker.record_cleanup(result)
 
-            logger.info(
+            (logger.info if any(cleaned) else logger.debug)(
                 self.format_tracking_cleanup_report(
                     initial_counts, final_counts, duration
                 )

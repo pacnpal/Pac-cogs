@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import time
-from enum import Enum
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple, List, Set, Dict, Any
 from datetime import datetime, timedelta
@@ -11,15 +10,9 @@ from datetime import datetime, timedelta
 from .models import QueueItem
 from .state_manager import QueueStateManager, ItemState
 from .monitoring import QueueMonitor
+from .q_types import ProcessingStrategy
 
 logger = logging.getLogger("QueueProcessor")
-
-class ProcessingStrategy(Enum):
-    """Processing strategies"""
-    SEQUENTIAL = "sequential"  # Process items one at a time
-    CONCURRENT = "concurrent"  # Process multiple items concurrently
-    BATCHED = "batched"      # Process items in batches
-    PRIORITY = "priority"    # Process based on priority
 
 @dataclass
 class ProcessingMetrics:
@@ -171,6 +164,7 @@ class QueueProcessor:
         self,
         state_manager: QueueStateManager,
         monitor: QueueMonitor,
+        metrics_manager,
         strategy: ProcessingStrategy = ProcessingStrategy.CONCURRENT,
         max_retries: int = 3,
         retry_delay: int = 5,
@@ -179,6 +173,7 @@ class QueueProcessor:
     ):
         self.state_manager = state_manager
         self.monitor = monitor
+        self.metrics_manager = metrics_manager
         self.strategy = strategy
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -248,7 +243,10 @@ class QueueProcessor:
         items = await self.state_manager.get_next_items(
             self.batch_manager.max_concurrent - len(self._active_tasks)
         )
-        
+        if not items:
+            await asyncio.sleep(0.1)
+            return
+
         for item in items:
             task = asyncio.create_task(self._process_item(processor, item))
             self._active_tasks.add(task)
@@ -307,6 +305,7 @@ class QueueProcessor:
         if success:
             await self.state_manager.mark_completed(item, True)
             self.metrics.record_success(processing_time)
+            self.metrics_manager.update(processing_time, True)
             logger.info(f"Successfully processed: {item.url}")
         else:
             if item.retry_count < self.max_retries:
@@ -318,6 +317,7 @@ class QueueProcessor:
             else:
                 await self.state_manager.mark_completed(item, False, error)
                 self.metrics.record_failure(error or "Unknown error")
+                self.metrics_manager.update(processing_time, False, error or "Unknown error")
                 logger.error(f"Failed after {self.max_retries} attempts: {item.url}")
 
     async def stop_processing(self) -> None:

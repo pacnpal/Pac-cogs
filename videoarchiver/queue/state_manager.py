@@ -273,27 +273,26 @@ class QueueStateManager:
             self._queue.append(item)
             self._queue.sort(key=lambda x: (-x.priority, x.added_at))
 
-    async def get_guild_status(self, guild_id: int) -> Dict[str, int]:
-        """Get queue status for a specific guild"""
-        async with self._lock:
-            return {
-                "pending": len([
-                    item for item in self._queue
-                    if item.guild_id == guild_id
-                ]),
-                "processing": len([
-                    item for item in self._processing.values()
-                    if item.guild_id == guild_id
-                ]),
-                "completed": len([
-                    item for item in self._completed.values()
-                    if item.guild_id == guild_id
-                ]),
-                "failed": len([
-                    item for item in self._failed.values()
-                    if item.guild_id == guild_id
-                ])
-            }
+    def get_guild_status(self, guild_id: int) -> Dict[str, int]:
+        """Get queue status for a specific guild (sync: reads in-memory state only)"""
+        return {
+            "pending": len([
+                item for item in self._queue
+                if item.guild_id == guild_id
+            ]),
+            "processing": len([
+                item for item in self._processing.values()
+                if item.guild_id == guild_id
+            ]),
+            "completed": len([
+                item for item in self._completed.values()
+                if item.guild_id == guild_id
+            ]),
+            "failed": len([
+                item for item in self._failed.values()
+                if item.guild_id == guild_id
+            ])
+        }
 
     # Live containers for QueueCleaner/QueueMonitor/RecoveryManager. Cleaners mutate
     # them in place and hand them back through update_state.
@@ -366,7 +365,7 @@ class QueueStateManager:
             self._failed = state.get("failed", {})
 
             # Validate restored items
-            for item in self._queue:
+            for item in list(self._queue):
                 if not self.validator.validate_item(item):
                     logger.warning(f"Removing invalid restored item: {item}")
                     self._queue.remove(item)

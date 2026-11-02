@@ -133,8 +133,10 @@ class HealthMonitor:
 
                 # Check operation health
                 op_stats = self.processor.operation_tracker.get_operation_stats()
+                finished = op_stats["success_count"] + op_stats["error_count"]
                 self.health_status["operations"] = (
-                    op_stats["success_rate"] >= self.SUCCESS_RATE_THRESHOLD
+                    not finished  # idle counts as healthy
+                    or op_stats["success_rate"] >= self.SUCCESS_RATE_THRESHOLD
                 )
 
                 await asyncio.sleep(self.HEALTH_CHECK_INTERVAL)
