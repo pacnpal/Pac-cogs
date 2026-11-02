@@ -103,8 +103,12 @@ async def main():
 
         # force_stop (used when cleanup times out) is sync and leaves no loop running
         qm = cog.queue_manager
+        # start_processing is patched out here, so stand in for the processing loop and an item
+        qm._processing_task = asyncio.create_task(_real_sleep(3600))
+        item_task = asyncio.create_task(_real_sleep(3600))
+        qm.processor._active_tasks.add(item_task)
         tasks = [qm._maintenance_task, qm._stats_task, qm.monitor._monitoring_task,
-                 qm.cleaner._cleanup_task]
+                 qm.cleaner._cleanup_task, qm._processing_task, item_task]
         assert all(t and not t.done() for t in tasks)
         assert qm.force_stop() is None
         await _real_sleep(0.05)
