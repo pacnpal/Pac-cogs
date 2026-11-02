@@ -266,7 +266,16 @@ class DownloadManager:
     ) -> Tuple[bool, str, str]:
         """Verify the download and compress it if it exceeds the size limit"""
         ffprobe = str(self.ffmpeg_mgr.get_ffprobe_path())
-        if not await asyncio.to_thread(self.file_ops.verify_video_file, file_path, ffprobe):
+        verify = asyncio.ensure_future(
+            asyncio.to_thread(self.file_ops.verify_video_file, file_path, ffprobe)
+        )
+        try:
+            valid = await asyncio.shield(verify)
+        except asyncio.CancelledError:
+            # The caller gets no path back, so the file is ours to delete once ffprobe lets go
+            verify.add_done_callback(lambda _: self._remove(file_path))
+            raise
+        if not valid:
             self._remove(file_path)
             return False, "", "Downloaded file is not a valid video"
         if os.path.getsize(file_path) <= self.compression_manager.max_file_size:

@@ -158,6 +158,38 @@ def main():
         asyncio.run(cancel_midway())
     asyncio.run(dm.cleanup())
 
+    # Cancel during verification: the finished file is outside the temp dir now, so it must
+    # still be deleted (once ffprobe is done with it).
+    tmp = Path(tempfile.mkdtemp())
+    dm, downloads, _ = make_manager(tmp, 8)
+    probing, release = threading.Event(), threading.Event()
+
+    def slow_verify(self, path, probe):
+        probing.set()
+        release.wait(5)
+        return True
+
+    async def cancel_in_verify():
+        task = asyncio.create_task(dm.download_video("https://example.com/v"))
+        await asyncio.to_thread(probing.wait, 5)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        assert os.listdir(downloads), "file deleted while ffprobe still had it"
+        release.set()
+        for _ in range(100):
+            if not os.listdir(downloads):
+                break
+            await asyncio.sleep(0.02)
+        assert os.listdir(downloads) == [], os.listdir(downloads)
+
+    p1, _, p3 = patched(fake_ytdl(size=1000))
+    with p1, p3, patch.object(FileOperations, "verify_video_file", slow_verify):
+        asyncio.run(cancel_in_verify())
+    asyncio.run(dm.cleanup())
+
     # Two guilds archive the same video at once: each gets its own file.
     tmp = Path(tempfile.mkdtemp())
     dm, downloads, _ = make_manager(tmp, 8)
