@@ -298,14 +298,21 @@ class VideoProcessor(IComponent):
             # Get queue status
             queue_status = self.queue_manager.get_queue_status(ctx.guild.id)
 
-            # Active downloads/compressions, in the shape StatusDisplay reads
+            # Active downloads/compressions, in the shape StatusDisplay reads. The tracker is
+            # bot-wide: only show what this guild's own processing items are doing.
             progress = ProgressTracker()
+            processing = await self.queue_manager.state_manager.get_processing()
+            guild_urls = {url for url, item in processing.items() if item.guild_id == ctx.guild.id}
+            # ponytail: compressions are keyed by temp file, not URL; one item runs at a time,
+            # so they're this guild's only while this guild has an item processing
             active_ops = {
                 "downloads": {
-                    k: v for k, v in progress.get_download_progress().items() if v.get("active")
+                    k: v for k, v in progress.get_download_progress().items()
+                    if v.get("active") and k in guild_urls
                 },
                 "compressions": {
-                    k: v for k, v in progress.get_compression_progress().items() if v.get("active")
+                    k: v for k, v in progress.get_compression_progress().items()
+                    if v.get("active") and guild_urls
                 },
             }
 

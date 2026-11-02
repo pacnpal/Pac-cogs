@@ -116,7 +116,7 @@ class QueueHandler:
             logger.info(f"Started processing video: {item.url}")
 
             # Check if video is already archived
-            if self.db and await self._check_archived_video(item):
+            if await self._check_archived_video(item):
                 self._update_stats(True, start_time)
                 return True, None
 
@@ -162,13 +162,20 @@ class QueueHandler:
         finally:
             await self._cleanup_file(file_path)
 
+    async def _guild_db(self, guild_id: int):
+        """The shared DB, if this guild has it on. It stays open while any guild uses it."""
+        if self.db and await self.config_manager.get_setting(guild_id, "use_database"):
+            return self.db
+        return None
+
     async def _check_archived_video(self, item: QueueItem) -> bool:
         """Check if video is already archived and handle accordingly"""
-        if not self.db:
+        db = await self._guild_db(item.guild_id)
+        if not db:
             return False
 
         # One DB serves every guild: only this guild's own archive counts as a duplicate
-        archived_info = await self.db.get_archived_video(item.url, item.guild_id)
+        archived_info = await db.get_archived_video(item.url, item.guild_id)
         if archived_info:
             logger.info(f"Video already archived: {item.url}")
             if original_message := await self._get_original_message(item):
@@ -349,9 +356,10 @@ class QueueHandler:
             await message_manager.schedule_message_deletion(archive_message.id, expire)
 
             # Store in database if available
-            if self.db and archive_message.attachments:
+            db = await self._guild_db(guild_id)
+            if db and archive_message.attachments:
                 discord_url = archive_message.attachments[0].url
-                await self.db.add_archived_video(
+                await db.add_archived_video(
                     url, discord_url, archive_message.id, archive_channel.id, guild_id,
                     {"file_size": archive_message.attachments[0].size},
                 )

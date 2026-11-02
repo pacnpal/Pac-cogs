@@ -135,6 +135,7 @@ async def main():
         VideoArchiveDB(db_dir)  # opened before, as after a restart: reopening used to fail
         db = VideoArchiveDB(db_dir)
         processor.db = processor.queue_handler.db = db
+        await cog.config_manager.update_setting(GUILD, "use_database", True)
         archive.send.return_value = MagicMock(id=9999, delete=AsyncMock(),
                                               attachments=[MagicMock(url="https://cdn.example/v.mp4", size=123)])
         mm = cog.components[GUILD]["message_manager"]
@@ -178,9 +179,18 @@ async def main():
         assert status["metrics"]["total_processed"] == 1, status["metrics"]
         assert not os.path.exists(video), "downloaded file not cleaned up"
 
+        # Another guild's active download must not show in this guild's queue view
+        from videoarchiver.utils.progress_tracker import ProgressTracker
+        ProgressTracker().update_download_progress("https://elsewhere.example/v", {"active": True, "percent": 50})
         ctx = MagicMock(guild=guild, send=AsyncMock())
         await processor.show_queue_details(ctx)
-        assert isinstance(ctx.send.call_args.kwargs.get("embed"), discord.Embed), ctx.send.call_args
+        embed = ctx.send.call_args.kwargs.get("embed")
+        assert isinstance(embed, discord.Embed), ctx.send.call_args
+        assert "elsewhere.example" not in str(embed.to_dict()), embed.to_dict()
+
+        # The shared DB stays open, but a guild that turned it off no longer reads or writes it
+        await cog.config_manager.update_setting(GUILD, "use_database", False)
+        assert await processor.queue_handler._guild_db(GUILD) is None
 
         task = qm._processing_task
         await videoarchiver.teardown(bot)

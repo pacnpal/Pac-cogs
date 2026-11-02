@@ -324,7 +324,10 @@ class ReactionEventHandler:
         try:
             # Only the archived reaction matters, and only with the database on;
             # check before fetching, or every reaction anywhere costs an API call
-            if str(payload.emoji) != REACTIONS["archived"] or not self.cog.db:
+            if str(payload.emoji) != REACTIONS["archived"] or not self.cog.db or not payload.guild_id:
+                return
+            # The DB is shared and stays open while any guild uses it: honour this guild's setting
+            if not await self.cog.config_manager.get_setting(payload.guild_id, "use_database"):
                 return
 
             channel = self.cog.bot.get_channel(payload.channel_id)
