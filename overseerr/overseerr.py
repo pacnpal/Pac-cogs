@@ -212,7 +212,10 @@ class Overseerr(commands.Cog):
                     media_info = data.get('mediaInfo') or {}  # null when Overseerr has no record yet
                     # MediaStatus: 4 = PARTIALLY_AVAILABLE, 5 = AVAILABLE
                     status = {5: "Available", 4: "Partially Available"}.get(media_info.get('status'), "Not Available")
-                    if media_info.get('requests'):
+                    # Request status 1 = PENDING, 2 = APPROVED. Declined/failed ones shouldn't block a new request,
+                    # and Overseerr skips already requested seasons when a partially available show is requested again.
+                    active = [r for r in media_info.get('requests') or [] if r.get('status') in (1, 2)]
+                    if active and status != "Partially Available":
                         status += " (Requested)"
                     return status
                 return "Status Unknown"
