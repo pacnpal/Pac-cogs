@@ -16,6 +16,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 API_VERSION = "2022-11-28"  # supported by GitHub until March 10, 2028
 ATTACHMENT_BRANCH = "discord-attachments"
 ATTACHMENT_README = "Attachments copied from Discord forum posts by the ForumIssues cog.\n"
+# READMEs of branches this cog adopts: its own, and the one its predecessor (the ThrillWiki bot) wrote
+# with the same path layout. Renaming such a branch would break every image link in existing issues.
+OWN_READMES = (ATTACHMENT_README, "Attachments copied from Discord forum posts by the ThrillWiki bot.\n")
 # ponytail: Discord's default upload cap; upload through git blobs if bigger files need copying.
 MAX_ATTACHMENT_BYTES = 10 << 20
 
@@ -231,7 +234,7 @@ class GitHubApp:
                 if e.status != 404:
                     raise
                 content = ""
-            if content != ATTACHMENT_README:
+            if content not in OWN_READMES:
                 raise GitHubError(0, f"{repo} branch {ATTACHMENT_BRANCH} exists but was not created by this cog; rename it")
         self._branch_ready.add(repo)
 
